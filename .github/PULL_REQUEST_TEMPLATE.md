@@ -1,8 +1,25 @@
 ## Pull Request
 
-### What This PR Does
+### Summary
 
 Briefly describe what you're changing.
+
+---
+
+### What's Included
+
+- [ ] Tech spec
+- [ ] Implementation (frontend/backend)
+- [ ] Tests
+- [ ] Documentation
+- [ ] Configuration/infrastructure
+- [ ] Other (specify)
+
+---
+
+### Purpose
+
+What problem does this solve? What value does it add?
 
 ---
 
@@ -18,12 +35,12 @@ Briefly describe what you're changing.
 
 ### What's Affected
 
-- Frontend
-- Backend
-- Database/Storage
-- Tests
-- Docs
-- Other (explain)
+- [ ] Frontend
+- [ ] Backend
+- [ ] Database/Storage
+- [ ] Tests
+- [ ] Docs
+- [ ] Other (explain)
 
 ---
 
@@ -65,16 +82,32 @@ Add before/after screenshots for visual changes.
 
 ---
 
-### Related Issues
+### Review Focus Areas
 
-Closes #<issue_number>
+What should reviewers pay extra attention to?
 
-or
-
-Relates to #<issue_number>
+- [ ] Auth/logic
+- [ ] Role-based access control
+- [ ] Data validation
+- [ ] Error handling
+- [ ] UI/UX
+- [ ] Performance
+- [ ] Security
+- [ ] Documentation clarity
+- [ ] Other (specify)
 
 ---
 
 ### Notes
 
 Any extra context, edge cases, or things reviewers should know:
+
+---
+
+### Related Issues / Ticket
+
+Closes #<issue_number>
+
+or
+
+Relates to #<issue_number>
