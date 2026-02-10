@@ -12,6 +12,7 @@ from app.auth import (
 )
 from app.db import JSONStorage
 from app.models import User, RegisterRequest, UserResponse
+from app.routers import meals
 
 
 app = FastAPI(
@@ -34,6 +35,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(meals.router)
 
 
 @app.get("/")
