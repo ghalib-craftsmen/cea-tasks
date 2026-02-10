@@ -6,7 +6,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-from app.models import User
+from app.models import User, UserRole
 from app.db import JSONStorage
 
 
@@ -96,3 +96,12 @@ async def get_current_user(
         raise credentials_exception
     
     return User(**user_dict)
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only users with Admin role can perform this action"
+        )
+    return current_user

@@ -43,6 +43,30 @@ class UserCreate(BaseModel):
         use_enum_values = True
 
 
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=8, max_length=100)
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=1, max_length=100)
+    role: Optional[UserRole] = Field(default=UserRole.EMPLOYEE)
+    team_id: Optional[int] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    name: str
+    email: str
+    role: UserRole
+    team_id: Optional[int] = None
+
+    class Config:
+        use_enum_values = True
+
+
 class MealRecord(BaseModel):
     user_id: int
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
