@@ -10,7 +10,7 @@
 **Status:** Draft
 
 **Links:**
-- Project Brief: (to be added)
+- Project Brief: [(task-iteration1)](https://drive.google.com/file/d/1PE38YEru21tkwHjIReO9-E0sNBAMf0ES/view)
 - Related Issues: (to be added)
 
 ---
@@ -55,13 +55,10 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ## 5. Tech Stack and Rationale
 
-**Frontend:** React
-
-**Backend:** FastAPI
-
-**Authentication:** JWT 
-
-**Storage:** JSON files 
+**Frontend:** React   
+**Backend:** FastAPI   
+**Authentication:** JWT    
+**Storage:** JSON files   
 
 ---
 
@@ -80,6 +77,8 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Meal participation endpoints
 - Admin endpoints for overrides
 - Headcount endpoints
+- User registration endpoint (for Admin only)
+
 
 **Data:**
 - User accounts with roles
@@ -109,6 +108,15 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Session timeout
 - Role-based access
 
+
+**User Registration:**
+- Admin can register new users via API
+- Registration API creates user entry with default role (Employee)
+- User registration stores: username, password (hashed), name, email, role
+- Admin can assign role and team during registration
+- Password is hashed before storage
+
+
 **Employee Features:**
 - View today's meals
 - See current status (default: all opted in)
@@ -116,44 +124,54 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Opt back in if needed
 - Changes save immediately
 
+
 **Admin/Team Lead:**
 - View all employees' participation
 - Update anyone's participation (Admin/Logistics)
 - Team Leads can update their team members
+
 
 **Headcount:**
 - Logistics/Admin see totals per meal type
 - See participating vs opted-out counts
 - Drill down to participant lists
 
+
 **Meal Types:**
 - Lunch, Snacks, Iftar, Event Dinner, Optional Dinner
 - All available every day (for now)
 
+
 ### Role Permissions
 
-| Role | View Own | Update Own | View All | Update All | View Headcount |
-|-------|-----------|------------|----------|------------|----------------|
-| Employee | Yes | Yes | No | No | No |
-| Team Lead | Yes | Yes | Yes | Team only | No |
-| Admin | Yes | Yes | Yes | Yes | Yes |
-| Logistics | No | No | Yes | No | Yes |
+| Role | View Own | Update Own | View All | Update All | View Headcount | Can Register Users |
+|-------|-----------|------------|----------|------------|------------------|------------------|
+| Employee | Yes | Yes | No | No | No | No |
+| Team Lead | Yes | Yes | Yes | Team only | No | No |
+| Admin | Yes | Yes | Yes | Yes | Yes | Yes |
+| Logistics | No | No | Yes | No | Yes | No |
+
 
 ### Validation Rules
 
 - Valid username and password required
+- Username must be unique (no duplicates)
 - Employees only update their own data
 - Team Leads only update their team
 - Admin updates anyone
 - Logistics only views, doesn't update
 - New days default to all opted in
+- Only Admin can call registration endpoint
+
 
 ### Definition of Done
 
 - [ ] All requirements implemented
+- [ ] Registration API working
 - [ ] Works on Chrome, Edge
 - [ ] Error handling in place
 - [ ] Code reviewed
+- [ ] QA tested
 - [ ] No high-severity bugs
 
 ---
@@ -162,7 +180,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ### Employee Flow
 
-1. Employee goes to the app URL
+1. Employee goes to app URL
 2. Enters username and password
 3. Lands on their dashboard
 4. Sees 5 meal options, all checked by default
@@ -182,6 +200,19 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 7. Saves
 8. Table updates to show the change
 
+
+### User Registration Flow (Admin/Logistics)
+
+1. Admin logs in as Admin or Logistics
+2. Makes POST request to `/api/auth/register`
+3. Sends: username, password, name, email, role (optional), teamId (optional)
+4. Backend validates all inputs
+5. Backend checks if username already exists
+6. Backend hashes password with bcrypt
+7. Backend creates user entry in users.json
+8. Backend returns created user details (without password hash)
+
+
 ### Logistics Flow
 
 1. Logistics person logs in
@@ -191,12 +222,15 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 5. Sees list of names
 6. Refreshes to check for updates
 
+
 ### Failure Cases
 
 - Wrong password → Error message
 - Session expired → Redirect to login
 - Employee tries to update someone else → Forbidden
 - Team Lead tries to update non-team member → Forbidden
+- Username already exists during registration → Error, ask for different username
+- Non-admin tries to register user → Forbidden
 - No data to show → Empty state handled gracefully
 
 ---
@@ -213,6 +247,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 |---------|-----------|---------------|--------------|
 | POST | `/api/auth/login` | Login | Everyone |
 | POST | `/api/auth/logout` | Logout | Logged-in users |
+| POST | `/api/auth/register` | Register new user | Admin |
 | GET | `/api/meals/today` | Get today's meals + my status | Logged-in users |
 | PUT | `/api/meals/participation` | Update my meals | Logged-in users |
 | GET | `/api/admin/participation` | Get everyone's participation | Team Lead, Admin, Logistics |
@@ -241,7 +276,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - Trade-off: Need to manage build/deploy separately, but flexibility is worth it.
 
 **No Cutoff Window Yet**
-- Why: Requirements aren't clear yet. Let's ship the core first.
+- Why: Requirements aren't complete yet. Let's ship the core first iteration.
 - Trade-off: People can change their mind anytime, but that's okay for now.
 
 **No Audit Trail**
@@ -254,19 +289,20 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 ### Authentication
 
-- Passwords hashed 
+- Passwords hashed with bcrypt
 - JWT tokens for sessions
 - 8-hour token expiry
 - Tokens sent in Authorization header
 
 ### Access Control
 
-| Role | Login | Update Own | View All | Update All | Headcount |
-|-------|--------|------------|----------|------------|-----------|
-| Employee | ✓ | ✓ | ✗ | ✗ | ✗ |
-| Team Lead | ✓ | ✓ | ✓ | Team | ✗ |
-| Admin | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ |
+| Role | Login | Update Own | View All | Update All | Headcount | Register Users |
+|-------|--------|------------|----------|------------|-----------|------------------|
+| Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Team Lead | ✓ | ✓ | ✓ | Team | ✗ | ✗ |
+| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ |
+
 
 ### Secrets
 
@@ -281,7 +317,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 ### Unit Tests
 
-- Auth logic (login, token generation)
+- Auth logic (login, token generation, registration)
 - Participation logic (opt in/out)
 - Headcount calculations
 - Role checks
@@ -299,6 +335,16 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - [ ] Can log in with valid credentials
 - [ ] Wrong password shows error
 - [ ] Session timeout works
+
+**User Registration (API):**
+- [ ] Admin/Logistics can call registration endpoint
+- [ ] Creates new user successfully
+- [ ] Duplicate username rejected with error
+- [ ] Password is hashed (not plaintext) in JSON
+- [ ] User can log in with registered credentials
+- [ ] Non-admin roles get Forbidden when trying to register
+- [ ] Script for creating new users in bulk
+- [ ] Script for creating new admin for testing
 
 **Employee:**
 - [ ] See today's meals
@@ -325,6 +371,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 ### Logging
 
 - Login attempts (success/fail)
+- User registration events
 - Participation updates
 - Admin overrides
 - Errors
@@ -361,6 +408,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 - Internal network only, not public-facing
 - 100-200 employees max
+- Admin registers new users via API initially
 - Admin creates user accounts upfront
 - Teams are already defined
 - All 5 meals available daily
@@ -373,6 +421,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - [ ] Expected user count beyond 200?
 - [ ] Special day types in Iteration 2?
 - [ ] Export functionality needed?
+- [ ] Should we build UI for user registration in Iteration 2?
 
 ---
 
