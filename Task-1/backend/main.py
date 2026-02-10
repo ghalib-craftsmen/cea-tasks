@@ -4,12 +4,14 @@ from pydantic import BaseModel
 
 from app.auth import (
     verify_password,
+    hash_password,
     create_access_token,
     get_current_user,
+    require_admin,
     Token
 )
 from app.db import JSONStorage
-from app.models import User
+from app.models import User, RegisterRequest, UserResponse
 
 
 app = FastAPI(
@@ -50,18 +52,6 @@ async def root():
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(request: LoginRequest):
-    """
-    Authenticate a user and return a JWT access token.
-    
-    Args:
-        request: LoginRequest containing username and password
-        
-    Returns:
-        Token containing the access token and token type
-        
-    Raises:
-        HTTPException: 401 if username or password is incorrect
-    """
     # Get user from database
     users_data = storage.read_users()
     user_dict = None
@@ -95,23 +85,57 @@ async def login(request: LoginRequest):
 
 @app.post("/api/auth/logout")
 async def logout(current_user: User = Depends(get_current_user)):
-    """
-    Logout endpoint (placeholder).
-    
-    Since JWTs are stateless, real logout happens on the client side
-    by discarding the token. This endpoint exists for API specification
-    compatibility and can be extended with token blacklisting if needed.
-    
-    Args:
-        current_user: The currently authenticated user
-        
-    Returns:
-        Success message
-    """
     return {
         "message": "Successfully logged out",
         "username": current_user.username
     }
+
+
+@app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register(request: RegisterRequest, current_user: User = Depends(require_admin)):
+    # Get existing users
+    users_data = storage.read_users()
+    
+    # Check if username already exists
+    for user_data in users_data:
+        if user_data.get("username") == request.username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Username '{request.username}' already exists"
+            )
+    
+    # Generate new user ID
+    new_id = len(users_data) + 1 if users_data else 1
+    
+    # Hash the password
+    password_hash = hash_password(request.password)
+    
+    # Create new user dictionary
+    new_user_dict = {
+        "id": new_id,
+        "username": request.username,
+        "password_hash": password_hash,
+        "name": request.name,
+        "email": request.email,
+        "role": request.role,
+        "team_id": request.team_id
+    }
+    
+    # Append to users list
+    users_data.append(new_user_dict)
+    
+    # Write to storage
+    storage.write_users(users_data)
+    
+    # Return user response (excluding password hash)
+    return UserResponse(
+        id=new_user_dict["id"],
+        username=new_user_dict["username"],
+        name=new_user_dict["name"],
+        email=new_user_dict["email"],
+        role=new_user_dict["role"],
+        team_id=new_user_dict["team_id"]
+    )
 
 
 if __name__ == "__main__":
