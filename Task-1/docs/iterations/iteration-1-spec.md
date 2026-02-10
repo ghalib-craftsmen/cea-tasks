@@ -321,13 +321,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - Participation logic (opt in/out)
 - Headcount calculations
 - Role checks
-
-### Integration Tests
-
-- Full login flow
-- Employee update flow
-- Admin override flow
-- Headcount aggregation
+  
 
 ### Manual QA Checklist
 
