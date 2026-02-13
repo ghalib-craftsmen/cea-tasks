@@ -1,0 +1,1388 @@
+[
+  {
+    "user_id": 3,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 4,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 5,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 6,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 7,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 8,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 9,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 10,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 11,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 12,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 13,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 14,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 15,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 16,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 17,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 18,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 19,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 20,
+    "date": "2026-02-11",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 3,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 4,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 5,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 6,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 7,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 8,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 9,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 10,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 11,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 12,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 13,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 14,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 15,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 16,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 17,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 18,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 19,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 20,
+    "date": "2026-02-10",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 3,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 4,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 5,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 6,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 7,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 8,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 9,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 10,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 11,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 12,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 13,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 14,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 15,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 16,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 17,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 18,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 19,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 20,
+    "date": "2026-02-09",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 3,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 4,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 5,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 6,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 7,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 8,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 9,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 10,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 11,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 12,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 13,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 14,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 15,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 16,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 17,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 18,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 19,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 20,
+    "date": "2026-02-08",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 3,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 4,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 5,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 6,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 7,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 8,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 9,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 10,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 11,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 12,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 13,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 14,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 15,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 16,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 17,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 18,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 19,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 20,
+    "date": "2026-02-07",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 3,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 4,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 5,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 6,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 7,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 8,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 9,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 10,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 11,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 12,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 13,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 14,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 15,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 16,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 17,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 18,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 19,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 20,
+    "date": "2026-02-06",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 3,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 4,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 5,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 6,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 7,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 8,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 9,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 10,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": false,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 11,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 12,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 13,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 14,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 15,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 16,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 17,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": false,
+      "Snacks": false,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 18,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 19,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 20,
+    "date": "2026-02-05",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  }
+]
