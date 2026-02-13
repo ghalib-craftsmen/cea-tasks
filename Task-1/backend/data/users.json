@@ -1,0 +1,200 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "password": "admin123",
+    "name": "System Administrator",
+    "email": "admin@company.com",
+    "role": "Admin",
+    "team_id": null
+  },
+  {
+    "id": 2,
+    "username": "logistics",
+    "password": "logistics123",
+    "name": "Logistics Manager",
+    "email": "logistics@company.com",
+    "role": "Logistics",
+    "team_id": null
+  },
+  {
+    "id": 3,
+    "username": "teamlead1",
+    "password": "teamlead1_123",
+    "name": "Team Lead 1",
+    "email": "teamlead1@company.com",
+    "role": "TeamLead",
+    "team_id": 1
+  },
+  {
+    "id": 4,
+    "username": "teamlead2",
+    "password": "teamlead2_123",
+    "name": "Team Lead 2",
+    "email": "teamlead2@company.com",
+    "role": "TeamLead",
+    "team_id": 2
+  },
+  {
+    "id": 5,
+    "username": "teamlead3",
+    "password": "teamlead3_123",
+    "name": "Team Lead 3",
+    "email": "teamlead3@company.com",
+    "role": "TeamLead",
+    "team_id": 3
+  },
+  {
+    "id": 6,
+    "username": "teamlead4",
+    "password": "teamlead4_123",
+    "name": "Team Lead 4",
+    "email": "teamlead4@company.com",
+    "role": "TeamLead",
+    "team_id": 4
+  },
+  {
+    "id": 7,
+    "username": "teamlead5",
+    "password": "teamlead5_123",
+    "name": "Team Lead 5",
+    "email": "teamlead5@company.com",
+    "role": "TeamLead",
+    "team_id": 5
+  },
+  {
+    "id": 8,
+    "username": "employee1",
+    "password": "employee1_123",
+    "name": "Employee 1",
+    "email": "employee1@company.com",
+    "role": "Employee",
+    "team_id": 1
+  },
+  {
+    "id": 9,
+    "username": "employee2",
+    "password": "employee2_123",
+    "name": "Employee 2",
+    "email": "employee2@company.com",
+    "role": "Employee",
+    "team_id": 2
+  },
+  {
+    "id": 10,
+    "username": "employee3",
+    "password": "employee3_123",
+    "name": "Employee 3",
+    "email": "employee3@company.com",
+    "role": "Employee",
+    "team_id": 3
+  },
+  {
+    "id": 11,
+    "username": "employee4",
+    "password": "employee4_123",
+    "name": "Employee 4",
+    "email": "employee4@company.com",
+    "role": "Employee",
+    "team_id": 4
+  },
+  {
+    "id": 12,
+    "username": "employee5",
+    "password": "employee5_123",
+    "name": "Employee 5",
+    "email": "employee5@company.com",
+    "role": "Employee",
+    "team_id": 5
+  },
+  {
+    "id": 13,
+    "username": "employee6",
+    "password": "employee6_123",
+    "name": "Employee 6",
+    "email": "employee6@company.com",
+    "role": "Employee",
+    "team_id": 1
+  },
+  {
+    "id": 14,
+    "username": "employee7",
+    "password": "employee7_123",
+    "name": "Employee 7",
+    "email": "employee7@company.com",
+    "role": "Employee",
+    "team_id": 2
+  },
+  {
+    "id": 15,
+    "username": "employee8",
+    "password": "employee8_123",
+    "name": "Employee 8",
+    "email": "employee8@company.com",
+    "role": "Employee",
+    "team_id": 3
+  },
+  {
+    "id": 16,
+    "username": "employee9",
+    "password": "employee9_123",
+    "name": "Employee 9",
+    "email": "employee9@company.com",
+    "role": "Employee",
+    "team_id": 4
+  },
+  {
+    "id": 17,
+    "username": "employee10",
+    "password": "employee10_123",
+    "name": "Employee 10",
+    "email": "employee10@company.com",
+    "role": "Employee",
+    "team_id": 5
+  },
+  {
+    "id": 18,
+    "username": "employee11",
+    "password": "employee11_123",
+    "name": "Employee 11",
+    "email": "employee11@company.com",
+    "role": "Employee",
+    "team_id": 1
+  },
+  {
+    "id": 19,
+    "username": "employee12",
+    "password": "employee12_123",
+    "name": "Employee 12",
+    "email": "employee12@company.com",
+    "role": "Employee",
+    "team_id": 2
+  },
+  {
+    "id": 20,
+    "username": "employee13",
+    "password": "employee13_123",
+    "name": "Employee 13",
+    "email": "employee13@company.com",
+    "role": "Employee",
+    "team_id": 3
+  },
+  {
+    "id": 21,
+    "username": "john_doe",
+    "password": "securePassword123",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "Employee",
+    "team_id": 1
+  },
+  {
+    "id": 22,
+    "username": "john",
+    "password": "securePassword123",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "Employee",
+    "team_id": 1
+  }
+]
