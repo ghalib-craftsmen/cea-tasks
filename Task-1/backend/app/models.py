@@ -21,7 +21,7 @@ class MealType(str, Enum):
 class User(BaseModel):
     id: int
     username: str = Field(..., min_length=1, max_length=50)
-    password_hash: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., min_length=1, max_length=100)
     role: UserRole
@@ -33,7 +33,7 @@ class User(BaseModel):
 
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=1, max_length=50)
-    password_hash: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., min_length=1, max_length=100)
     role: UserRole

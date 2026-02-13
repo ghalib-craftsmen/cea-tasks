@@ -6,7 +6,6 @@ import tempfile
 
 
 class JSONStorage:
-
     def __init__(self, base_dir: str = "data"):
         self.base_dir = Path(base_dir)
         self._ensure_directory_exists()
@@ -35,7 +34,6 @@ class JSONStorage:
         )
         
         try:
-            # Write data to the temporary file
             with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             
@@ -43,7 +41,6 @@ class JSONStorage:
             # os.replace() works on both Unix and Windows and is atomic
             os.replace(temp_path, str(file_path))
         except Exception:
-            # If anything goes wrong, clean up the temporary file
             try:
                 os.unlink(temp_path)
             except OSError:
