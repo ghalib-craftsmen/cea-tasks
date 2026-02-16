@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-"""
-Script to create an admin user for testing purposes.
-This script adds a new admin user to the users.json file.
-Accepts input from command-line arguments or interactive terminal.
-"""
-
 import json
 import sys
 from pathlib import Path

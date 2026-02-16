@@ -5,22 +5,18 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 import hashlib
 from pydantic import BaseModel
-
 from app.models import User, UserRole
 from app.db import JSONStorage
 
 
-# Configuration
-SECRET_KEY = "secret-key-in-production"  # In production, use environment variable
+SECRET_KEY = "secret-key-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 8
 
 
-# HTTP Bearer for Authorization header
 security = HTTPBearer()
 
 
-# Initialize storage
 storage = JSONStorage()
 
 
@@ -76,7 +72,6 @@ async def get_current_user(
     if username is None:
         raise credentials_exception
     
-    # Get user from database
     users_data = storage.read_users()
     user_dict = None
     for user_data in users_data:
