@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
 from app.auth import (
     hash_password,
     create_access_token,
@@ -26,16 +25,14 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(meals.router)
 app.include_router(admin.router)
 app.include_router(headcount.router)
@@ -57,7 +54,6 @@ async def root():
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(request: LoginRequest):
-    # Get user from database
     users_data = storage.read_users()
     user_dict = None
     for user_data in users_data:
@@ -74,7 +70,6 @@ async def login(request: LoginRequest):
     
     user = User(**user_dict)
     
-    # Verify password by hashing both the stored password and input password
     stored_password_hash = hash_password(user.password)
     input_password_hash = hash_password(request.password)
     
@@ -85,7 +80,6 @@ async def login(request: LoginRequest):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Create access token
     access_token = create_access_token(data={"sub": user.username})
     
     return {"access_token": access_token, "token_type": "bearer"}
@@ -101,21 +95,28 @@ async def logout(current_user: User = Depends(get_current_user)):
 
 @app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: RegisterRequest, current_user: User = Depends(require_admin)):
-    # Get existing users
+
     users_data = storage.read_users()
     
-    # Check if username already exists
+    request_username_lower = request.username.lower()
     for user_data in users_data:
-        if user_data.get("username") == request.username:
+        if user_data.get("username", "").lower() == request_username_lower:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Username '{request.username}' already exists"
             )
     
-    # Generate new user ID
+    request_email_lower = request.email.lower()
+    for user_data in users_data:
+        existing_email = user_data.get("email", "")
+        if existing_email.lower() == request_email_lower:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email '{request.email}' already exists"
+            )
+    
     new_id = len(users_data) + 1 if users_data else 1
     
-    # Store original password (will be hashed dynamically during authentication)
     new_user_dict = {
         "id": new_id,
         "username": request.username,
@@ -126,13 +127,10 @@ async def register(request: RegisterRequest, current_user: User = Depends(requir
         "team_id": request.team_id
     }
     
-    # Append to users list
     users_data.append(new_user_dict)
     
-    # Write to storage
     storage.write_users(users_data)
     
-    # Return user response (excluding password hash)
     return UserResponse(
         id=new_user_dict["id"],
         username=new_user_dict["username"],

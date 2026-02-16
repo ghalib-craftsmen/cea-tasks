@@ -75,11 +75,9 @@ async def get_all_participation(
     current_user: User = Depends(require_admin_or_teamlead_or_logistics)):
     today = get_todays_date()
     
-    # Read all users and participation data
     users_data = storage.read_users()
     participation_data = storage.read_participation()
     
-    # Build a lookup for participation records by user_id and date
     participation_lookup: Dict[int, Dict] = {}
     for record in participation_data:
         if record.get("date") == today:
@@ -90,17 +88,14 @@ async def get_all_participation(
     for user_dict in users_data:
         user = User(**user_dict)
         
-        # Filter: TeamLead can only see users in their team
         if current_user.role == UserRole.TEAM_LEAD:
             if user.team_id != current_user.team_id:
                 continue
         
-        # Get participation record or create default
         participation_record = participation_lookup.get(user.id)
         if participation_record:
             meals = participation_record.get("meals", {})
         else:
-            # Create default participation for display purposes
             default_record = create_default_participation(user.id, today)
             meals = {meal_type.value: value for meal_type, value in default_record.meals.items()}
         
@@ -125,11 +120,9 @@ async def update_user_participation(
     
     today = get_todays_date()
     
-    # Read all users and participation data
     users_data = storage.read_users()
     participation_data = storage.read_participation()
     
-    # Find target user
     target_user_dict = None
     for user_dict in users_data:
         if user_dict.get("id") == update_data.target_user_id:
@@ -144,9 +137,7 @@ async def update_user_participation(
     
     target_user = User(**target_user_dict)
     
-    # Role-based authorization
     if current_user.role == UserRole.TEAM_LEAD:
-        # TeamLead can only update users in their team
         if target_user.team_id != current_user.team_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -158,7 +149,6 @@ async def update_user_participation(
             detail="Only Admin, Logistics, or TeamLead (for team members) can update participation"
         )
     
-    # Validate meal types in update data
     valid_meal_types = {mt.value for mt in MealType}
     for meal_type in update_data.meals.keys():
         if meal_type not in valid_meal_types:
@@ -167,7 +157,6 @@ async def update_user_participation(
                 detail=f"Invalid meal type: {meal_type}. Valid types are: {', '.join(valid_meal_types)}"
             )
     
-    # Find existing participation record for target user and today
     record_index = None
     for i, record in enumerate(participation_data):
         if record.get("user_id") == update_data.target_user_id and record.get("date") == today:
@@ -175,19 +164,15 @@ async def update_user_participation(
             break
     
     if record_index is None:
-        # No record exists - create default and add to list
         new_record = create_default_participation(update_data.target_user_id, today)
         new_record_dict = new_record.model_dump()
         participation_data.append(new_record_dict)
         record_index = len(participation_data) - 1
     
-    # Update the specific fields
     participation_data[record_index]["meals"].update(update_data.meals)
     
-    # Persist changes
     storage.write_participation(participation_data)
     
-    # Get updated record
     updated_record = participation_data[record_index]
     
     return UserParticipation(

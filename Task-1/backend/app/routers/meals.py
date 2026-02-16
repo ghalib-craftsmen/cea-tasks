@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-
 from app.auth import get_current_user
 from app.db import JSONStorage
 from app.models import User, MealType, MealRecord
@@ -39,10 +38,8 @@ class ParticipationUpdate(BaseModel):
 async def get_todays_participation(current_user: User = Depends(get_current_user)):
     today = get_todays_date()
     
-    # Read all participation records
     participation_data = storage.read_participation()
     
-    # Find existing record for user and today
     existing_record = None
     for record in participation_data:
         if record.get("user_id") == current_user.id and record.get("date") == today:
@@ -52,11 +49,9 @@ async def get_todays_participation(current_user: User = Depends(get_current_user
     if existing_record:
         return MealRecord(**existing_record)
     
-    # No record exists for today - create default and persist
     new_record = create_default_participation(current_user.id, today)
     new_record_dict = new_record.model_dump()
     
-    # Append to participation data and save
     participation_data.append(new_record_dict)
     storage.write_participation(participation_data)
     
@@ -70,10 +65,8 @@ async def update_participation(
 ):
     today = get_todays_date()
     
-    # Read all participation records
     participation_data = storage.read_participation()
     
-    # Find existing record for user and today
     record_index = None
     for i, record in enumerate(participation_data):
         if record.get("user_id") == current_user.id and record.get("date") == today:
@@ -81,13 +74,11 @@ async def update_participation(
             break
     
     if record_index is None:
-        # No record exists - create default and add to list
         new_record = create_default_participation(current_user.id, today)
         new_record_dict = new_record.model_dump()
         participation_data.append(new_record_dict)
         record_index = len(participation_data) - 1
     
-    # Validate meal types in update data
     valid_meal_types = {mt.value for mt in MealType}
     for meal_type in update_data.meals.keys():
         if meal_type not in valid_meal_types:
@@ -96,10 +87,8 @@ async def update_participation(
                 detail=f"Invalid meal type: {meal_type}. Valid types are: {', '.join(valid_meal_types)}"
             )
     
-    # Update the specific fields
     participation_data[record_index]["meals"].update(update_data.meals)
     
-    # Persist changes
     storage.write_participation(participation_data)
     
     return MealRecord(**participation_data[record_index])
