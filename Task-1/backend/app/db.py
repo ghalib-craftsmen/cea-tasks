@@ -25,8 +25,6 @@ class JSONStorage:
 
 
     def _write_atomic(self, file_path: Path, data: Any) -> None:
-        # Create a temporary file in the same directory as the target file
-        # This ensures the temporary file is on the same filesystem
         temp_fd, temp_path = tempfile.mkstemp(
             dir=self.base_dir,
             prefix=f".{file_path.stem}_",
@@ -36,10 +34,8 @@ class JSONStorage:
         try:
             with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            # Atomically replace the target file with the temporary file
-            # os.replace() works on both Unix and Windows and is atomic
-            os.replace(temp_path, str(file_path))
+                
+                os.replace(temp_path, str(file_path))
         except Exception:
             try:
                 os.unlink(temp_path)

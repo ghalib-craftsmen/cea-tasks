@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-
 from app.auth import get_current_user
 from app.db import JSONStorage
 from app.models import User, UserRole, MealType
@@ -62,11 +61,9 @@ async def get_headcount_summary(
     current_user: User = Depends(require_admin_or_logistics)):
     today = get_todays_date()
     
-    # Read all users and participation data
     users_data = storage.read_users()
     participation_data = storage.read_participation()
     
-    # Build a lookup for participation records by user_id and date
     participation_lookup: Dict[int, Dict] = {}
     for record in participation_data:
         if record.get("date") == today:
@@ -74,12 +71,10 @@ async def get_headcount_summary(
     
     total_employees = len(users_data)
     
-    # Initialize counts for each meal type
     meal_counts = {}
     for meal_type in MealType:
         meal_counts[meal_type] = {"opted_in": 0, "opted_out": 0}
     
-    # Count opted-in and opted-out for each meal type
     for user_dict in users_data:
         user_id = user_dict.get("id")
         participation_record = participation_lookup.get(user_id)
@@ -89,7 +84,6 @@ async def get_headcount_summary(
                 meals = participation_record.get("meals", {})
                 opted_in = meals.get(meal_type.value, False)
             else:
-                # Default to opted in if no record exists
                 opted_in = True
             
             if opted_in:
@@ -97,7 +91,6 @@ async def get_headcount_summary(
             else:
                 meal_counts[meal_type]["opted_out"] += 1
     
-    # Build response
     meal_count_summaries = []
     for meal_type in MealType:
         opted_in = meal_counts[meal_type]["opted_in"]
@@ -127,7 +120,6 @@ async def get_meal_users(
     current_user: User = Depends(require_admin_or_logistics)):
     today = get_todays_date()
     
-    # Validate meal type
     valid_meal_types = {mt.value for mt in MealType}
     if meal_type not in valid_meal_types:
         raise HTTPException(
@@ -135,17 +127,14 @@ async def get_meal_users(
             detail=f"Invalid meal type: {meal_type}. Valid types are: {', '.join(sorted(valid_meal_types))}"
         )
     
-    # Read all users and participation data
     users_data = storage.read_users()
     participation_data = storage.read_participation()
     
-    # Build a lookup for participation records by user_id and date
     participation_lookup: Dict[int, Dict] = {}
     for record in participation_data:
         if record.get("date") == today:
             participation_lookup[record.get("user_id")] = record
     
-    # Find users who opted in for the specified meal type
     opted_in_users = []
     for user_dict in users_data:
         user_id = user_dict.get("id")
@@ -155,7 +144,6 @@ async def get_meal_users(
             meals = participation_record.get("meals", {})
             opted_in = meals.get(meal_type, False)
         else:
-            # Default to opted in if no record exists
             opted_in = True
         
         if opted_in:
@@ -163,7 +151,7 @@ async def get_meal_users(
                 user_id=user_dict.get("id"),
                 name=user_dict.get("name"),
                 team_id=user_dict.get("team_id"),
-                team_name=None  # Could be enhanced to fetch team name if teams table exists
+                team_name=None
             ))
     
     return MealUserList(
