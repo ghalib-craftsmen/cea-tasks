@@ -19,7 +19,7 @@ def get_todays_date() -> str:
 async def require_admin_or_logistics(
     current_user: User = Depends(get_current_user)
 ) -> User:
-    if current_user.role not in [UserRole.ADMIN, UserRole.LOGISTICS]:
+    if current_user.role not in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only users with Admin or Logistics role can access this endpoint"

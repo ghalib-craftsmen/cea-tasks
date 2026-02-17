@@ -102,7 +102,7 @@ async def logout(current_user: User = Depends(get_current_user)):
     }
 
 
-@app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
 async def register(request: RegisterRequest, current_user: User = Depends(require_admin)):
 
     users_data = storage.read_users()
@@ -140,14 +140,10 @@ async def register(request: RegisterRequest, current_user: User = Depends(requir
     
     storage.write_users(users_data)
     
-    return UserResponse(
-        id=new_user_dict["id"],
-        username=new_user_dict["username"],
-        name=new_user_dict["name"],
-        email=new_user_dict["email"],
-        role=new_user_dict["role"],
-        team_id=new_user_dict["team_id"]
-    )
+    return {
+        "message": f"{request.username} is registered successfully",
+        "code": status.HTTP_201_CREATED
+    }
 
 
 if __name__ == "__main__":

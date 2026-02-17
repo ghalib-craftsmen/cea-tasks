@@ -52,7 +52,7 @@ class ParticipationUpdateRequest(BaseModel):
 
 async def require_admin_or_teamlead_or_logistics(
     current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role not in [UserRole.ADMIN, UserRole.TEAM_LEAD, UserRole.LOGISTICS]:
+    if current_user.role not in [UserRole.ADMIN.value, UserRole.TEAM_LEAD.value, UserRole.LOGISTICS.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only users with Admin, TeamLead, or Logistics role can perform this action"
@@ -62,7 +62,7 @@ async def require_admin_or_teamlead_or_logistics(
 
 async def require_admin_or_logistics(
     current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role not in [UserRole.ADMIN, UserRole.LOGISTICS]:
+    if current_user.role not in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only users with Admin or Logistics role can perform this action"
@@ -87,8 +87,8 @@ async def get_all_participation(
     
     for user_dict in users_data:
         user = User(**user_dict)
-        
-        if current_user.role == UserRole.TEAM_LEAD:
+
+        if current_user.role == UserRole.TEAM_LEAD.value:
             if user.team_id != current_user.team_id:
                 continue
         
@@ -97,7 +97,7 @@ async def get_all_participation(
             meals = participation_record.get("meals", {})
         else:
             default_record = create_default_participation(user.id, today)
-            meals = {meal_type.value: value for meal_type, value in default_record.meals.items()}
+            meals = default_record.meals
         
         result.append(UserParticipation(
             user_id=user.id,
@@ -143,7 +143,7 @@ async def update_user_participation(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="TeamLead can only update users in their team"
             )
-    elif current_user.role not in [UserRole.ADMIN, UserRole.LOGISTICS]:
+    elif current_user.role not in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only Admin, Logistics, or TeamLead (for team members) can update participation"
@@ -185,3 +185,4 @@ async def update_user_participation(
         date=today,
         meals=updated_record["meals"]
     )
+

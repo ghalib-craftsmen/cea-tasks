@@ -196,5 +196,14 @@
     "email": "john.du@example.com",
     "role": "Employee",
     "team_id": 1
+  },
+  {
+    "id": 23,
+    "username": "john_doe",
+    "password": "$2b$12$nZNySuFZUr/A1Rdn/OkIo.W/vzufSeXHyR5S3S2fN7GmT6ll.UTia",
+    "name": "John Du",
+    "email": "john.doe@example.com",
+    "role": "Employee",
+    "team_id": 1
   }
 ]
