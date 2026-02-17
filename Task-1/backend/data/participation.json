@@ -1582,5 +1582,27 @@
       "EventDinner": true,
       "OptionalDinner": true
     }
+  },
+  {
+    "user_id": 1,
+    "date": "2026-02-17",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": true
+    }
+  },
+  {
+    "user_id": 2,
+    "date": "2026-02-17",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": false,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
   }
 ]
