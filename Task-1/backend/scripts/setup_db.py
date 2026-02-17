@@ -5,7 +5,11 @@ import random
 import hashlib
 import sys
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from app.db import JSONStorage
+
 DATA_DIR = Path(__file__).parent.parent / "data"
+storage = JSONStorage(str(DATA_DIR))
 
 
 def get_input_from_user():
@@ -114,10 +118,6 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-def ensure_data_directory():
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-
 def generate_users():
     users = []
     
@@ -194,9 +194,7 @@ def generate_participation(users):
 
 
 def write_json_file(filename, data):
-    file_path = DATA_DIR / filename
-    with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    storage.write(filename, data)
     print(f"✓ Generated {filename} with {len(data)} records")
 
 
@@ -211,8 +209,6 @@ def setup_database():
     
     print("Setting up Meal Headcount Planner database...")
     print("-" * 50)
-    
-    ensure_data_directory()
     
     users = generate_users()
     write_json_file("users.json", users)
