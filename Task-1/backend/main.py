@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from app.auth import (
     hash_password,
+    verify_password,
     create_access_token,
     get_current_user,
     require_admin,
@@ -81,10 +82,7 @@ async def login(request: LoginRequest):
     
     user = User(**user_dict)
     
-    stored_password_hash = hash_password(user.password)
-    input_password_hash = hash_password(request.password)
-    
-    if stored_password_hash != input_password_hash:
+    if not verify_password(request.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -131,7 +129,7 @@ async def register(request: RegisterRequest, current_user: User = Depends(requir
     new_user_dict = {
         "id": new_id,
         "username": request.username,
-        "password": request.password,
+        "password": hash_password(request.password),
         "name": request.name,
         "email": request.email,
         "role": request.role,

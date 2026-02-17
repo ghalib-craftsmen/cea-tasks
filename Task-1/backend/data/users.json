@@ -2,7 +2,7 @@
   {
     "id": 1,
     "username": "admin",
-    "password": "admin123",
+    "password": "$2b$12$yZz43lx3R3MANPKRkhmHyu1RL7kPtx10u62TgQsnV7uBpoS1Cop1G",
     "name": "System Administrator",
     "email": "admin@company.com",
     "role": "Admin",
@@ -11,7 +11,7 @@
   {
     "id": 2,
     "username": "logistics",
-    "password": "logistics123",
+    "password": "$2b$12$lT87YYbLSUmobl8MfZaFLu7AJUcet5agEDW86Yr3/FPxOhK/3o1x.",
     "name": "Logistics Manager",
     "email": "logistics@company.com",
     "role": "Logistics",
@@ -20,7 +20,7 @@
   {
     "id": 3,
     "username": "teamlead1",
-    "password": "teamlead1_123",
+    "password": "$2b$12$65occuFRdowGECYmQ80h3ukLSwD/bRNlZk2smU7cG6/djh4qfUDE.",
     "name": "Team Lead 1",
     "email": "teamlead1@company.com",
     "role": "TeamLead",
@@ -29,7 +29,7 @@
   {
     "id": 4,
     "username": "teamlead2",
-    "password": "teamlead2_123",
+    "password": "$2b$12$SteKkudAhlu4Nzn9bn1c8ucmIExKl8sHRUdaCvRi37wK6UjFcP/0m",
     "name": "Team Lead 2",
     "email": "teamlead2@company.com",
     "role": "TeamLead",
@@ -38,7 +38,7 @@
   {
     "id": 5,
     "username": "teamlead3",
-    "password": "teamlead3_123",
+    "password": "$2b$12$D2yYwItCDn3Yuj3/fiT6GeA0ApkTSGbgCG8kRofUWdj4TniuZjRka",
     "name": "Team Lead 3",
     "email": "teamlead3@company.com",
     "role": "TeamLead",
@@ -47,7 +47,7 @@
   {
     "id": 6,
     "username": "teamlead4",
-    "password": "teamlead4_123",
+    "password": "$2b$12$EdovJkNzEy26spzKDLun5eeHINT65XALNzpHrDChQEnZXVhxeW3oy",
     "name": "Team Lead 4",
     "email": "teamlead4@company.com",
     "role": "TeamLead",
@@ -56,7 +56,7 @@
   {
     "id": 7,
     "username": "teamlead5",
-    "password": "teamlead5_123",
+    "password": "$2b$12$BRnEXbVxJXOnUL9i1BF33.q7Kt8TNMlTENOu8508tWIj2EMHHdRve",
     "name": "Team Lead 5",
     "email": "teamlead5@company.com",
     "role": "TeamLead",
@@ -65,7 +65,7 @@
   {
     "id": 8,
     "username": "employee1",
-    "password": "employee1_123",
+    "password": "$2b$12$IkDA.64tIePK26dRs6vla.Kly2WEayataj3QSNb7Anfocm.uUoTNW",
     "name": "Employee 1",
     "email": "employee1@company.com",
     "role": "Employee",
@@ -74,7 +74,7 @@
   {
     "id": 9,
     "username": "employee2",
-    "password": "employee2_123",
+    "password": "$2b$12$5Hoykn/UGv0Tpl6PviRWnes7WzS8PgJku9FK4TJWB8nyvolOh71r.",
     "name": "Employee 2",
     "email": "employee2@company.com",
     "role": "Employee",
@@ -83,7 +83,7 @@
   {
     "id": 10,
     "username": "employee3",
-    "password": "employee3_123",
+    "password": "$2b$12$1t6y2RSc3dTICki.aStvjeupD.ViOdMFPZSOhS6MKyjD9ua7GuloK",
     "name": "Employee 3",
     "email": "employee3@company.com",
     "role": "Employee",
@@ -92,7 +92,7 @@
   {
     "id": 11,
     "username": "employee4",
-    "password": "employee4_123",
+    "password": "$2b$12$2A0gVmCJOEZogHF7etlVDuJrMJ0inPU1HSu.v3GCBL.em4ZC9XO3C",
     "name": "Employee 4",
     "email": "employee4@company.com",
     "role": "Employee",
@@ -101,7 +101,7 @@
   {
     "id": 12,
     "username": "employee5",
-    "password": "employee5_123",
+    "password": "$2b$12$6hy103mA8U95sk2HIFeY6u90e6Ynz6uq5AN2cny4llhLztBaAjc7G",
     "name": "Employee 5",
     "email": "employee5@company.com",
     "role": "Employee",
@@ -110,7 +110,7 @@
   {
     "id": 13,
     "username": "employee6",
-    "password": "employee6_123",
+    "password": "$2b$12$REZkB8cGzx091aKuPGS9ROx.uRA5DeTr2QLQJYG4kZZjF8T7ixRwK",
     "name": "Employee 6",
     "email": "employee6@company.com",
     "role": "Employee",
@@ -119,7 +119,7 @@
   {
     "id": 14,
     "username": "employee7",
-    "password": "employee7_123",
+    "password": "$2b$12$2vF7/WPWxzBUvtUEZodUWeOnbgqAVIOYhfj70S.jXWzUkpyksDCmS",
     "name": "Employee 7",
     "email": "employee7@company.com",
     "role": "Employee",
@@ -128,7 +128,7 @@
   {
     "id": 15,
     "username": "employee8",
-    "password": "employee8_123",
+    "password": "$2b$12$VWzoH2NS6QM1L2.rLMd8e.P1BP5xQBPmaXsOidV0xSDRWjdUj1YDi",
     "name": "Employee 8",
     "email": "employee8@company.com",
     "role": "Employee",
@@ -137,7 +137,7 @@
   {
     "id": 16,
     "username": "employee9",
-    "password": "employee9_123",
+    "password": "$2b$12$AbVi3UhUhaAeRzv5DVpLqOTkrkzcxzvs7MqAWmciw3.Li.8DK6f4q",
     "name": "Employee 9",
     "email": "employee9@company.com",
     "role": "Employee",
@@ -146,7 +146,7 @@
   {
     "id": 17,
     "username": "employee10",
-    "password": "employee10_123",
+    "password": "$2b$12$IbzUyEn.K5PbHnzyuOjRIee0b1VFdlNsDUzbkysaci.kXWDJrVcVu",
     "name": "Employee 10",
     "email": "employee10@company.com",
     "role": "Employee",
@@ -155,7 +155,7 @@
   {
     "id": 18,
     "username": "employee11",
-    "password": "employee11_123",
+    "password": "$2b$12$iDosRxq77Pesz2X7b7t7guraXxQpmrtLM7Lsnvm/PqkWJZYphJwSS",
     "name": "Employee 11",
     "email": "employee11@company.com",
     "role": "Employee",
@@ -164,7 +164,7 @@
   {
     "id": 19,
     "username": "employee12",
-    "password": "employee12_123",
+    "password": "$2b$12$MjagenpfFdmfm2OAwc.d6e9Dg0eozm9bfvcnlDuBjPSQKOsFUBZ9u",
     "name": "Employee 12",
     "email": "employee12@company.com",
     "role": "Employee",
@@ -173,7 +173,7 @@
   {
     "id": 20,
     "username": "employee13",
-    "password": "employee13_123",
+    "password": "$2b$12$.i3W7ddSwssvv7aGxCvBteY36RVLMdV9tcNr0f3Mw107TeKJPHlgW",
     "name": "Employee 13",
     "email": "employee13@company.com",
     "role": "Employee",
@@ -181,92 +181,20 @@
   },
   {
     "id": 21,
-    "username": "employee14",
-    "password": "employee14_123",
-    "name": "Employee 14",
-    "email": "employee14@company.com",
-    "role": "Employee",
-    "team_id": 4
+    "username": "test_admin",
+    "password": "$2b$12$a8H2zLeyPh/ZvMIM7qS95.ejerwB6dKFYgYQeS27l2xFkvszET4d6",
+    "name": "Test Admin",
+    "email": "test_admin@company.com",
+    "role": "Admin",
+    "team_id": null
   },
   {
     "id": 22,
-    "username": "employee15",
-    "password": "employee15_123",
-    "name": "Employee 15",
-    "email": "employee15@company.com",
-    "role": "Employee",
-    "team_id": 5
-  },
-  {
-    "id": 23,
-    "username": "employee16",
-    "password": "employee16_123",
-    "name": "Employee 16",
-    "email": "employee16@company.com",
+    "username": "john_du",
+    "password": "$2b$12$S8PPyOQav1dP6HFDbmb5t.x5jNgS20JbvXbKBiz3qGVrqOK3WA4sq",
+    "name": "John Du",
+    "email": "john.du@example.com",
     "role": "Employee",
     "team_id": 1
-  },
-  {
-    "id": 24,
-    "username": "employee17",
-    "password": "employee17_123",
-    "name": "Employee 17",
-    "email": "employee17@company.com",
-    "role": "Employee",
-    "team_id": 2
-  },
-  {
-    "id": 25,
-    "username": "employee18",
-    "password": "employee18_123",
-    "name": "Employee 18",
-    "email": "employee18@company.com",
-    "role": "Employee",
-    "team_id": 3
-  },
-  {
-    "id": 26,
-    "username": "employee19",
-    "password": "employee19_123",
-    "name": "Employee 19",
-    "email": "employee19@company.com",
-    "role": "Employee",
-    "team_id": 4
-  },
-  {
-    "id": 27,
-    "username": "employee20",
-    "password": "employee20_123",
-    "name": "Employee 20",
-    "email": "employee20@company.com",
-    "role": "Employee",
-    "team_id": 5
-  },
-  {
-    "id": 28,
-    "username": "employee21",
-    "password": "employee21_123",
-    "name": "Employee 21",
-    "email": "employee21@company.com",
-    "role": "Employee",
-    "team_id": 1
-  },
-  {
-    "id": 29,
-    "username": "employee22",
-    "password": "employee22_123",
-    "name": "Employee 22",
-    "email": "employee22@company.com",
-    "role": "Employee",
-    "team_id": 2
-  },
-  {
-    "id": 30,
-    "username": "employee23",
-    "password": "employee23_123",
-    "name": "Employee 23",
-    "email": "employee23@company.com",
-    "role": "Employee",
-    "team_id": 3
   }
 ]
