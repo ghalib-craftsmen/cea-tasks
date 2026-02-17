@@ -11,12 +11,23 @@ from app.auth import (
 from app.db import JSONStorage
 from app.models import User, RegisterRequest, UserResponse
 from app.routers import meals, admin, headcount
+from app.config import (
+    API_TITLE,
+    API_DESCRIPTION,
+    API_VERSION,
+    CORS_ORIGINS,
+    CORS_ALLOW_CREDENTIALS,
+    CORS_ALLOW_METHODS,
+    CORS_ALLOW_HEADERS,
+    UVICORN_HOST,
+    UVICORN_PORT
+)
 
 
 app = FastAPI(
-    title="Meal Headcount Planner API",
-    description="API for managing meal headcounts and planning",
-    version="1.0.0"
+    title=API_TITLE,
+    description=API_DESCRIPTION,
+    version=API_VERSION
 )
 
 storage = JSONStorage()
@@ -27,10 +38,10 @@ class LoginRequest(BaseModel):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=CORS_ALLOW_CREDENTIALS,
+    allow_methods=CORS_ALLOW_METHODS,
+    allow_headers=CORS_ALLOW_HEADERS,
 )
 
 app.include_router(meals.router)
@@ -42,7 +53,7 @@ app.include_router(headcount.router)
 async def root():
     return {
         "message": "Welcome to Meal Headcount Planner API",
-        "version": "1.0.0",
+        "version": API_VERSION,
         "status": "running",
         "endpoints": {
             "root": "/",
@@ -143,4 +154,4 @@ async def register(request: RegisterRequest, current_user: User = Depends(requir
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host=UVICORN_HOST, port=UVICORN_PORT)
