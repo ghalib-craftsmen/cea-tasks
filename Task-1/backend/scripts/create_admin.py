@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Dict, List, Any
+import bcrypt
 
 
 def get_next_user_id(users: List[Dict[str, Any]]) -> int:
@@ -24,6 +25,13 @@ def email_exists(users: List[Dict[str, Any]], email: str) -> bool:
     return any(user.get("email", "").lower() == email_lower for user in users)
 
 
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+
 def create_admin_user(
     username: str,
     password: str,
@@ -31,11 +39,11 @@ def create_admin_user(
     email: str,
     team_id: int = None
 ) -> Dict[str, Any]:
-    """Create a new admin user dictionary."""
+    """Create a new admin user dictionary with hashed password."""
     return {
         "id": 0,
         "username": username,
-        "password": password,
+        "password": hash_password(password),
         "name": name,
         "email": email,
         "role": "Admin",
@@ -188,12 +196,11 @@ def main():
     try:
         with open(users_file, 'w', encoding='utf-8') as f:
             json.dump(users, f, indent=2, ensure_ascii=False)
-        print(f"✓ Successfully created admin user!")
+        print(f"Successfully created admin user!")
         print()
         print(f"User Details:")
         print(f"  ID: {new_user['id']}")
         print(f"  Username: {new_user['username']}")
-        print(f"  Password: {new_user['password']}")
         print(f"  Name: {new_user['name']}")
         print(f"  Email: {new_user['email']}")
         print(f"  Role: {new_user['role']}")
@@ -201,7 +208,7 @@ def main():
         print()
         print(f"You can now login with:")
         print(f"  Username: {new_user['username']}")
-        print(f"  Password: {new_user['password']}")
+        print(f"  Password: {password}")
     except Exception as e:
         print(f"Error: Failed to write to users.json: {e}")
         sys.exit(1)

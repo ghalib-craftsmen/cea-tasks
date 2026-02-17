@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 from datetime import datetime, timedelta
 import random
-import hashlib
 import sys
+import bcrypt
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.db import JSONStorage
@@ -115,7 +115,10 @@ NUM_DAYS = 7
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using bcrypt."""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def generate_users():
@@ -124,7 +127,7 @@ def generate_users():
     users.append({
         "id": 1,
         "username": "admin",
-        "password": "admin123",
+        "password": hash_password("admin123"),
         "name": "System Administrator",
         "email": "admin@company.com",
         "role": "Admin",
@@ -134,7 +137,7 @@ def generate_users():
     users.append({
         "id": 2,
         "username": "logistics",
-        "password": "logistics123",
+        "password": hash_password("logistics123"),
         "name": "Logistics Manager",
         "email": "logistics@company.com",
         "role": "Logistics",
@@ -145,7 +148,7 @@ def generate_users():
         users.append({
             "id": 3 + i,
             "username": f"teamlead{i+1}",
-            "password": f"teamlead{i+1}_123",
+            "password": hash_password(f"teamlead{i+1}_123"),
             "name": f"Team Lead {i+1}",
             "email": f"teamlead{i+1}@company.com",
             "role": "TeamLead",
@@ -158,7 +161,7 @@ def generate_users():
         users.append({
             "id": employee_id + i,
             "username": f"employee{i+1}",
-            "password": f"employee{i+1}_123",
+            "password": hash_password(f"employee{i+1}_123"),
             "name": f"Employee {i+1}",
             "email": f"employee{i+1}@company.com",
             "role": "Employee",
