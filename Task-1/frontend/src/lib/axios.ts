@@ -1,27 +1,37 @@
 import axios from 'axios';
+import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 
-export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+export const api: AxiosInstance = axios.create({
+  baseURL: 'http://127.0.0.1:8000/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem('auth-storage');
+    if (token) {
+      try {
+        const authData = JSON.parse(token);
+        if (authData.state?.token) {
+          config.headers.Authorization = `Bearer ${authData.state.token}`;
+        }
+      } catch {
+      }
+    }
+    return config;
+  },
+  (error: AxiosError) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
-// Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  (response: AxiosResponse) => response,
+  (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
+      localStorage.removeItem('auth-storage');
       window.location.href = '/login';
     }
     return Promise.reject(error);
