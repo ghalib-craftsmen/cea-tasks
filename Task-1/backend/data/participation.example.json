@@ -1,0 +1,24 @@
+[
+  {
+    "user_id": 1,
+    "date": "2026-02-17",
+    "meals": {
+      "Lunch": true,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": true,
+      "OptionalDinner": false
+    }
+  },
+  {
+    "user_id": 2,
+    "date": "2026-02-17",
+    "meals": {
+      "Lunch": false,
+      "Snacks": true,
+      "Iftar": true,
+      "EventDinner": false,
+      "OptionalDinner": true
+    }
+  }
+]
