@@ -1,5 +1,5 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
-import { AuthFeature } from '../features/auth';
+import { LoginPage } from '../features/auth/pages/LoginPage';
 import { ProtectedRoute, AdminRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
 import { Dashboard } from '../pages/Dashboard';
@@ -11,7 +11,7 @@ import { NotFound } from '../pages/NotFound';
 const routes: RouteObject[] = [
   {
     path: '/login',
-    element: <AuthFeature />,
+    element: <LoginPage />,
   },
   {
     path: '/',
