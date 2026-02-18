@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "username": "example_admin",
+    "password": "$2b$12$example_hashed_password_here",
+    "name": "Example Administrator",
+    "email": "admin@example.com",
+    "role": "Admin",
+    "team_id": null
+  },
+  {
+    "id": 2,
+    "username": "example_user",
+    "password": "$2b$12$example_hashed_password_here",
+    "name": "Example User",
+    "email": "user@example.com",
+    "role": "Employee",
+    "team_id": 1
+  }
+]
