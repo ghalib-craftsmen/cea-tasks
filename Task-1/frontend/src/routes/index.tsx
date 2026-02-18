@@ -1,5 +1,6 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { LoginPage } from '../features/auth/pages/LoginPage';
+import { DashboardPage } from '../features/meals/pages';
 import { ProtectedRoute, AdminRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
 import { Dashboard } from '../pages/Dashboard';
@@ -53,6 +54,14 @@ const routes: RouteObject[] = [
         element: (
           <ProtectedRoute>
             <Meals />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'meals/dashboard',
+        element: (
+          <ProtectedRoute>
+            <DashboardPage />
           </ProtectedRoute>
         ),
       },
