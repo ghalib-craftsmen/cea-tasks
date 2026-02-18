@@ -8,7 +8,7 @@ export const useAuth = () => {
   const login = async (credentials: LoginCredentials) => {
     try {
       // Login to get the token
-      const response = await api.post<AuthResponse>('/api/auth/login', credentials);
+      const response = await api.post<AuthResponse>('/auth/login', credentials);
       const { access_token } = response.data;
       
       // Set the token in the store (user info will be fetched later when needed)

@@ -1,9 +1,14 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { AuthFeature } from '../features/auth';
-import { ProtectedRoute } from '../components/ProtectedRoute';
+import { ProtectedRoute, AdminRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
+import { Dashboard } from '../pages/Dashboard';
+import { Meals } from '../pages/Meals';
+import { Admin } from '../pages/Admin';
+import { Headcount } from '../pages/Headcount';
+import { NotFound } from '../pages/NotFound';
 
-export const router = createBrowserRouter([
+const routes: RouteObject[] = [
   {
     path: '/login',
     element: <AuthFeature />,
@@ -32,20 +37,47 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/dashboard',
+    path: '/',
     element: <Layout />,
     children: [
       {
-        index: true,
+        path: 'dashboard',
         element: (
           <ProtectedRoute>
-            <div className="p-8">
-              <h1 className="text-3xl font-bold">Welcome to CraftMeal</h1>
-              <p className="mt-4 text-gray-600">This is a protected page. You are authenticated!</p>
-            </div>
+            <Dashboard />
           </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'meals',
+        element: (
+          <ProtectedRoute>
+            <Meals />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'headcount',
+        element: (
+          <ProtectedRoute>
+            <Headcount />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin',
+        element: (
+          <AdminRoute>
+            <Admin />
+          </AdminRoute>
         ),
       },
     ],
   },
-]);
+  {
+    path: '*',
+    element: <NotFound />,
+  },
+];
+
+export const router = createBrowserRouter(routes);
