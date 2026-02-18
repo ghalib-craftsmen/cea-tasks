@@ -11,7 +11,7 @@
 
 **Links:**
 - Project Brief: [(task-iteration1)](https://drive.google.com/file/d/1PE38YEru21tkwHjIReO9-E0sNBAMf0ES/view)
-- Related Issues: (to be added)
+- Related Issues: #3 #4 #5 #6 #7 #8
 
 ---
 
