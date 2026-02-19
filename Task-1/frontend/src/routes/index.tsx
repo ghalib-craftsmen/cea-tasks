@@ -1,7 +1,7 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { DashboardPage } from '../features/meals/pages';
-import { AdminDashboardPage } from '../features/admin/pages';
+import { AdminDashboardPage, UserManagementPage } from '../features/admin/pages';
 import { HeadcountSummaryPage } from '../features/headcount/pages';
 import { ProtectedRoute, AdminRoute, AdminOrLogisticsRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
@@ -98,6 +98,10 @@ const routes: RouteObject[] = [
             <AdminDashboardPage />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: 'admin/users',
+        element: <UserManagementPage />,
       },
     ],
   },
