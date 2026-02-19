@@ -1,5 +1,5 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
-import { LoginPage } from '../features/auth/pages/LoginPage';
+import { LoginPage, RegistrationPage } from '../features/auth/pages';
 import { DashboardPage } from '../features/meals/pages';
 import { AdminDashboardPage, UserManagementPage } from '../features/admin/pages';
 import { HeadcountSummaryPage } from '../features/headcount/pages';
@@ -15,6 +15,10 @@ const routes: RouteObject[] = [
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/register',
+    element: <RegistrationPage />,
   },
   {
     path: '/',

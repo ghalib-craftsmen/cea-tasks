@@ -2,11 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../hooks/useToast';
 import { getTodaysParticipation, updateParticipation } from '../api';
+import { mealParticipationSchema, type MealParticipationFormData, defaultMealParticipationValues } from '../../../schemas/formSchemas';
 import type { MealType, ParticipationUpdate, MealRecord } from '../../../types';
 import { Spinner } from '../../../components/ui/Spinner';
 
@@ -18,20 +18,6 @@ const mealTypes: { type: MealType; label: string; icon: string }[] = [
   { type: 'OptionalDinner', label: 'Optional Dinner', icon: '🍽️' },
 ];
 
-// Zod schema for meal participation validation
-const mealParticipationSchema = z.object({
-  date: z.string().min(1, 'Date is required'),
-  meals: z.object({
-    Lunch: z.boolean(),
-    Snacks: z.boolean(),
-    Iftar: z.boolean(),
-    EventDinner: z.boolean(),
-    OptionalDinner: z.boolean(),
-  }),
-});
-
-type MealParticipationFormData = z.infer<typeof mealParticipationSchema>;
-
 export function MealParticipationPage() {
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
@@ -40,16 +26,7 @@ export function MealParticipationPage() {
   // Initialize form with default values
   const { control, handleSubmit, watch, reset, formState: { errors, isDirty, isSubmitting } } = useForm<MealParticipationFormData>({
     resolver: zodResolver(mealParticipationSchema),
-    defaultValues: {
-      date: new Date().toISOString().split('T')[0],
-      meals: {
-        Lunch: false,
-        Snacks: false,
-        Iftar: false,
-        EventDinner: false,
-        OptionalDinner: false,
-      },
-    },
+    defaultValues: defaultMealParticipationValues,
   });
 
   // Watch meals for real-time count updates
@@ -318,4 +295,3 @@ export function MealParticipationPage() {
     </div>
   );
 }
-
