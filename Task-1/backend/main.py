@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.auth import (
     hash_password,
     verify_password,
+    hash_password,
     create_access_token,
     get_current_user,
     require_admin,
@@ -11,18 +12,6 @@ from app.auth import (
 )
 from app.db import JSONStorage
 from app.models import User, RegisterRequest, UserResponse
-from app.routers import meals, admin, headcount
-from app.config import (
-    API_TITLE,
-    API_DESCRIPTION,
-    API_VERSION,
-    CORS_ORIGINS,
-    CORS_ALLOW_CREDENTIALS,
-    CORS_ALLOW_METHODS,
-    CORS_ALLOW_HEADERS,
-    UVICORN_HOST,
-    UVICORN_PORT
-)
 
 
 app = FastAPI(
@@ -66,6 +55,7 @@ async def root():
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(request: LoginRequest):
+    # Get user from database
     users_data = storage.read_users()
     user_dict = None
     for user_data in users_data:
@@ -102,48 +92,51 @@ async def logout(current_user: User = Depends(get_current_user)):
     }
 
 
-@app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
+@app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: RegisterRequest, current_user: User = Depends(require_admin)):
-
+    # Get existing users
     users_data = storage.read_users()
     
-    request_username_lower = request.username.lower()
+    # Check if username already exists
     for user_data in users_data:
-        if user_data.get("username", "").lower() == request_username_lower:
+        if user_data.get("username") == request.username:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Username '{request.username}' already exists"
             )
     
-    request_email_lower = request.email.lower()
-    for user_data in users_data:
-        existing_email = user_data.get("email", "")
-        if existing_email.lower() == request_email_lower:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Email '{request.email}' already exists"
-            )
-    
+    # Generate new user ID
     new_id = len(users_data) + 1 if users_data else 1
     
+    # Hash the password
+    password_hash = hash_password(request.password)
+    
+    # Create new user dictionary
     new_user_dict = {
         "id": new_id,
         "username": request.username,
-        "password": hash_password(request.password),
+        "password_hash": password_hash,
         "name": request.name,
         "email": request.email,
         "role": request.role,
         "team_id": request.team_id
     }
     
+    # Append to users list
     users_data.append(new_user_dict)
     
+    # Write to storage
     storage.write_users(users_data)
     
-    return {
-        "message": f"{request.username} is registered successfully",
-        "code": status.HTTP_201_CREATED
-    }
+    # Return user response (excluding password hash)
+    return UserResponse(
+        id=new_user_dict["id"],
+        username=new_user_dict["username"],
+        name=new_user_dict["name"],
+        email=new_user_dict["email"],
+        role=new_user_dict["role"],
+        team_id=new_user_dict["team_id"]
+    )
 
 
 if __name__ == "__main__":
