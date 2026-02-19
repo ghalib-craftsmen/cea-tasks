@@ -2,7 +2,8 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { DashboardPage } from '../features/meals/pages';
 import { AdminDashboardPage } from '../features/admin/pages';
-import { ProtectedRoute, AdminRoute } from '../components/ProtectedRoute';
+import { HeadcountSummaryPage } from '../features/headcount/pages';
+import { ProtectedRoute, AdminRoute, AdminOrLogisticsRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
 import { Dashboard } from '../pages/Dashboard';
 import { Meals } from '../pages/Meals';
@@ -72,6 +73,14 @@ const routes: RouteObject[] = [
           <ProtectedRoute>
             <Headcount />
           </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'headcount/summary',
+        element: (
+          <AdminOrLogisticsRoute>
+            <HeadcountSummaryPage />
+          </AdminOrLogisticsRoute>
         ),
       },
       {
