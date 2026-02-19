@@ -40,29 +40,35 @@ export const Input = ({
         <label
           htmlFor={inputId}
           className="block text-sm font-medium text-gray-700 mb-1"
+          id={`${inputId}-label`}
         >
           {label}
         </label>
       )}
       <div className="relative">
         {icon && iconPosition === 'left' && (
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400" aria-hidden="true">
             {icon}
           </div>
         )}
         <input
           id={inputId}
           className={`${baseInputStyles} ${inputStyles} ${disabledStyles} ${inputWithIconStyles} ${className}`}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${inputId}-error` : undefined}
+          aria-labelledby={label ? `${inputId}-label` : undefined}
           {...props}
         />
         {icon && iconPosition === 'right' && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400" aria-hidden="true">
             {icon}
           </div>
         )}
       </div>
       {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <p id={`${inputId}-error`} className="mt-1 text-sm text-red-600" role="alert">
+          {error}
+        </p>
       )}
     </div>
   );

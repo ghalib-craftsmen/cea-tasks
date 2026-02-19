@@ -25,7 +25,6 @@ export function Meals() {
     mutationFn: (meals: Record<MealType, boolean>) => updateParticipation({ meals }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meals', 'today'] });
-      toast.success('Meal preferences updated successfully!');
     },
     onError: () => {
       toast.error('Failed to update meal preferences. Please try again.');
@@ -43,7 +42,11 @@ export function Meals() {
 
   const handleSave = () => {
     if (mealData) {
-      updateMutation.mutate(mealData.meals);
+      updateMutation.mutate(mealData.meals, {
+        onSuccess: () => {
+          toast.success('Meal preferences updated successfully!');
+        },
+      });
     }
   };
 

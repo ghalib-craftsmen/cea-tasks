@@ -1,24 +1,38 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
-import { LoginPage, RegistrationPage } from '../features/auth/pages';
-import { DashboardPage } from '../features/meals/pages';
-import { AdminDashboardPage, UserManagementPage } from '../features/admin/pages';
-import { HeadcountSummaryPage } from '../features/headcount/pages';
 import { ProtectedRoute, AdminRoute, AdminOrLogisticsRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
-import { Dashboard } from '../pages/Dashboard';
-import { Meals } from '../pages/Meals';
-import { Admin } from '../pages/Admin';
-import { Headcount } from '../pages/Headcount';
-import { NotFound } from '../pages/NotFound';
+import { Loading } from '../components/ui/Loading';
+
+// Lazy load page components
+const LoginPage = lazy(() => import('../features/auth/pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const RegistrationPage = lazy(() => import('../features/auth/pages/RegistrationPage').then(m => ({ default: m.RegistrationPage })));
+const DashboardPage = lazy(() => import('../features/meals/pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const AdminDashboardPage = lazy(() => import('../features/admin/pages/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
+const UserManagementPage = lazy(() => import('../features/admin/pages/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
+const HeadcountSummaryPage = lazy(() => import('../features/headcount/pages/HeadcountSummaryPage').then(m => ({ default: m.HeadcountSummaryPage })));
+const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Meals = lazy(() => import('../pages/Meals').then(m => ({ default: m.Meals })));
+const Admin = lazy(() => import('../pages/Admin').then(m => ({ default: m.Admin })));
+const Headcount = lazy(() => import('../pages/Headcount').then(m => ({ default: m.Headcount })));
+const NotFound = lazy(() => import('../pages/NotFound').then(m => ({ default: m.NotFound })));
 
 const routes: RouteObject[] = [
   {
     path: '/login',
-    element: <LoginPage />,
+    element: (
+      <Suspense fallback={<Loading />}>
+        <LoginPage />
+      </Suspense>
+    ),
   },
   {
     path: '/register',
-    element: <RegistrationPage />,
+    element: (
+      <Suspense fallback={<Loading />}>
+        <RegistrationPage />
+      </Suspense>
+    ),
   },
   {
     path: '/',
@@ -51,7 +65,9 @@ const routes: RouteObject[] = [
         path: 'dashboard',
         element: (
           <ProtectedRoute>
-            <Dashboard />
+            <Suspense fallback={<Loading />}>
+              <Dashboard />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -59,7 +75,9 @@ const routes: RouteObject[] = [
         path: 'meals',
         element: (
           <ProtectedRoute>
-            <Meals />
+            <Suspense fallback={<Loading />}>
+              <Meals />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -67,7 +85,9 @@ const routes: RouteObject[] = [
         path: 'meals/dashboard',
         element: (
           <ProtectedRoute>
-            <DashboardPage />
+            <Suspense fallback={<Loading />}>
+              <DashboardPage />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -75,7 +95,9 @@ const routes: RouteObject[] = [
         path: 'headcount',
         element: (
           <ProtectedRoute>
-            <Headcount />
+            <Suspense fallback={<Loading />}>
+              <Headcount />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -83,7 +105,9 @@ const routes: RouteObject[] = [
         path: 'headcount/summary',
         element: (
           <AdminOrLogisticsRoute>
-            <HeadcountSummaryPage />
+            <Suspense fallback={<Loading />}>
+              <HeadcountSummaryPage />
+            </Suspense>
           </AdminOrLogisticsRoute>
         ),
       },
@@ -91,7 +115,9 @@ const routes: RouteObject[] = [
         path: 'admin',
         element: (
           <AdminRoute>
-            <Admin />
+            <Suspense fallback={<Loading />}>
+              <Admin />
+            </Suspense>
           </AdminRoute>
         ),
       },
@@ -99,19 +125,29 @@ const routes: RouteObject[] = [
         path: 'admin/dashboard',
         element: (
           <ProtectedRoute>
-            <AdminDashboardPage />
+            <Suspense fallback={<Loading />}>
+              <AdminDashboardPage />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
       {
         path: 'admin/users',
-        element: <UserManagementPage />,
+        element: (
+          <Suspense fallback={<Loading />}>
+            <UserManagementPage />
+          </Suspense>
+        ),
       },
     ],
   },
   {
     path: '*',
-    element: <NotFound />,
+    element: (
+      <Suspense fallback={<Loading />}>
+        <NotFound />
+      </Suspense>
+    ),
   },
 ];
 
