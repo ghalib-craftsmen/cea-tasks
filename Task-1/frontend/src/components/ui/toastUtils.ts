@@ -9,7 +9,7 @@ export interface ToastOptions {
 export const Toast = {
   success: (message: string, options?: ToastOptions) => {
     return toast.success(message, {
-      duration: options?.duration || 3000,
+      duration: options?.duration || 5000,
       position: options?.position || 'top-right',
       id: options?.id,
       className: 'bg-white text-gray-900 shadow-lg rounded-lg border border-green-200',
@@ -18,7 +18,7 @@ export const Toast = {
 
   error: (message: string, options?: ToastOptions) => {
     return toast.error(message, {
-      duration: options?.duration || 4000,
+      duration: options?.duration || 5000,
       position: options?.position || 'top-right',
       id: options?.id,
       className: 'bg-white text-gray-900 shadow-lg rounded-lg border border-red-200',
@@ -27,7 +27,7 @@ export const Toast = {
 
   info: (message: string, options?: ToastOptions) => {
     return toast(message, {
-      duration: options?.duration || 3000,
+      duration: options?.duration || 5000,
       position: options?.position || 'top-right',
       id: options?.id,
       icon: 'ℹ️',
@@ -37,7 +37,7 @@ export const Toast = {
 
   warning: (message: string, options?: ToastOptions) => {
     return toast(message, {
-      duration: options?.duration || 3000,
+      duration: options?.duration || 5000,
       position: options?.position || 'top-right',
       id: options?.id,
       icon: '⚠️',
@@ -71,11 +71,11 @@ export const Toast = {
       id: options?.id,
       success: {
         className: 'bg-white text-gray-900 shadow-lg rounded-lg border border-green-200',
-        duration: options?.duration || 3000,
+        duration: options?.duration || 5000,
       },
       error: {
         className: 'bg-white text-gray-900 shadow-lg rounded-lg border border-red-200',
-        duration: options?.duration || 4000,
+        duration: options?.duration || 5000,
       },
     });
   },

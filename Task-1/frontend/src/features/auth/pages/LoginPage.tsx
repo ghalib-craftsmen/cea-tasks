@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useApiPost } from '../../../hooks/useApi';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useToast } from '../../../hooks/useToast';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
@@ -25,6 +26,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const LoginPage = () => {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const { success, error: showError } = useToast();
 
   const {
     register,
@@ -44,10 +46,12 @@ export const LoginPage = () => {
       // Store the JWT token in useAuthStore
       // Note: We'll get user info from a separate call if needed
       setAuth({ id: '', username: '', role: '' }, data.access_token);
+      success('Login successful! Redirecting to dashboard...');
       navigate('/dashboard');
     },
     onError: (error) => {
       // Show error message for invalid credentials
+      showError(error.detail || 'Invalid credentials. Please try again.');
       setError('root', {
         type: 'manual',
         message: error.detail || 'Invalid credentials. Please try again.',

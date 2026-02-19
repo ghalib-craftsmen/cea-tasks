@@ -1,6 +1,6 @@
 import { RouterProvider } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from './components/ui/Toaster';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { router } from './routes';
 import { createQueryClient } from './lib/reactQuery';
@@ -16,7 +16,7 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
-        <Toaster position="top-right" />
+        <Toaster position="top-right" reverseOrder={false} gutter={8} />
       </QueryClientProvider>
     </ErrorBoundary>
   );

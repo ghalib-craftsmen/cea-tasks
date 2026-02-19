@@ -2,12 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
+import { useToast } from '../../../hooks/useToast';
 import { getAllParticipation, updateUserParticipation } from '../api';
 import type { UserParticipation, MealType, ParticipationUpdateRequest } from '../../../types';
 import { Table } from '../../../components/ui/Table';
 import { Modal } from '../../../components/ui/Modal';
 import { Spinner } from '../../../components/ui/Spinner';
-import { Toast } from '../../../components/ui/toastUtils';
 
 const mealTypes: { type: MealType; label: string; icon: string }[] = [
   { type: 'Lunch', label: 'Lunch', icon: '🍱' },
@@ -151,6 +151,7 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
 export function AdminDashboardPage() {
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
+  const { success, error: showError } = useToast();
   const [selectedUser, setSelectedUser] = useState<UserParticipation | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -166,16 +167,15 @@ export function AdminDashboardPage() {
     mutationFn: (data: ParticipationUpdateRequest) => updateUserParticipation(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
-      Toast.success('User participation updated successfully!');
+      success('User participation updated successfully!');
       setIsEditModalOpen(false);
       setSelectedUser(null);
     },
     onError: () => {
-      Toast.error('Failed to update user participation. Please try again.');
+      showError('Failed to update user participation. Please try again.');
     },
   });
 
-  // Check if user has admin, team lead, or logistics role
   const canAccess = ['Admin', 'TeamLead', 'Logistics'].includes(user?.role || '');
 
   // Redirect unauthenticated users or unauthorized users

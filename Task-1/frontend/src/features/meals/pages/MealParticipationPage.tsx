@@ -5,9 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useToast } from '../../../hooks/useToast';
 import { getTodaysParticipation, updateParticipation } from '../api';
 import type { MealType, ParticipationUpdate, MealRecord } from '../../../types';
-import { Toast } from '../../../components/ui/toastUtils';
 import { Spinner } from '../../../components/ui/Spinner';
 
 const mealTypes: { type: MealType; label: string; icon: string }[] = [
@@ -35,6 +35,7 @@ type MealParticipationFormData = z.infer<typeof mealParticipationSchema>;
 export function MealParticipationPage() {
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
+  const { success, error: showError } = useToast();
 
   // Initialize form with default values
   const { control, handleSubmit, watch, reset, formState: { errors, isDirty, isSubmitting } } = useForm<MealParticipationFormData>({
@@ -80,10 +81,10 @@ export function MealParticipationPage() {
     mutationFn: (data: ParticipationUpdate) => updateParticipation(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meals', 'today'] });
-      Toast.success('Meal participation updated successfully!');
+      success('Meal participation updated successfully!');
     },
     onError: (error: Error) => {
-      Toast.error(error.message || 'Failed to update meal participation. Please try again.');
+      showError(error.message || 'Failed to update meal participation. Please try again.');
     },
   });
 

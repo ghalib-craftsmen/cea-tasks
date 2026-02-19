@@ -3,8 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AdminRoute } from '../../../components/ProtectedRoute';
+import { useToast } from '../../../hooks/useToast';
 import { register as registerUser } from '../../auth/api';
-import { Toast } from '../../../components/ui/toastUtils';
 
 // Zod schema for form validation
 const registerSchema = z.object({
@@ -40,6 +40,8 @@ function UserManagementForm() {
     queryFn: fetchTeams,
   });
 
+  const { success, error: showError } = useToast();
+
   const {
     register: registerField,
     handleSubmit,
@@ -56,12 +58,12 @@ function UserManagementForm() {
   const registerMutation = useMutation({
     mutationFn: (data: RegisterFormData) => registerUser(data),
     onSuccess: () => {
-      Toast.success('User registered successfully!');
+      success('User registered successfully!');
       reset();
     },
     onError: (error: unknown) => {
       const errorMessage = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to register user. Please try again.';
-      Toast.error(errorMessage);
+      showError(errorMessage);
     },
   });
 
