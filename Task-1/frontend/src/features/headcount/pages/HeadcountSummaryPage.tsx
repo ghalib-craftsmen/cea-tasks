@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Table } from '../../../components/ui/Table';
 import { Spinner } from '../../../components/ui/Spinner';
+import { useToast } from '../../../hooks/useToast';
 import { getHeadcountSummary, getMealUsers } from '../api';
 import type { MealCountSummary, MealUserDetail } from '../../../types';
 
@@ -11,6 +12,7 @@ export const HeadcountSummaryPage = () => {
   const [loading, setLoading] = useState(true);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { error: showError } = useToast();
 
   useEffect(() => {
     fetchHeadcountSummary();
@@ -24,6 +26,7 @@ export const HeadcountSummaryPage = () => {
       setSummary(data.meal_counts);
     } catch (err) {
       setError('Failed to load headcount summary');
+      showError('Failed to load headcount summary. Please try again.');
       console.error('Error fetching headcount summary:', err);
     } finally {
       setLoading(false);
@@ -39,6 +42,7 @@ export const HeadcountSummaryPage = () => {
       setSelectedMealType(mealType);
     } catch (err) {
       setError(`Failed to load users for ${mealType}`);
+      showError(`Failed to load users for ${mealType}. Please try again.`);
       console.error('Error fetching meal users:', err);
     } finally {
       setLoadingUsers(false);

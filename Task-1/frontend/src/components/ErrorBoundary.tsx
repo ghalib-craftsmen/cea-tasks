@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { Toast } from './ui/toastUtils';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -36,6 +37,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 
     console.error('Component Stack:', errorInfo.componentStack);
+
+    // Show toast notification for the error
+    Toast.error(`An error occurred: ${error.message}`);
   }
 
   handleReset = (): void => {
@@ -47,7 +51,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render(): ReactNode {
     if (this.state.hasError) {
-      // If custom fallback is provided, use it
+      // If custom fallback is provided
       if (this.props.fallback) {
         return this.props.fallback;
       }
