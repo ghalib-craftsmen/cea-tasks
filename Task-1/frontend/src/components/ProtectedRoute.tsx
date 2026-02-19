@@ -32,3 +32,24 @@ export const AdminRoute = ({ children }: AdminRouteProps) => {
 
   return <>{children}</>;
 };
+
+interface AdminOrLogisticsRouteProps {
+  children: React.ReactNode;
+}
+
+export const AdminOrLogisticsRoute = ({ children }: AdminOrLogisticsRouteProps) => {
+  const { isAuthenticated, user } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const isAdmin = user?.role === 'Admin';
+  const isLogistics = user?.role === 'Logistics';
+
+  if (!isAdmin && !isLogistics) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};

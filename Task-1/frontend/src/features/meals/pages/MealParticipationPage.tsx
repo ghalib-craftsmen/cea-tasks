@@ -317,3 +317,4 @@ export function MealParticipationPage() {
     </div>
   );
 }
+
