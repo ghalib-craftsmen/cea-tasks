@@ -32,7 +32,9 @@ export function Layout() {
       {/* Mobile Header */}
       <header className="md:hidden bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
         <div className="px-4 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-900">CraftMeal</h1>
+          <h1 className="text-xl font-bold">
+            <span className="text-orange-600">Craft</span><span className="text-black">Meal</span>
+          </h1>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -84,7 +86,9 @@ export function Layout() {
       >
         {/* Desktop Logo */}
         <div className="hidden md:flex items-center justify-center h-16 border-b border-gray-200">
-          <h1 className="text-xl font-bold text-gray-900">CraftMeal</h1>
+          <h1 className="text-xl font-bold">
+            <span className="text-orange-600">Craft</span><span className="text-black">Meal</span>
+          </h1>
         </div>
 
         {/* Navigation */}

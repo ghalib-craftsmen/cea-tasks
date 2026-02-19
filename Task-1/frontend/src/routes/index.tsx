@@ -39,8 +39,8 @@ const routes: RouteObject[] = [
     element: (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-3xl font-bold text-center text-gray-900 mb-6">
-            Welcome to CraftMeal
+          <h1 className="text-3xl font-bold text-center mb-6">
+            Welcome to <span className="text-orange-600">Craft</span><span className="text-black">Meal</span>
           </h1>
           <p className="text-gray-600 text-center mb-6">
             Your meal planning and headcount management system
