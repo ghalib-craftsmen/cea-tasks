@@ -36,7 +36,9 @@ export function Layout() {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Toggle menu"
+            aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={sidebarOpen}
+            aria-controls="sidebar"
           >
             <svg
               className="w-6 h-6 text-gray-600"
@@ -46,6 +48,7 @@ export function Layout() {
               strokeWidth="2"
               viewBox="0 0 24 24"
               stroke="currentColor"
+              aria-hidden="true"
             >
               {sidebarOpen ? (
                 <path d="M6 18L18 6M6 6l12 12" />
@@ -62,11 +65,13 @@ export function Layout() {
         <div
           className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar */}
       <aside
+        id="sidebar"
         className={`
           fixed md:sticky top-0 left-0 z-50 md:z-auto
           h-screen md:h-auto
@@ -75,6 +80,7 @@ export function Layout() {
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           flex flex-col
         `}
+        aria-label="Main navigation"
       >
         {/* Desktop Logo */}
         <div className="hidden md:flex items-center justify-center h-16 border-b border-gray-200">
@@ -82,7 +88,7 @@ export function Layout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto" role="navigation" aria-label="Main menu">
           {allNavItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -99,8 +105,10 @@ export function Layout() {
                     : 'text-gray-700 hover:bg-gray-100'
                   }
                 `}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={`Navigate to ${item.label}`}
               >
-                <span className="text-xl mr-3">{item.icon}</span>
+                <span className="text-xl mr-3" aria-hidden="true">{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );
@@ -120,7 +128,7 @@ export function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 md:pt-0 pt-16 min-h-screen">
+      <main className="flex-1 md:pt-0 pt-16 min-h-screen" id="main-content" tabIndex={-1}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>
