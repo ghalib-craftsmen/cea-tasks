@@ -1,6 +1,5 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useApiPost } from '../../../hooks/useApi';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -8,20 +7,8 @@ import { useToast } from '../../../hooks/useToast';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
+import { loginSchema, type LoginFormData, defaultLoginValues } from '../../../schemas/formSchemas';
 import type { LoginCredentials, AuthResponse } from '../../../types';
-
-const loginSchema = z.object({
-  username: z
-    .string()
-    .min(1, 'Username is required')
-    .min(3, 'Username must be at least 3 characters'),
-  password: z
-    .string()
-    .min(1, 'Password is required')
-    .min(6, 'Password must be at least 6 characters'),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -35,10 +22,7 @@ export const LoginPage = () => {
     setError,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: '',
-      password: '',
-    },
+    defaultValues: defaultLoginValues,
   });
 
   const loginMutation = useApiPost<LoginCredentials, AuthResponse>('/auth/login', {
@@ -50,7 +34,6 @@ export const LoginPage = () => {
       navigate('/dashboard');
     },
     onError: (error) => {
-      // Show error message for invalid credentials
       showError(error.detail || 'Invalid credentials. Please try again.');
       setError('root', {
         type: 'manual',
