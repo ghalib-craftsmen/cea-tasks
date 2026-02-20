@@ -1,29 +1,29 @@
-# Meal Headcount Planner (MHP) Technical Specification - Iteration 1
+# Meal Headcount Planner (MHP) Technical Specification - Iteration 2
 
 ## 1. Header
 
 **Project:** Meal Headcount Planner (MHP)  
-**Iteration:** 1 — Daily Meal Opt-In/Out + Basic Visibility  
-**Author:** Technical Team  
-**Date:** February 9, 2026  
-**Version:** 1.0  
+**Iteration:** 2 — Team/Department Views + Special Days  
+**Author:** Abdullah Al Ghalib  
+**Date:** February 20, 2026  
+**Version:** 2.0  
 **Status:** Draft
 
 **Links:**
-- Project Brief: [(task-iteration1)](https://drive.google.com/file/d/1PE38YEru21tkwHjIReO9-E0sNBAMf0ES/view)
-- Related Issues: #3 #4 #5 #6 #7 #8
+- Project Brief: [(task-iteration2)](link-to-file)
+- Previous Iteration: [(task-iteration1)](https://drive.google.com/file/d/1PE38YEru21tkwHjIReO9-E0sNBAMf0IS/view)
 
 ---
 
 ## 2. Summary
 
-We're building a simple web app to replace the Excel spreadsheet we currently use for meal headcount. Employees can see today's meals and opt in/out themselves. Team Leads and Admins can update participation for anyone who needs help. Logistics gets a real-time headcount view to plan meals better. Everyone's opted in by default unless they say otherwise. We're supporting Lunch, Snacks, Iftar, Event Dinner, and Optional Dinner.
+We're building a web app to replace the Excel spreadsheet used for meal headcount. Employees can see meals, opt in/out, and set their work location (Office/WFH) for specific dates. Team Leads and Admins can update participation for their scope, apply bulk actions, and manage exceptions. Logistics gets a real-time headcount view enriched with team and location breakdowns to plan meals better. The system supports team-based visibility and special day controls (holidays, office closures) which automatically adjust meal availability. Everyone's opted in by default unless they say otherwise or the day is marked closed.
 
 ---
 
 ## 3. Problem Statement
 
-The Excel spreadsheet we're using for meal headcount is painful. Someone has to collect entries manually, it's hard to see who's opted in or out in real-time, and there's no easy way to fix mistakes or missing entries. Logistics team struggles to get accurate numbers for meal planning. Moving to a web app should fix this and give everyone a better experience.
+The Excel spreadsheet we're using for meal headcount is painful. Someone has to collect entries manually, it's hard to see who's opted in or out in real-time, and there's no easy way to fix mistakes or missing entries. Logistics team struggles to get accurate numbers for meal planning. Additionally, we currently lack visibility into team-specific data, cannot handle company-wide events like holidays or office closures automatically, and have no way to track who is working from home versus in the office. This leads to inaccurate food ordering and wasted resources. Moving to a web app with team structures and working location (Office/WFH) confirmation to solve these issues.
 
 ---
 
