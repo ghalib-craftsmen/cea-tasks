@@ -10,7 +10,7 @@
 **Status:** Draft
 
 **Links:**
-- Project Brief: [(task-iteration2)](link-to-file)
+- Project Brief: [(task-iteration2)](https://drive.google.com/file/d/1X5LiRPZ-8SA5ZBLslgaabMxH2tmptmb6/view?ts=698b25e6)
 - Previous Iteration: [(task-iteration1)](https://drive.google.com/file/d/1PE38YEru21tkwHjIReO9-E0sNBAMf0IS/view)
 
 ---
