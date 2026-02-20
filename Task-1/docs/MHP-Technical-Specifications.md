@@ -331,7 +331,8 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - Participation logic (opt in/out)
 - Headcount calculations
 - Role checks
-  
+- Special Day logic (Closed day = no meals)
+- Bulk action scope validation
 
 ### Manual QA Checklist
 
@@ -341,32 +342,30 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - [ ] Session timeout works
 
 **User Registration (API):**
-- [ ] Admin/Logistics can call registration endpoint
-- [ ] Creates new user successfully
-- [ ] Duplicate username rejected with error
-- [ ] Password is hashed (not plaintext) in JSON
-- [ ] User can log in with registered credentials
-- [ ] Non-admin roles get Forbidden when trying to register
-- [ ] Script for creating new users in bulk
-- [ ] Script for creating new admin for testing
+- [ ] Admin can call registration endpoint
+- [ ] Creates new user successfully with team assignment
+- [ ] Duplicate username rejected
+- [ ] Password is hashed
+- [ ] Non-admin roles get Forbidden
 
 **Employee:**
-- [ ] See today's meals
-- [ ] All meals checked by default
-- [ ] Can opt out
-- [ ] Can opt back in
+- [ ] See today's meals and team name
+- [ ] Can opt out/in
+- [ ] Can set Work Location (Office/WFH)
 - [ ] Changes save and persist
 
-**Admin:**
-- [ ] See all employees
-- [ ] Can update anyone's meals
-- [ ] Team Lead can only update team
-- [ ] Logistics is read-only
+**Admin/Team Lead:**
+- [ ] See correct scope of employees
+- [ ] Can update participation within scope
+- [ ] Can perform bulk actions within scope
+- [ ] Team Lead cannot update non-team member
 
-**Headcount:**
-- [ ] See correct totals
+**Headcount & Special Days:**
+- [ ] See correct totals broken down by team/location
 - [ ] Can drill down to names
-- [ ] Updates in real-time
+- [ ] Updates in real-time without refresh
+- [ ] "Office Closed" prevents meal selection
+- [ ] Announcement generation includes special notes
 
 ---
 
@@ -376,8 +375,10 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 - Login attempts (success/fail)
 - User registration events
-- Participation updates
+- Participation updates (individual and bulk)
 - Admin overrides
+- Special day changes
+- WebSocket connections/drops
 - Errors
 
 ### Monitoring
@@ -385,6 +386,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - Failed logins
 - Server errors
 - API response times
+- Active WebSocket connections count
 
 ### Deployment
 
@@ -405,27 +407,23 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 ### Risks
 
 - JSON files could get corrupted if server crashes during write → We'll implement atomic writes
-- Two admins updating same person at once → Unlikely with our team size, we'll document to avoid concurrent edits
+- WebSocket connection drops → UI will show "Reconnecting..." status and attempt auto-reconnect
 - Performance if we scale beyond 200 users → We'll monitor and move to DB if needed
 
 ### Assumptions
 
 - Internal network only, not public-facing
 - 100-200 employees max
-- Admin registers new users via API initially
-- Admin creates user accounts upfront
 - Teams are already defined
-- All 5 meals available daily
-- Backup handled externally
+- "Office Closed" implies no meals for anyone
+- Work location defaults to Office unless "Company-wide WFH" is active
 
 ### Open Questions
 
-- [ ] What's the cutoff window timeframe? (Iteration 2)
+- [ ] What's the cutoff window timeframe? (Future Iteration)
 - [ ] Do we need audit logging later?
 - [ ] Expected user count beyond 200?
-- [ ] Special day types in Iteration 2?
 - [ ] Export functionality needed?
-- [ ] Should we build UI for user registration in Iteration 2?
 
 ---
 
@@ -441,13 +439,23 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 | Headcount | How many people opted in |
 | TL | Team Lead |
 | JWT | JSON Web Token — how we do auth |
+| WFH | Work From Home |
 
 ### Sample Output
 
-Headcount view shows something like:
+**Headcount View:**
 
-| Meal | Total | In | Out | % |
-|-------|--------|-----|------|---|
-| Lunch | 120 | 115 | 5 | 96% |
-| Snacks | 120 | 100 | 20 | 83% |
-| Iftar | 120 | 45 | 75 | 38% |
+| Meal | Total | In | Out | Office | WFH | % |
+|-------|--------|-----|------|--------|-----|---|
+| Lunch | 120 | 115 | 5 | 80 | 35 | 96% |
+| Snacks | 120 | 100 | 20 | 70 | 30 | 83% |
+
+**Announcement Draft:**
+> **Date:** Oct 25, 2026
+> **Status:** Special Celebration (Diwali)
+>
+> **Headcount:**
+> *   Lunch: 115 (Office: 80, WFH: 35)
+> *   Snacks: 100
+>
+> Note: Snacks will be served in the cafeteria.
