@@ -245,7 +245,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ### Architecture
 
-Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes JSON files for data. Simple 3-tier setup.
+Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes JSON files for data. A WebSocket channel runs alongside REST to push live headcount updates to connected clients.
 
 ### API Endpoints
 
@@ -256,10 +256,18 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 | POST | `/api/auth/register` | Register new user | Admin |
 | GET | `/api/meals/today` | Get today's meals + my status | Logged-in users |
 | PUT | `/api/meals/participation` | Update my meals | Logged-in users |
-| GET | `/api/admin/participation` | Get everyone's participation | Team Lead, Admin, Logistics |
+| GET | `/api/admin/participation` | Get participation (filterable by team) | Team Lead, Admin, Logistics |
 | PUT | `/api/admin/participation` | Update someone's meals | Admin, Logistics |
-| GET | `/api/headcount` | Get headcount totals | Admin, Logistics |
+| POST | `/api/admin/bulk-participation` | Bulk update participation | Admin, Team Lead |
+| GET | `/api/headcount` | Get headcount totals (broken down) | Admin, Logistics |
 | GET | `/api/headcount/:mealTypeId` | Get who's opted in for a meal | Admin, Logistics |
+| GET | `/api/me/location` | Get my work location | Everyone |
+| PUT | `/api/me/location` | Set my work location | Everyone |
+| GET | `/api/admin/special-days` | Get special days list | Admin, Logistics |
+| POST | `/api/admin/special-days` | Create special day entry | Admin, Logistics |
+| GET | `/api/reports/announcement` | Generate announcement text | Admin, Logistics |
+| WS | `/ws` | WebSocket connection for live updates | Authenticated Users |
+
 
 ---
 
@@ -267,27 +275,22 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 **JSON Files Instead of Database**
 - Why: Fastest way to ship. No setup needed. Easy to inspect.
-- Trade-off: Limited query capability, no transactions. If this becomes a problem, we'll move to a real database in Iteration 2.
+- Trade-off: Limited query capability, no transactions. We will move to a database if performance degrades.
 
-**FastAPI Over Express/Node**
-- Why: Built-in validation, async support, good TypeScript integration.
-- Trade-off: Separate backend from frontend, but gives us better control and separation of concerns.
+**WebSockets for Live Updates**
+- Why: Requirement specifies "no refresh". Polling is inefficient.
+- Trade-off: Adds complexity to backend state management. Frontend must handle reconnection logic.
+
+**Implicit vs Explicit Opt-Out for Office Closed**
+- Decision: If a day is "Office Closed", the backend returns 0 counts logically without writing individual "Opt-Out" records for every user to save storage and write operations.
 
 **JWT for Auth**
 - Why: Stateless, standard, easy to implement.
 - Trade-off: No built-in revocation, but good enough for now.
 
-**React Instead of Next.js**
-- Why: Separation of concerns. We can run frontend and backend independently.
-- Trade-off: Need to manage build/deploy separately, but flexibility is worth it.
-
-**No Cutoff Window Yet**
-- Why: Requirements aren't complete yet. Let's ship the core first iteration.
-- Trade-off: People can change their mind anytime, but that's okay for now.
-
-**No Audit Trail**
-- Why: Keep it simple. We can add logging later if needed.
-- Trade-off: Won't know who changed what and when, but we're accepting that for Iteration 1.
+**No dynamic Cutoff Window Yet**
+- Why: Requirements aren't complete yet.
+- Trade-off: People can change their mind anytime.
 
 ---
 
@@ -299,15 +302,16 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - JWT tokens for sessions
 - 8-hour token expiry
 - Tokens sent in Authorization header
+- WebSocket connections authenticated during handshake
 
 ### Access Control
 
-| Role | Login | Update Own | View All | Update All | Headcount | Register Users |
-|-------|--------|------------|----------|------------|-----------|------------------|
-| Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ |
-| Team Lead | ✓ | ✓ | ✓ | Team | ✗ | ✗ |
-| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ |
+| Role | Login | Update Own | View All | Update All | Headcount | Register Users | Bulk Update | Manage Special Days |
+|-------|--------|------------|----------|------------|-----------|------------------|-------------|---------------------|
+| Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Team Lead | ✓ | ✓ | Team | Team | ✗ | ✗ | Team | ✗ |
+| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ | ✗ | ✓ |
 
 
 ### Secrets
