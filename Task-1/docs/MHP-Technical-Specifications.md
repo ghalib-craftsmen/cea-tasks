@@ -17,7 +17,7 @@
 
 ## 2. Summary
 
-We're building a web app to replace the Excel spreadsheet used for meal headcount. Employees can see meals, opt in/out, and set their work location (Office/WFH) for specific dates. Team Leads and Admins can update participation for their scope, apply bulk actions, and manage exceptions. Logistics gets a real-time headcount view enriched with team and location breakdowns to plan meals better. The system supports team-based visibility and special day controls (holidays, office closures) which automatically adjust meal availability. Everyone's opted in by default unless they say otherwise or the day is marked closed.
+We're building a web app to replace the Excel spreadsheet used for meal headcount. Employees can see meals, opt in/out, and set their work location (Office/WFH) for specific dates. Team Leads and Admins can update participation for their scope, apply bulk actions, and manage exceptions. Logistics gets an accurate headcount view enriched with team and location breakdowns to plan meals better. The system supports team-based visibility and special day controls (holidays, office closures) which automatically adjust meal availability. Everyone's opted in by default unless they say otherwise or the day is marked closed.
 
 ---
 
@@ -31,10 +31,9 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ### Goals
 
-
 - Get off Excel and into a proper web app
 - Let employees manage their own meal participation and work location
-- Give Logistics/Admins a real-time headcount view with live updates
+- Give Logistics/Admins an accurate headcount view with team and location breakdowns
 - Support 4 roles: Employee, Team Lead, Admin, Logistics
 - Handle 5 meal types: Lunch, Snacks, Iftar, Event Dinner, Optional Dinner
 - Default everyone to opted-in unless they opt out
@@ -42,8 +41,9 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Implement Team-based visibility and filtering
 - Enable Admins/Logistics to define "Special Days" (Closed, Holiday, Celebration)
 - Provide bulk action capabilities for Admins and Team Leads
-- Generate copy/paste-friendly daily announcements
+- Generate copy/paste-friendly daily announcements (Client-side)
 - Enrich reporting with Team and Location breakdowns
+- Live updates via Polling (no manual page refresh required)
 
 ### Non-Goals
 
@@ -52,6 +52,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - No options for setting future meal participation 
 - No guest meals
 - No HR system integration
+- No WebSockets or Server-Sent Events (SSE)
 
 ---
 
@@ -61,13 +62,12 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 **Backend:** FastAPI   
 **Authentication:** JWT    
 **Storage:** JSON files   
-**Real-time:** WebSockets (via FastAPI `websockets`)
 
 **Rationale:**
 - **JSON Files:** Fastest way to ship. No setup needed. Easy to inspect. We will monitor performance as we scale.
-- **FastAPI:** Built-in validation, async support, and native WebSocket support for live updates.
+- **FastAPI:** Built-in validation, async support.
 - **React:** Separation of concerns. We can run frontend and backend independently.
-- **WebSockets:** Essential for the "no refresh" requirement for live headcount updates.  
+- **Polling for Live Updates:** Uses standard HTTP requests. Simpler to implement and debug than WebSockets, and sufficient for a user base of <200.
 
 ---
 
@@ -80,8 +80,9 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Employee page to see and update their meals and work location (Office/WFH)
 - Admin page to view and update anyone's participation and manage special days
 - Headcount page for Logistics/Admin to see live totals broken down by team and location
-- Team Lead view restricted to their specific team members
-- Interface to generate daily announcement drafts
+- **Auto-refresh:** Headcount data refreshes automatically every 10 seconds (Polling).
+- Team Lead view restricted strictly to their specific team members
+- Client-side interface to generate daily announcement drafts
 
 **Backend:**
 - Auth endpoints (login, logout)
@@ -89,7 +90,6 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Admin endpoints for overrides and special day management
 - Headcount endpoints with filtering by team and location
 - User registration endpoint (for Admin only)
-- WebSocket server for broadcasting live updates
 
 **Data:**
 - User accounts with roles and team assignments
@@ -132,7 +132,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - View is restricted during "Office Closed" days (meals disabled)
 
 **Admin/Team Lead:**
-- View participation based on scope (Team Leads see their team; Admins see all)
+- View participation based on scope (Team Leads strictly see their own team; Admins see all)
 - Update participation for anyone within their scope
 - Apply bulk actions for their scope (e.g., mark a group as opted out due to offsite)
 - Correct missing work-location entries for their scope when needed
@@ -150,18 +150,20 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - View participating vs opted-out counts
 - Drill down to participant lists
 - Headcount totals available by: Meal type, Team, Overall total, Office vs WFH split
-- Updates occur immediately without reloading the page (Live Updates)
+- **Live Updates:** The Headcount page polls the server every 10 seconds to fetch the latest data, ensuring the view is up-to-date without manual browser refresh.
 
 **Daily Announcement:**
 - Logistics/Admin can generate a copy/paste-friendly message for a selected date
+- The message is generated on the **Frontend** using available headcount data
 - The message includes meal-wise totals and highlights special-day notes
+- Logistics leads the process of copying and disseminating the message
 
 ### Role Permissions
 
 | Role | View Own | Update Own | View Scope | Update Scope | Bulk Update | Manage Special Days | View Headcount |
 |-------|-----------|------------|------------|--------------|-------------|---------------------|----------------|
 | Employee | Yes | Yes | No | No | No | No | No |
-| Team Lead | Yes | Yes | Team | Team | Team | No | No |
+| Team Lead | Yes | Yes | Team Only | Team Only | Team Only | No | No |
 | Admin | Yes | Yes | All | All | All | Yes | Yes |
 | Logistics | No | No | All | No | No | Yes | Yes |
 
@@ -170,7 +172,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Valid username and password required
 - Username must be unique (no duplicates)
 - Employees only update their own data
-- Team Leads only update their team
+- Team Leads strictly view and update their own team members (cannot view other teams)
 - Admin updates anyone
 - Logistics only views, doesn't update participation
 - New days default to all opted in unless marked as "Office Closed"
@@ -187,8 +189,8 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - [ ] Code reviewed
 - [ ] QA tested
 - [ ] No high-severity bugs
-- [ ] Live updates functioning via WebSockets
 - [ ] Bulk actions atomic and scope-validated
+- [ ] Headcount page auto-updates (polling works)
 
 ---
 
@@ -203,7 +205,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 5. Changes work location to "WFH".
 6. Unchecks "Snacks" for today.
 7. Saves changes.
-8. Headcount views (Logistics/Admin) update immediately to reflect the location change and meal opt-out.
+8. Data is persisted for Logistics/Admin viewing.
 
 ### Admin Flow
 
@@ -225,19 +227,19 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 ### Logistics Flow
 
 1. Logistics person logs in and goes to headcount page.
-2. Sees live totals: Lunch 115/120 (Office: 80, WFH: 35).
-3. Generates the "Daily Announcement" for the date.
-4. Copies the text (which includes a "Diwali Celebration" note) to post in Slack.
+2. Sees totals: Lunch 115/120 (Office: 80, WFH: 35).
+3. The page automatically refreshes the counts every 10 seconds.
+4. Logistics clicks "Generate Announcement".
+5. Frontend compiles the data into a text format.
+6. Logistics copies the text (which includes a "Diwali Celebration" note) to post in Slack.
 
 ### Failure Cases
 
 - Wrong password → Error message
 - Session expired → Redirect to login
 - Employee tries to update someone else → Forbidden
-- Team Lead tries to update non-team member → Forbidden
+- Team Lead tries to view/update non-team member → Forbidden
 - User tries to opt-in on "Office Closed" day → Error "Office is closed"
-- WebSocket disconnects → UI shows "Reconnecting..." status
-
 
 ---
 
@@ -245,7 +247,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ### Architecture
 
-Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes JSON files for data. A WebSocket channel runs alongside REST to push live headcount updates to connected clients.
+Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes JSON files for data. The Frontend implements an interval timer to poll the API for headcount updates.
 
 ### API Endpoints
 
@@ -265,8 +267,6 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 | PUT | `/api/me/location` | Set my work location | Everyone |
 | GET | `/api/admin/special-days` | Get special days list | Admin, Logistics |
 | POST | `/api/admin/special-days` | Create special day entry | Admin, Logistics |
-| GET | `/api/reports/announcement` | Generate announcement text | Admin, Logistics |
-| WS | `/ws` | WebSocket connection for live updates | Authenticated Users |
 
 
 ---
@@ -277,9 +277,13 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - Why: Fastest way to ship. No setup needed. Easy to inspect.
 - Trade-off: Limited query capability, no transactions. We will move to a database if performance degrades.
 
-**WebSockets for Live Updates**
-- Why: Requirement specifies "no refresh". Polling is inefficient.
-- Trade-off: Adds complexity to backend state management. Frontend must handle reconnection logic.
+**Polling for "Live" Updates**
+- Why: Avoids the complexity of WebSockets (connection state, auth handshake). Sufficient for a small user base (100-200 users).
+- Trade-off: Not truly real-time (up to 10s delay). Generates steady background HTTP traffic. Server load is slightly higher than push-models, but negligible for this scale.
+
+**Client-side Announcement Generation**
+- Why: Simplifies backend; formats change frequently. Logistics leads the dissemination process.
+- Trade-off: Frontend logic increases slightly.
 
 **Implicit vs Explicit Opt-Out for Office Closed**
 - Decision: If a day is "Office Closed", the backend returns 0 counts logically without writing individual "Opt-Out" records for every user to save storage and write operations.
@@ -302,14 +306,13 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - JWT tokens for sessions
 - 8-hour token expiry
 - Tokens sent in Authorization header
-- WebSocket connections authenticated during handshake
 
 ### Access Control
 
 | Role | Login | Update Own | View All | Update All | Headcount | Register Users | Bulk Update | Manage Special Days |
 |-------|--------|------------|----------|------------|-----------|------------------|-------------|---------------------|
 | Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Team Lead | ✓ | ✓ | Team | Team | ✗ | ✗ | Team | ✗ |
+| Team Lead | ✓ | ✓ | Team Only | Team Only | ✗ | ✗ | Team Only | ✗ |
 | Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ | ✗ | ✓ |
 
@@ -358,14 +361,14 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - [ ] See correct scope of employees
 - [ ] Can update participation within scope
 - [ ] Can perform bulk actions within scope
-- [ ] Team Lead cannot update non-team member
+- [ ] Team Lead cannot view or update non-team member
 
 **Headcount & Special Days:**
 - [ ] See correct totals broken down by team/location
 - [ ] Can drill down to names
-- [ ] Updates in real-time without refresh
 - [ ] "Office Closed" prevents meal selection
 - [ ] Announcement generation includes special notes
+- [ ] Wait 10 seconds on Headcount page; verify data updates without manual refresh.
 
 ---
 
@@ -378,7 +381,6 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - Participation updates (individual and bulk)
 - Admin overrides
 - Special day changes
-- WebSocket connections/drops
 - Errors
 
 ### Monitoring
@@ -386,7 +388,6 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - Failed logins
 - Server errors
 - API response times
-- Active WebSocket connections count
 
 ### Deployment
 
@@ -407,7 +408,6 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 ### Risks
 
 - JSON files could get corrupted if server crashes during write → We'll implement atomic writes
-- WebSocket connection drops → UI will show "Reconnecting..." status and attempt auto-reconnect
 - Performance if we scale beyond 200 users → We'll monitor and move to DB if needed
 
 ### Assumptions
@@ -452,7 +452,7 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 **Announcement Draft:**
 > **Date:** Oct 25, 2026
-> **Status:** Special Celebration (Diwali)
+> **Status:** Special Celebration (Work Anniversary)
 >
 > **Headcount:**
 > *   Lunch: 115 (Office: 80, WFH: 35)
