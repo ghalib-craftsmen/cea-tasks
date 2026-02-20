@@ -31,24 +31,26 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ### Goals
 
+
 - Get off Excel and into a proper web app
-- Let employees manage their own meal participation
-- Give Logistics/Admins a real-time headcount view
+- Let employees manage their own meal participation and work location
+- Give Logistics/Admins a real-time headcount view with live updates
 - Support 4 roles: Employee, Team Lead, Admin, Logistics
 - Handle 5 meal types: Lunch, Snacks, Iftar, Event Dinner, Optional Dinner
 - Default everyone to opted-in unless they opt out
+- Cutoff window enforcement
+- Implement Team-based visibility and filtering
+- Enable Admins/Logistics to define "Special Days" (Closed, Holiday, Celebration)
+- Provide bulk action capabilities for Admins and Team Leads
+- Generate copy/paste-friendly daily announcements
+- Enrich reporting with Team and Location breakdowns
 
 ### Non-Goals
 
 - No password reset in this iteration
 - No email notifications
-- No cutoff window enforcement (we'll figure this out later)
-- No historical data, just today
-- No multi-day planning yet
-- No special day handling (holidays, office closed, etc.)
-- No reporting or export
+- No options for setting future meal participation 
 - No guest meals
-- No bulk operations
 - No HR system integration
 
 ---
@@ -59,6 +61,13 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 **Backend:** FastAPI   
 **Authentication:** JWT    
 **Storage:** JSON files   
+**Real-time:** WebSockets (via FastAPI `websockets`)
+
+**Rationale:**
+- **JSON Files:** Fastest way to ship. No setup needed. Easy to inspect. We will monitor performance as we scale.
+- **FastAPI:** Built-in validation, async support, and native WebSocket support for live updates.
+- **React:** Separation of concerns. We can run frontend and backend independently.
+- **WebSockets:** Essential for the "no refresh" requirement for live headcount updates.  
 
 ---
 
