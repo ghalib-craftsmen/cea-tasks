@@ -38,7 +38,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Support 4 roles: Employee, Team Lead, Admin, Logistics
 - Handle 5 meal types: Lunch, Snacks, Iftar, Event Dinner, Optional Dinner
 - Default everyone to opted-in unless they opt out
-- Cutoff window enforcement
+- Cutoff window enforcement (previous day at 9:00 pm)
 - Implement Team-based visibility and filtering
 - Enable Admins/Logistics to define "Special Days" (Closed, Holiday, Celebration)
 - Provide bulk action capabilities for Admins and Team Leads
@@ -77,33 +77,34 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 **Frontend:**
 - Login page
-- Employee page to see and update their meals
-- Admin page to view and update anyone's participation
-- Headcount page for Logistics/Admin to see totals
+- Employee page to see and update their meals and work location (Office/WFH)
+- Admin page to view and update anyone's participation and manage special days
+- Headcount page for Logistics/Admin to see live totals broken down by team and location
+- Team Lead view restricted to their specific team members
+- Interface to generate daily announcement drafts
 
 **Backend:**
 - Auth endpoints (login, logout)
-- Meal participation endpoints
-- Admin endpoints for overrides
-- Headcount endpoints
+- Meal participation endpoints (individual and bulk)
+- Admin endpoints for overrides and special day management
+- Headcount endpoints with filtering by team and location
 - User registration endpoint (for Admin only)
-
+- WebSocket server for broadcasting live updates
 
 **Data:**
-- User accounts with roles
+- User accounts with roles and team assignments
 - Daily participation records
+- Work location records (Office/WFH) by date
+- Team definitions
+- Special day definitions (Holidays, Closed, WFH periods)
 
 ### What We're Not Doing (Yet)
 
 - Password reset
 - Email features
-- Cutoff windows
-- Historical data beyond today
-- Multi-day views
-- Special days
-- Reports/exports
+- Variable Cutoff windows
+- Reporting/exports beyond the daily announcement draft
 - Guest management
-- Bulk actions
 
 ---
 
@@ -117,49 +118,52 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Session timeout
 - Role-based access
 
-
 **User Registration:**
-- Admin can register new users via API
-- Registration API creates user entry with default role (Employee)
-- User registration stores: username, password (hashed), name, email, role
-- Admin can assign role and team during registration
+- User can register via `/register` API but only Admin needs to approve
+- Registration API creates user entry with default role (Employee), admin can change the role later and assign to the team
+- User registration stores: username, password (hashed), name, email, role, and team assignment
 - Password is hashed before storage
 
-
 **Employee Features:**
-- View today's meals
+- View today's meals and personal team assignment
 - See current status (default: all opted in)
-- Opt out of meals
-- Opt back in if needed
-- Changes save immediately
-
+- Opt out of meals or opt back in; changes save immediately
+- Set work location for a selected date: Office / WFH
+- View is restricted during "Office Closed" days (meals disabled)
 
 **Admin/Team Lead:**
-- View all employees' participation
-- Update anyone's participation (Admin/Logistics)
-- Team Leads can update their team members
+- View participation based on scope (Team Leads see their team; Admins see all)
+- Update participation for anyone within their scope
+- Apply bulk actions for their scope (e.g., mark a group as opted out due to offsite)
+- Correct missing work-location entries for their scope when needed
 
+**Special Day Controls:**
+- Admin/Logistics can mark a day as:
+  - Office Closed (disables meal opt-in)
+  - Government Holiday
+  - Special Celebration Day (with a note)
+- Admin/Logistics can declare a date range as "WFH for everyone" (sets default location)
+- The system adjusts meal availability and default locations based on the day type
 
-**Headcount:**
+**Headcount & Reporting:**
 - Logistics/Admin see totals per meal type
-- See participating vs opted-out counts
+- View participating vs opted-out counts
 - Drill down to participant lists
+- Headcount totals available by: Meal type, Team, Overall total, Office vs WFH split
+- Updates occur immediately without reloading the page (Live Updates)
 
-
-**Meal Types:**
-- Lunch, Snacks, Iftar, Event Dinner, Optional Dinner
-- All available every day (for now)
-
+**Daily Announcement:**
+- Logistics/Admin can generate a copy/paste-friendly message for a selected date
+- The message includes meal-wise totals and highlights special-day notes
 
 ### Role Permissions
 
-| Role | View Own | Update Own | View All | Update All | View Headcount | Can Register Users |
-|-------|-----------|------------|----------|------------|------------------|------------------|
-| Employee | Yes | Yes | No | No | No | No |
-| Team Lead | Yes | Yes | Yes | Team only | No | No |
-| Admin | Yes | Yes | Yes | Yes | Yes | Yes |
-| Logistics | No | No | Yes | No | Yes | No |
-
+| Role | View Own | Update Own | View Scope | Update Scope | Bulk Update | Manage Special Days | View Headcount |
+|-------|-----------|------------|------------|--------------|-------------|---------------------|----------------|
+| Employee | Yes | Yes | No | No | No | No | No |
+| Team Lead | Yes | Yes | Team | Team | Team | No | No |
+| Admin | Yes | Yes | All | All | All | Yes | Yes |
+| Logistics | No | No | All | No | No | Yes | Yes |
 
 ### Validation Rules
 
@@ -168,9 +172,10 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Employees only update their own data
 - Team Leads only update their team
 - Admin updates anyone
-- Logistics only views, doesn't update
-- New days default to all opted in
-- Only Admin can call registration endpoint
+- Logistics only views, doesn't update participation
+- New days default to all opted in unless marked as "Office Closed"
+- Cannot opt-in for meals on "Office Closed" days
+- Bulk actions must only contain users within the requester's scope
 
 
 ### Definition of Done
@@ -182,6 +187,8 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - [ ] Code reviewed
 - [ ] QA tested
 - [ ] No high-severity bugs
+- [ ] Live updates functioning via WebSockets
+- [ ] Bulk actions atomic and scope-validated
 
 ---
 
@@ -189,48 +196,38 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ### Employee Flow
 
-1. Employee goes to app URL
-2. Enters username and password
-3. Lands on their dashboard
-4. Sees 5 meal options, all checked by default
-5. Unchecks "Snacks" because they're not having it
-6. Clicks save
-7. Sees confirmation
-8. Change shows up in Logistics headcount view right away
+1. Employee goes to app URL and logs in.
+2. Lands on their dashboard; sees their team name.
+3. Views 5 meal options (all checked by default) and work location status.
+4. Selects "Tomorrow" on the date picker.
+5. Changes work location to "WFH".
+6. Unchecks "Snacks" for today.
+7. Saves changes.
+8. Headcount views (Logistics/Admin) update immediately to reflect the location change and meal opt-out.
 
 ### Admin Flow
 
-1. Admin logs in
-2. Goes to admin page
-3. Sees table of all employees and their choices
-4. Searches for "John Doe"
-5. Clicks John's row
-6. Changes John's Lunch from opted out to opted in
-7. Saves
-8. Table updates to show the change
+1. Admin logs in and goes to the admin page.
+2. Sees table of all employees with team and location columns.
+3. Filters by "Engineering" team.
+4. Selects 5 employees attending an offsite.
+5. Applies bulk action: "Opt Out (All Meals)" for the offsite date.
+6. System updates records for those 5 users.
 
+### Special Day Management Flow
 
-### User Registration Flow (Admin/Logistics)
-
-1. Admin logs in as Admin or Logistics
-2. Makes POST request to `/api/auth/register`
-3. Sends: username, password, name, email, role (optional), teamId (optional)
-4. Backend validates all inputs
-5. Backend checks if username already exists
-6. Backend hashes password with bcrypt
-7. Backend creates user entry in users.json
-8. Backend returns created user details (without password hash)
-
+1. Admin navigates to "Calendar Management".
+2. Selects a date and marks it as "Office Closed".
+3. Saves the entry.
+4. Backend logically disables meal availability for that date.
+5. Employees viewing that date see a message "Office Closed - Meals Disabled".
 
 ### Logistics Flow
 
-1. Logistics person logs in
-2. Goes to headcount page
-3. Sees totals: Lunch 115/120, Snacks 100/120, etc.
-4. Clicks Lunch to see who's opted in
-5. Sees list of names
-6. Refreshes to check for updates
-
+1. Logistics person logs in and goes to headcount page.
+2. Sees live totals: Lunch 115/120 (Office: 80, WFH: 35).
+3. Generates the "Daily Announcement" for the date.
+4. Copies the text (which includes a "Diwali Celebration" note) to post in Slack.
 
 ### Failure Cases
 
@@ -238,9 +235,9 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 - Session expired → Redirect to login
 - Employee tries to update someone else → Forbidden
 - Team Lead tries to update non-team member → Forbidden
-- Username already exists during registration → Error, ask for different username
-- Non-admin tries to register user → Forbidden
-- No data to show → Empty state handled gracefully
+- User tries to opt-in on "Office Closed" day → Error "Office is closed"
+- WebSocket disconnects → UI shows "Reconnecting..." status
+
 
 ---
 
