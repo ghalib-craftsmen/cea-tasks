@@ -4,8 +4,9 @@ import type {
   ParticipationUpdateRequest,
 } from '../../types';
 
-export async function getAllParticipation(): Promise<UserParticipation[]> {
-  const response = await api.get<UserParticipation[]>('/admin/participation');
+export async function getAllParticipation(teamId?: number): Promise<UserParticipation[]> {
+  const params = teamId ? { team_id: teamId } : {};
+  const response = await api.get<UserParticipation[]>('/admin/participation', { params });
   return response.data;
 }
 

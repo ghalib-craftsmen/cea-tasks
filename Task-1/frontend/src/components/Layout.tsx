@@ -1,7 +1,9 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { LogoutButton } from '../features/auth/components/LogoutButton';
+import { getCurrentUser } from '../features/users/api';
 
 interface NavItem {
   path: string;
@@ -24,6 +26,13 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Fetch current user with team name
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    enabled: !!user,
+  });
 
   const allNavItems = [...navItems, ...(isAdmin ? adminNavItems : [])];
 
@@ -125,6 +134,9 @@ export function Layout() {
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-900">{user.username}</p>
               <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+              {currentUser?.team_name && (
+                <p className="text-xs text-gray-500 mt-1">Team: {currentUser.team_name}</p>
+              )}
             </div>
           )}
           <LogoutButton />
