@@ -22,11 +22,11 @@ def create_default_participation(user_id: int, date: str) -> MealRecord:
         user_id=user_id,
         date=date,
         meals={
-            MealType.LUNCH: True,
-            MealType.SNACKS: True,
-            MealType.IFTAR: True,
-            MealType.EVENT_DINNER: True,
-            MealType.OPTIONAL_DINNER: True,
+            MealType.LUNCH.value: True,
+            MealType.SNACKS.value: True,
+            MealType.IFTAR.value: True,
+            MealType.EVENT_DINNER.value: True,
+            MealType.OPTIONAL_DINNER.value: True,
         }
     )
 

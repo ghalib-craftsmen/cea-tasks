@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import type { MealType } from '../types';
+import type { MealType, UserParticipation } from '../types';
 import { getAllParticipation, updateUserParticipation } from '../features/admin/api';
 
 const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
@@ -13,7 +13,7 @@ export function Admin() {
   // Fetch all user participation data
   const { data: users, isLoading } = useQuery({
     queryKey: ['admin', 'participation'],
-    queryFn: getAllParticipation,
+    queryFn: () => getAllParticipation(),
   });
 
   // Update user participation
@@ -35,7 +35,7 @@ export function Admin() {
     if (!user) return;
 
     const updatedMeals = {
-      ...user.meals,
+      ...(user.meals || {}),
       [mealType]: !currentValue,
     };
 
@@ -66,7 +66,7 @@ export function Admin() {
       acc[teamId].leads.push(user);
     }
     return acc;
-  }, {} as Record<number, { members: typeof users; leads: typeof users }>);
+  }, {} as Record<number, { members: UserParticipation[]; leads: UserParticipation[] }>);
 
   return (
     <div className="space-y-6">
@@ -171,24 +171,27 @@ export function Admin() {
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="flex flex-wrap gap-1">
-                            {mealTypes.map((mealType) => (
-                              <button
-                                key={mealType}
-                                onClick={() => handleMealToggle(user.user_id, mealType, user.meals[mealType])}
-                                disabled={updateMutation.isPending}
-                                className={`
-                                  px-2 py-1 text-xs rounded border transition-colors
-                                  ${
-                                    user.meals[mealType]
-                                      ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
-                                      : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
-                                  }
-                                  ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}
-                                `}
-                              >
-                                {mealType.substring(0, 3)}
-                              </button>
-                            ))}
+                            {mealTypes.map((mealType) => {
+                              const mealValue = user.meals?.[mealType] ?? false;
+                              return (
+                                <button
+                                  key={mealType}
+                                  onClick={() => handleMealToggle(user.user_id, mealType, mealValue)}
+                                  disabled={updateMutation.isPending}
+                                  className={`
+                                    px-2 py-1 text-xs rounded border transition-colors
+                                    ${
+                                      mealValue
+                                        ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                                        : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
+                                    }
+                                    ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}
+                                  `}
+                                >
+                                  {mealType.substring(0, 3)}
+                                </button>
+                              );
+                            })}
                           </div>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -226,11 +229,11 @@ export function Admin() {
                       <span className="text-2xl">🏢</span>
                     </div>
                     <div className="space-y-2 text-sm text-gray-600">
-                      <p>Members: {teamData.members.length}</p>
-                      <p>Team Leads: {teamData.leads.length}</p>
-                      {teamData.leads.length > 0 && (
+                      <p>Members: {teamData.members?.length || 0}</p>
+                      <p>Team Leads: {teamData.leads?.length || 0}</p>
+                      {(teamData.leads?.length || 0) > 0 && (
                         <p className="text-xs text-blue-600">
-                          Lead: {teamData.leads.map((l) => l.name).join(', ')}
+                          Lead: {teamData.leads?.map((l) => l.name).join(', ') || ''}
                         </p>
                       )}
                     </div>

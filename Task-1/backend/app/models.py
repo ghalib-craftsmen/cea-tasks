@@ -82,11 +82,11 @@ class MealRecord(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     meals: Dict[MealType, bool] = Field(
         default_factory=lambda: {
-            MealType.LUNCH: False,
-            MealType.SNACKS: False,
-            MealType.IFTAR: False,
-            MealType.EVENT_DINNER: False,
-            MealType.OPTIONAL_DINNER: False,
+            MealType.LUNCH.value: False,
+            MealType.SNACKS.value: False,
+            MealType.IFTAR.value: False,
+            MealType.EVENT_DINNER.value: False,
+            MealType.OPTIONAL_DINNER.value: False,
         }
     )
 
