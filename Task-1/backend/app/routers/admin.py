@@ -70,53 +70,6 @@ async def require_admin_or_logistics(
     return current_user
 
 
-@router.get("/participation", response_model=List[UserParticipation])
-async def get_all_participation(
-    team_id: Optional[int] = Query(None, description="Filter by team ID (Admin only)"),
-    current_user: User = Depends(require_admin_or_teamlead_or_logistics)):
-    today = get_todays_date()
-    
-    users_data = storage.read_users()
-    participation_data = storage.read_participation()
-    
-    participation_lookup: Dict[int, Dict] = {}
-    for record in participation_data:
-        if record.get("date") == today:
-            participation_lookup[record.get("user_id")] = record
-    
-    result = []
-    
-    for user_dict in users_data:
-        user = User(**user_dict)
-
-        if current_user.role == UserRole.TEAM_LEAD.value:
-            if user.team_id != current_user.team_id:
-                continue
-        elif current_user.role == UserRole.ADMIN.value and team_id is not None:
-            if user.team_id != team_id:
-                continue
-        
-        participation_record = participation_lookup.get(user.id)
-        if participation_record:
-            meals = participation_record.get("meals", {})
-        else:
-            default_record = create_default_participation(user.id, today)
-            meals = default_record.meals
-        
-        result.append(UserParticipation(
-            user_id=user.id,
-            username=user.username,
-            name=user.name,
-            email=user.email,
-            role=user.role,
-            team_id=user.team_id,
-            date=today,
-            meals=meals
-        ))
-    
-    return result
-
-
 @router.put("/participation", response_model=UserParticipation)
 async def update_user_participation(
     update_data: ParticipationUpdateRequest,
