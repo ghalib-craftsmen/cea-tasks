@@ -72,6 +72,7 @@ async def require_admin_or_logistics(
 
 @router.get("/participation", response_model=List[UserParticipation])
 async def get_all_participation(
+    team_id: Optional[int] = Query(None, description="Filter by team ID (Admin only)"),
     current_user: User = Depends(require_admin_or_teamlead_or_logistics)):
     today = get_todays_date()
     
@@ -90,6 +91,9 @@ async def get_all_participation(
 
         if current_user.role == UserRole.TEAM_LEAD.value:
             if user.team_id != current_user.team_id:
+                continue
+        elif current_user.role == UserRole.ADMIN.value and team_id is not None:
+            if user.team_id != team_id:
                 continue
         
         participation_record = participation_lookup.get(user.id)

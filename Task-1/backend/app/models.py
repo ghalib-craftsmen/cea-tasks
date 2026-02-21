@@ -62,6 +62,16 @@ class UserResponse(BaseModel):
     email: str
     role: UserRole
     team_id: Optional[int] = None
+    team_name: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class Team(BaseModel):
+    id: int
+    name: str
+    leadId: int
 
     class Config:
         use_enum_values = True

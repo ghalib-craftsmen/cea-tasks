@@ -11,7 +11,7 @@ from app.auth import (
 )
 from app.db import JSONStorage
 from app.models import User, RegisterRequest, UserResponse
-from app.routers import meals, admin, headcount
+from app.routers import meals, admin, headcount, users
 from app.config import (
     API_TITLE,
     API_DESCRIPTION,
@@ -48,6 +48,7 @@ app.add_middleware(
 app.include_router(meals.router)
 app.include_router(admin.router)
 app.include_router(headcount.router)
+app.include_router(users.router)
 
 
 @app.get("/")
