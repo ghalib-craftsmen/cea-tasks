@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 
 from app.auth import get_current_user

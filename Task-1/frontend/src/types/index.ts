@@ -16,9 +16,16 @@ export interface User {
   email: string;
   role: UserRole;
   team_id?: number | null;
+  team_name?: string | null;
 }
 
 export type UserRole = 'Employee' | 'TeamLead' | 'Admin' | 'Logistics';
+
+export interface Team {
+  id: number;
+  name: string;
+  leadId: number;
+}
 
 export interface LoginCredentials {
   username: string;
@@ -59,6 +66,7 @@ export interface MealRecord {
 
 export interface ParticipationUpdate {
   meals: Record<MealType, boolean>;
+  date?: string;
 }
 
 export interface UserParticipation {
