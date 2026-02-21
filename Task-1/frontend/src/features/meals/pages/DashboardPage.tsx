@@ -32,8 +32,12 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['meals', 'today'] });
       Toast.success('Meal participation updated successfully!');
     },
-    onError: () => {
-      Toast.error('Failed to update meal participation. Please try again.');
+    onError: (error: any) => {
+      if (error?.response?.status === 403) {
+        Toast.error('Cutoff time passed. Updates locked for tomorrow\'s meals.');
+      } else {
+        Toast.error('Failed to update meal participation. Please try again.');
+      }
     },
   });
 

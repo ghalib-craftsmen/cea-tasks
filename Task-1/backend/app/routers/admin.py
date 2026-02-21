@@ -141,7 +141,7 @@ async def update_user_participation(
     
     target_user = User(**target_user_dict)
     
-    if current_user.role == UserRole.TEAM_LEAD:
+    if current_user.role == UserRole.TEAM_LEAD.value:
         if target_user.team_id != current_user.team_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
