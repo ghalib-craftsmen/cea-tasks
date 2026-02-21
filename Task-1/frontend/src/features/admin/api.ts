@@ -6,7 +6,7 @@ import type {
 
 export async function getAllParticipation(teamId?: number): Promise<UserParticipation[]> {
   const params = teamId ? { team_id: teamId } : {};
-  const response = await api.get<UserParticipation[]>('/admin/participation', { params });
+  const response = await api.get<UserParticipation[]>('/participation', { params });
   return response.data;
 }
 
