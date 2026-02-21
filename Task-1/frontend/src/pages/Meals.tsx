@@ -26,8 +26,12 @@ export function Meals() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meals', 'today'] });
     },
-    onError: () => {
-      toast.error('Failed to update meal preferences. Please try again.');
+    onError: (error: any) => {
+      if (error?.response?.status === 403) {
+        toast.error('Cutoff time passed. Updates locked for tomorrow\'s meals.');
+      } else {
+        toast.error('Failed to update meal preferences. Please try again.');
+      }
     },
   });
 
