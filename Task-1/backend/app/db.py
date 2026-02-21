@@ -17,22 +17,18 @@ class JSONStorage:
     - Retry mechanism for Windows file locking issues
     - Automatic directory creation
     """
-    
     def __init__(self, base_dir: str = "data"):
         self.base_dir = Path(base_dir)
         self._ensure_directory_exists()
         self._lock = threading.Lock()
 
     def _ensure_directory_exists(self) -> None:
-        """Create the data directory if it doesn't exist."""
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_file_path(self, filename: str) -> Path:
-        """Get the full path for a given filename."""
         return self.base_dir / filename
 
     def _initialize_file_if_missing(self, file_path: Path) -> None:
-        """Create an empty JSON file if it doesn't exist."""
         if not file_path.exists():
             self._write_atomic(file_path, [])
 
@@ -121,29 +117,22 @@ class JSONStorage:
             self._write_atomic(file_path, data)
 
     def read_users(self) -> List[Any]:
-        """Read users from users.json file."""
         return self.read("users.json")
 
     def write_users(self, users: List[Any]) -> None:
-        """Write users to users.json file."""
         self.write("users.json", users)
 
     def read_participation(self) -> List[Any]:
-        """Read participation data from participation.json file."""
         return self.read("participation.json")
 
     def write_participation(self, participation: List[Any]) -> None:
-        """Write participation data to participation.json file."""
         self.write("participation.json", participation)
 
+    def read_teams(self) -> List[Any]:
+        return self.read("teams.json")
+
+    def write_teams(self, teams: List[Any]) -> None:
+        self.write("teams.json", teams)
+
     def get_file_path(self, filename: str) -> str:
-        """
-        Get the absolute path for a given filename.
-        
-        Args:
-            filename: The name of the file
-            
-        Returns:
-            The absolute path as a string
-        """
         return str(self._get_file_path(filename).resolve())
