@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { getCurrentUser, getTeams } from '../features/users/api';
 import { getHeadcountAggregation } from '../features/headcount/api';
+import { getSpecialDays } from '../features/locations/api';
 import type { MealType, HeadcountAggregationRow } from '../types';
 
 const mealTypes: (MealType | 'All')[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner', 'All'];
@@ -35,6 +36,15 @@ export function Headcount() {
   const isLogistics = currentUser?.role === 'Logistics';
   const isTeamLead = currentUser?.role === 'TeamLead';
 
+  const [announcementOpen, setAnnouncementOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const { data: specialDays } = useQuery({
+    queryKey: ['special-days'],
+    queryFn: getSpecialDays,
+    enabled: isAdmin || isLogistics,
+  });
+
   // Helper function to get total opted_in for a specific meal type from aggregation data
   const getMealTotal = useMemo(() => {
     return (mealType: string) => {
@@ -57,11 +67,11 @@ export function Headcount() {
     
     // Calculate totals based on selected meal type
     const totalIn = (selectedMeal as string) === 'All'
-      ? filteredData.reduce((sum, row) => sum + row.total_in, 0)
-      : filteredData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + row.total_in, 0);
+      ? filteredData.reduce((sum, row) => sum + (row.total_in ?? 0), 0)
+      : filteredData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + (row.total_in ?? 0), 0);
     const totalOut = (selectedMeal as string) === 'All'
-      ? filteredData.reduce((sum, row) => sum + row.total_out, 0)
-      : filteredData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + row.total_out, 0);
+      ? filteredData.reduce((sum, row) => sum + (row.total_out ?? 0), 0)
+      : filteredData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + (row.total_out ?? 0), 0);
     
     // Total employees = office + WFH headcount (independent of meal opt-in).
     // office_count and wfh_count are now true location totals (same across all meal rows for a team),
@@ -72,7 +82,7 @@ export function Headcount() {
       const key = row.team_id != null ? row.team_id : (row.team ?? 'unassigned');
       if (!seenTeams.has(key)) {
         seenTeams.add(key);
-        totalEmployees += row.office_count + row.wfh_count;
+        totalEmployees += (row.office_count ?? 0) + (row.wfh_count ?? 0);
       }
     });
     
@@ -90,6 +100,51 @@ export function Headcount() {
 
   const optedInPercentage = tableSummary.opted_in_percentage;
   const optedOutPercentage = tableSummary.opted_out_percentage;
+
+  const announcementText = useMemo(() => {
+    const data = aggregationData?.data ?? [];
+    const specialDay = specialDays?.find((d) => d.date === selectedDate);
+    const status = specialDay
+      ? `${specialDay.type}${specialDay.note ? ` — ${specialDay.note}` : ''}`
+      : 'Regular Day';
+
+    const mealOrder: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
+    const mealDisplayNames: Record<MealType, string> = {
+      Lunch: 'Lunch',
+      Snacks: 'Snacks',
+      Iftar: 'Iftar',
+      EventDinner: 'Event Dinner',
+      OptionalDinner: 'Optional Dinner',
+    };
+
+    const mealLines = mealOrder
+      .map((meal) => {
+        const rows = data.filter((r) => r.meal === meal);
+        const totalIn = rows.reduce((s, r) => s + r.total_in, 0);
+        const officeIn = rows.reduce((s, r) => s + r.office_in, 0);
+        const wfhIn = rows.reduce((s, r) => s + r.wfh_in, 0);
+        if (totalIn === 0) return null;
+        return `  • ${mealDisplayNames[meal]}: ${totalIn} (Office: ${officeIn}, WFH: ${wfhIn})`;
+      })
+      .filter(Boolean)
+      .join('\n');
+
+    // Deduplicate by team to get true day-level office/WFH headcount
+    const seenTeams = new Set<number | string>();
+    let totalOfficeHeadcount = 0;
+    let totalWfhHeadcount = 0;
+    data.forEach(row => {
+      const key = row.team_id != null ? row.team_id : (row.team ?? 'unassigned');
+      if (!seenTeams.has(key)) {
+        seenTeams.add(key);
+        totalOfficeHeadcount += row.office_count ?? 0;
+        totalWfhHeadcount += row.wfh_count ?? 0;
+      }
+    });
+    const locationLine = `\nLocation:\n  🏢 In Office: ${totalOfficeHeadcount}\n  🏠 WFH: ${totalWfhHeadcount}`;
+
+    return `📅 ${selectedDate} — ${status}\n\nHeadcount:\n${mealLines || '  (no data)'}${locationLine}`;
+  }, [aggregationData, selectedDate, specialDays]);
 
   // Auto-refresh every 10 seconds
   useEffect(() => {
@@ -109,14 +164,27 @@ export function Headcount() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">
-          Headcount
-          {isTeamLead && currentUser.team_name && (
-            <span className="text-lg font-normal text-gray-500 ml-2">— {currentUser.team_name}</span>
-          )}
-        </h1>
-        <p className="mt-2 text-gray-600">View meal participation and headcount statistics</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Headcount
+            {isTeamLead && currentUser.team_name && (
+              <span className="text-lg font-normal text-gray-500 ml-2">— {currentUser.team_name}</span>
+            )}
+          </h1>
+          <p className="mt-2 text-gray-600">View meal participation and headcount statistics</p>
+        </div>
+        {(isAdmin || isLogistics) && (
+          <button
+            onClick={() => { setAnnouncementOpen(true); setCopied(false); }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Generate Announcement
+          </button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -142,7 +210,7 @@ export function Headcount() {
               <p className="mt-2 text-3xl font-bold text-green-900">
                 {tableSummary.opted_in || 0}
               </p>
-              <p className="text-sm text-green-700">{optedInPercentage.toFixed(1)}%</p>
+              <p className="text-sm text-green-700">{(isNaN(optedInPercentage) ? 0 : optedInPercentage).toFixed(1)}%</p>
             </div>
             <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
               <span className="text-2xl">✅</span>
@@ -157,7 +225,7 @@ export function Headcount() {
               <p className="mt-2 text-3xl font-bold text-red-900">
                 {tableSummary.opted_out || 0}
               </p>
-              <p className="text-sm text-red-700">{optedOutPercentage.toFixed(1)}%</p>
+              <p className="text-sm text-red-700">{(isNaN(optedOutPercentage) ? 0 : optedOutPercentage).toFixed(1)}%</p>
             </div>
             <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
               <span className="text-2xl">❌</span>
@@ -174,12 +242,12 @@ export function Headcount() {
         <div className="w-full bg-gray-200 rounded-full h-4">
           <div
             className="bg-green-600 h-4 rounded-full transition-all duration-300"
-            style={{ width: `${optedInPercentage}%` }}
+            style={{ width: `${isNaN(optedInPercentage) ? 0 : optedInPercentage}%` }}
           />
         </div>
         <div className="flex justify-between mt-2 text-sm text-gray-600">
-          <span>{optedInPercentage.toFixed(1)}% opted in</span>
-          <span>{optedOutPercentage.toFixed(1)}% opted out</span>
+          <span>{(isNaN(optedInPercentage) ? 0 : optedInPercentage).toFixed(1)}% opted in</span>
+          <span>{(isNaN(optedOutPercentage) ? 0 : optedOutPercentage).toFixed(1)}% opted out</span>
         </div>
       </div>
 
@@ -408,8 +476,8 @@ export function Headcount() {
                         const key = row.team_id != null ? row.team_id : (row.team ?? 'unassigned');
                         if (!seenTeamKeys.has(key)) {
                           seenTeamKeys.add(key);
-                          totalOffice += row.office_count;
-                          totalWFH += row.wfh_count;
+                          totalOffice += row.office_count ?? 0;
+                          totalWFH += row.wfh_count ?? 0;
                         }
                       });
                        
@@ -457,6 +525,49 @@ export function Headcount() {
           );
         })()}
       </div>
+
+      {/* Announcement Modal */}
+      {announcementOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Daily Announcement</h3>
+              <button
+                onClick={() => setAnnouncementOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              <pre className="w-full text-sm text-gray-800 bg-gray-50 rounded-lg border border-gray-200 p-4 whitespace-pre-wrap font-mono leading-relaxed">
+                {announcementText}
+              </pre>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setAnnouncementOpen(false)}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(announcementText).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
+                }}
+                className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                {copied ? 'Copied!' : 'Copy to Clipboard'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
