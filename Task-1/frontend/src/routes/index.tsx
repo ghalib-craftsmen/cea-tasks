@@ -152,9 +152,11 @@ const routes: RouteObject[] = [
       {
         path: 'admin/users',
         element: (
-          <Suspense fallback={<Loading />}>
-            <UserManagementPage />
-          </Suspense>
+          <AdminRoute>
+            <Suspense fallback={<Loading />}>
+              <UserManagementPage />
+            </Suspense>
+          </AdminRoute>
         ),
       },
       {
