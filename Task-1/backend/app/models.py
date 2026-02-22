@@ -194,12 +194,14 @@ class WFHPeriod(BaseModel):
 class WFHPeriodCreate(BaseModel):
     start_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    team_id: Optional[int] = None
 
 
 class WFHPeriodResponse(BaseModel):
     id: int
     start_date: str
     end_date: str
+    team_id: Optional[int] = None
 
     class Config:
         use_enum_values = True
@@ -228,6 +230,16 @@ class SpecialDayResponse(BaseModel):
     id: int
     date: str
     type: SpecialDayType
+    note: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class SpecialDayCheck(BaseModel):
+    date: str
+    is_closed: bool
+    type: Optional[SpecialDayType] = None
     note: Optional[str] = None
 
     class Config:

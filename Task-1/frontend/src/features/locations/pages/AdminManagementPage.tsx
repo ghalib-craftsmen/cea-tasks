@@ -3,10 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { getWFHPeriods, createWFHPeriod, deleteWFHPeriod, getSpecialDays, createSpecialDay, deleteSpecialDay } from '../api';
-import { getCurrentUser } from '../../../features/users/api';
+import { getCurrentUser, getTeams } from '../../../features/users/api';
 import { Calendar } from '../../../components/Calendar';
-import type { WFHPeriodCreate, SpecialDayCreate, SpecialDayType, SpecialDayCheck } from '../../../types';
+import type { WFHPeriodCreate, SpecialDayCreate, SpecialDayType, SpecialDayCheck, Team } from '../../../types';
 import { Toast } from '../../../components/ui/toastUtils';
+import { toDateKey } from '../../../utils/formatDate';
 
 export function AdminManagementPage() {
   const { isAuthenticated } = useAuth();
@@ -15,10 +16,11 @@ export function AdminManagementPage() {
   const [selectedRange, setSelectedRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [showSpecialDayForm, setShowSpecialDayForm] = useState(false);
   const [specialDayForm, setSpecialDayForm] = useState<SpecialDayCreate>({
-    date: new Date().toISOString().split('T')[0],
+    date: toDateKey(new Date()),
     type: 'Closed',
     note: '',
   });
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
 
   // Fetch current user to get role
   const { data: currentUser } = useQuery({
@@ -30,11 +32,28 @@ export function AdminManagementPage() {
   // Check if user has access (Admin or Logistics)
   const hasAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Logistics';
 
+  // Fetch teams
+  const { data: teams = [] } = useQuery<Team[]>({
+    queryKey: ['teams'],
+    queryFn: getTeams,
+    enabled: isAuthenticated && hasAccess,
+  });
+
   // Fetch WFH periods
   const { data: wfhPeriods = [] } = useQuery({
     queryKey: ['wfh-periods'],
     queryFn: getWFHPeriods,
     enabled: isAuthenticated && hasAccess,
+  });
+
+  // Filter WFH periods by selected team
+  const filteredWfhPeriods = wfhPeriods.filter((period) => {
+    if (selectedTeamId === null) {
+      // "All Teams" selected: show all periods
+      return true;
+    }
+    // Show periods that apply to the selected team (matching team_id or team_id is null meaning all teams)
+    return period.team_id === selectedTeamId || period.team_id == null;
   });
 
   // Fetch special days
@@ -77,7 +96,7 @@ export function AdminManagementPage() {
       Toast.success('Special day created successfully!');
       setShowSpecialDayForm(false);
       setSpecialDayForm({
-        date: new Date().toISOString().split('T')[0],
+        date: toDateKey(new Date()),
         type: 'Closed',
         note: '',
       });
@@ -114,10 +133,10 @@ export function AdminManagementPage() {
       return;
     }
 
-    const startDate = selectedRange.start.toISOString().split('T')[0];
-    const endDate = selectedRange.end.toISOString().split('T')[0];
+    const startDate = toDateKey(selectedRange.start);
+    const endDate = toDateKey(selectedRange.end);
 
-    createWFHMutation.mutate({ start_date: startDate, end_date: endDate });
+    createWFHMutation.mutate({ start_date: startDate, end_date: endDate, team_id: selectedTeamId });
   };
 
   const handleDeleteWFHPeriod = (periodId: number) => {
@@ -126,7 +145,7 @@ export function AdminManagementPage() {
     }
   };
 
-  const handleSpecialDaySubmit = (e: React.FormEvent) => {
+  const handleSpecialDaySubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     createSpecialDayMutation.mutate(specialDayForm);
   };
@@ -182,15 +201,34 @@ export function AdminManagementPage() {
           </button>
         </div>
         <p className="text-sm text-gray-600 mb-4">
-          Select a date range on the calendar to create a new WFH period. Click on an existing period to delete it.
+          Select a team (or All Teams), pick a date range on the calendar, then create the WFH period.
         </p>
+
+        <div className="mb-4">
+          <label htmlFor="wfh-team" className="block text-sm font-medium text-gray-700 mb-1">
+            Apply to
+          </label>
+          <select
+            id="wfh-team"
+            value={selectedTeamId ?? ''}
+            onChange={(e) => setSelectedTeamId(e.target.value === '' ? null : Number(e.target.value))}
+            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">All Teams</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="mb-6">
           {selectedRange.start && selectedRange.end ? (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-900">
-                Selected range: <strong>{selectedRange.start.toISOString().split('T')[0]}</strong> to{' '}
-                <strong>{selectedRange.end.toISOString().split('T')[0]}</strong>
+                Selected range: <strong>{toDateKey(selectedRange.start)}</strong> to{' '}
+                <strong>{toDateKey(selectedRange.end)}</strong>
               </p>
             </div>
           ) : (
@@ -203,7 +241,7 @@ export function AdminManagementPage() {
         <Calendar
           currentDate={currentDate}
           onDateChange={setCurrentDate}
-          wfhPeriods={wfhPeriods}
+          wfhPeriods={filteredWfhPeriods}
           specialDays={getSpecialDaysMap()}
           disabledDates={getDisabledDates()}
           selectionMode="range"
@@ -223,6 +261,11 @@ export function AdminManagementPage() {
                   <div>
                     <p className="font-medium text-green-900">
                       {period.start_date} to {period.end_date}
+                    </p>
+                    <p className="text-sm text-green-700">
+                      {period.team_id
+                        ? teams.find((t) => t.id === period.team_id)?.name ?? `Team #${period.team_id}`
+                        : 'All Teams'}
                     </p>
                   </div>
                   <button

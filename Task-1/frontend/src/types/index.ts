@@ -197,12 +197,14 @@ export interface WFHPeriod {
 export interface WFHPeriodCreate {
   start_date: string;
   end_date: string;
+  team_id?: number | null;
 }
 
 export interface WFHPeriodResponse {
   id: number;
   start_date: string;
   end_date: string;
+  team_id?: number;
 }
 
 export interface SpecialDay {

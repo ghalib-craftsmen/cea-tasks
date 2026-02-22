@@ -1,12 +1,55 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
-import { getMyLocation, updateMyLocation, getWFHPeriods, checkSpecialDay } from '../api';
+import { getMyLocation, updateMyLocation, getWFHPeriods, getSpecialDays } from '../api';
 import { Calendar } from '../../../components/Calendar';
 import { LocationSelectionModal } from '../../../components/LocationSelectionModal';
-import type { WorkLocationType, SpecialDayCheck } from '../../../types';
+import type { WorkLocationType, SpecialDayCheck, SpecialDayResponse } from '../../../types';
 import { Toast } from '../../../components/ui/toastUtils';
+import { toDateKey } from '../../../utils/formatDate';
+
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}`;
+}
+
+async function fetchMonthLocations(currentDate: Date) {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const locationData: Record<string, WorkLocationType> = {};
+
+  const promises = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    const dateStr = toDateKey(date);
+
+    promises.push(
+      getMyLocation(dateStr)
+        .then((location) => {
+          locationData[dateStr] = location.location;
+        })
+        .catch(() => null)
+    );
+  }
+
+  await Promise.all(promises);
+  return locationData;
+}
+
+function buildSpecialDaysMap(days: SpecialDayResponse[]): Record<string, SpecialDayCheck> {
+  const map: Record<string, SpecialDayCheck> = {};
+  for (const day of days) {
+    map[day.date] = {
+      date: day.date,
+      is_closed: day.type === 'Closed',
+      type: day.type,
+      note: day.note ?? undefined,
+    };
+  }
+  return map;
+}
 
 export function EmployeeLocationPage() {
   const { isAuthenticated } = useAuth();
@@ -14,46 +57,26 @@ export function EmployeeLocationPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [locationData, setLocationData] = useState<Record<string, WorkLocationType>>({});
-  const [specialDaysData, setSpecialDaysData] = useState<Record<string, SpecialDayCheck>>({});
+
+  const monthKey = getMonthKey(currentDate);
 
   // Fetch locations for the current month
-  const fetchMonthLocations = useCallback(async () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    const newLocationData: Record<string, WorkLocationType> = {};
-    const newSpecialDaysData: Record<string, SpecialDayCheck> = {};
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      const dateStr = date.toISOString().split('T')[0];
-      
-      try {
-        const [location, specialDay] = await Promise.all([
-          getMyLocation(dateStr),
-          checkSpecialDay(dateStr),
-        ]);
-        newLocationData[dateStr] = location.location;
-        newSpecialDaysData[dateStr] = specialDay;
-      } catch (error) {
-        console.error(`Failed to fetch data for ${dateStr}:`, error);
-      }
-    }
-    
-    setLocationData(newLocationData);
-    setSpecialDaysData(newSpecialDaysData);
-  }, [currentDate]);
+  const { data: locationData = {} } = useQuery({
+    queryKey: ['month-locations', monthKey],
+    queryFn: () => fetchMonthLocations(currentDate),
+    enabled: isAuthenticated,
+  });
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      const fetchData = async () => {
-        await fetchMonthLocations();
-      };
-      fetchData();
-    }
-  }, [isAuthenticated, fetchMonthLocations]);
+  // Fetch all special days (single call, auto-refetches)
+  const { data: specialDays = [] } = useQuery({
+    queryKey: ['special-days'],
+    queryFn: getSpecialDays,
+    enabled: isAuthenticated,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+  });
+
+  const specialDaysData = buildSpecialDaysMap(specialDays);
 
   // Fetch WFH periods
   const { data: wfhPeriods = [] } = useQuery({
@@ -62,14 +85,15 @@ export function EmployeeLocationPage() {
     enabled: isAuthenticated,
   });
 
+
+
   // Update location mutation
   const updateMutation = useMutation({
     mutationFn: (data: { date: string; location: WorkLocationType }) =>
       updateMyLocation({ date: data.date, location: data.location }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me', 'location'] });
+      queryClient.invalidateQueries({ queryKey: ['month-locations', monthKey] });
       Toast.success('Location updated successfully!');
-      fetchMonthLocations();
     },
     onError: (error: { response?: { data?: { detail?: string } } }) => {
       Toast.error(error?.response?.data?.detail || 'Failed to update location. Please try again.');
@@ -82,24 +106,24 @@ export function EmployeeLocationPage() {
   }
 
   const handleDateClick = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toDateKey(date);
     const specialDay = specialDaysData[dateStr];
     const dayOfWeek = date.getDay();
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday (0) or Saturday (6)
-    
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
     if (specialDay?.is_closed || isWeekend) {
-      Toast.warning('Office is closed on this day (weekend). Location cannot be changed.');
+      Toast.warning('Office is closed on this day. Location cannot be changed.');
       return;
     }
-    
+
     setSelectedDate(date);
     setIsModalOpen(true);
   };
 
   const handleLocationSelect = (location: WorkLocationType) => {
     if (!selectedDate) return;
-    
-    const dateStr = selectedDate.toISOString().split('T')[0];
+
+    const dateStr = toDateKey(selectedDate);
     updateMutation.mutate({ date: dateStr, location });
   };
 
@@ -110,21 +134,20 @@ export function EmployeeLocationPage() {
         disabled.add(date);
       }
     });
-    
-    // Add all weekends (Saturday and Sunday) for the current month
+
+    // Add all weekends for the current month
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dayOfWeek = date.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday (0) or Saturday (6)
-        const dateStr = date.toISOString().split('T')[0];
-        disabled.add(dateStr);
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        disabled.add(toDateKey(date));
       }
     }
-    
+
     return disabled;
   };
 
@@ -142,7 +165,7 @@ export function EmployeeLocationPage() {
         <p className="text-sm text-gray-600 mb-4">
           Click on any date to set your work location (Office or WFH).
         </p>
-        
+
         <Calendar
           currentDate={currentDate}
           onDateChange={setCurrentDate}
@@ -191,9 +214,9 @@ export function EmployeeLocationPage() {
       <LocationSelectionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        date={selectedDate?.toISOString().split('T')[0] || ''}
-        currentLocation={selectedDate ? locationData[selectedDate.toISOString().split('T')[0]] || 'Office' : 'Office'}
-        specialDay={selectedDate ? specialDaysData[selectedDate.toISOString().split('T')[0]] : undefined}
+        date={selectedDate ? toDateKey(selectedDate) : ''}
+        currentLocation={selectedDate ? locationData[toDateKey(selectedDate)] || 'Office' : 'Office'}
+        specialDay={selectedDate ? specialDaysData[toDateKey(selectedDate)] : undefined}
         onSelect={handleLocationSelect}
       />
     </div>
