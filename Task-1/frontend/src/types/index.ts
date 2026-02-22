@@ -24,10 +24,32 @@ export interface User {
 
 export type UserRole = 'Employee' | 'TeamLead' | 'Admin' | 'Logistics';
 
+export interface TeamMemberInfo {
+  user_id: number;
+  username: string;
+  name: string;
+  role: string;
+  meals?: Record<MealType, boolean> | null;
+}
+
 export interface Team {
   id: number;
   name: string;
   leadId: number;
+  lead_name?: string | null;
+  member_count?: number;
+  members?: TeamMemberInfo[] | null;
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  name: string;
+  email: string;
+  role: string;
+  team_id?: number | null;
+  team_name?: string | null;
+  status: string;
 }
 
 export interface LoginCredentials {

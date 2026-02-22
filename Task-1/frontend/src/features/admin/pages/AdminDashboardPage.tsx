@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../hooks/useToast';
 import { getAllParticipation, updateUserParticipation } from '../api';
-import { getTeams } from '../../users/api';
+import { getTeams, getCurrentUser } from '../../users/api';
 import type { UserParticipation, MealType, ParticipationUpdateRequest } from '../../../types';
 import { Table } from '../../../components/ui/Table';
 import { Modal } from '../../../components/ui/Modal';
@@ -150,18 +150,25 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
 }
 
 export function AdminDashboardPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const { success, error: showError } = useToast();
   const [selectedUser, setSelectedUser] = useState<UserParticipation | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<number | undefined>(undefined);
 
+  // Fetch current user from API (auth store has empty role)
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    enabled: isAuthenticated,
+  });
+
   // Fetch teams for Admin filter
   const { data: teams } = useQuery({
     queryKey: ['teams'],
     queryFn: getTeams,
-    enabled: isAuthenticated && user?.role === 'Admin',
+    enabled: isAuthenticated && currentUser?.role === 'Admin',
   });
 
   // Fetch all user participation data using TanStack Query
@@ -185,7 +192,7 @@ export function AdminDashboardPage() {
     },
   });
 
-  const canAccess = ['Admin', 'TeamLead', 'Logistics'].includes(user?.role || '');
+  const canAccess = ['Admin', 'TeamLead', 'Logistics'].includes(currentUser?.role || '');
 
   // Redirect unauthenticated users or unauthorized users
   if (!isAuthenticated) {
@@ -308,7 +315,7 @@ export function AdminDashboardPage() {
               </p>
             </div>
             {/* Team Filter Dropdown for Admin */}
-            {user?.role === 'Admin' && teams && teams.length > 0 && (
+            {currentUser?.role === 'Admin' && teams && teams.length > 0 && (
               <div className="flex items-center space-x-2">
                 <label htmlFor="team-filter" className="text-sm font-medium text-gray-700">
                   Filter by Team:
