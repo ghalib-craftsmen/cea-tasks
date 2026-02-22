@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import type { MealType, UserRole, AdminUser } from '../types';
+import type { MealType, UserRole, AdminUser, WorkLocationType } from '../types';
 import { getAllParticipation, updateUserParticipation, getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser } from '../features/admin/api';
 import { getTeams } from '../features/users/api';
+import { updateUserLocation } from '../features/locations/api';
 
 const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
 
@@ -61,6 +62,24 @@ export function Admin() {
       toast.error('Failed to update user participation. Please try again.');
     },
   });
+
+  // Update user location mutation
+  const updateLocationMutation = useMutation({
+    mutationFn: ({ userId, date, location }: { userId: number; date: string; location: WorkLocationType }) =>
+      updateUserLocation({ user_id: userId, date, location }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
+      toast.success('User location updated successfully!');
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } };
+      toast.error(err?.response?.data?.detail || 'Failed to update user location. Please try again.');
+    },
+  });
+
+  const handleLocationChange = (userId: number, date: string, location: WorkLocationType) => {
+    updateLocationMutation.mutate({ userId, date, location });
+  };
 
   // Approve user mutation
   const approveMutation = useMutation({
@@ -407,6 +426,7 @@ export function Admin() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meals</th>
                       </tr>
                     </thead>
@@ -431,6 +451,21 @@ export function Admin() {
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             {user.team_id ? `Team ${user.team_id}` : 'None'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            {user.role === 'Logistics' ? (
+                              <span className="text-sm text-gray-500">-</span>
+                            ) : (
+                              <select
+                                value={user.location || 'Office'}
+                                onChange={(e) => handleLocationChange(user.user_id, user.date, e.target.value as WorkLocationType)}
+                                disabled={updateLocationMutation.isPending}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <option value="Office">Office</option>
+                                <option value="WFH">WFH</option>
+                              </select>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex flex-wrap gap-1">
