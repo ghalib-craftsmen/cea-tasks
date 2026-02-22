@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../hooks/useToast';
 import { getTodaysParticipation, updateParticipation } from '../api';
+import { checkSpecialDay } from '../../locations/api';
 import { mealParticipationSchema, type MealParticipationFormData, defaultMealParticipationValues } from '../../../schemas/formSchemas';
 import type { MealType, ParticipationUpdate, MealRecord } from '../../../types';
 import { Spinner } from '../../../components/ui/Spinner';
@@ -42,6 +43,16 @@ export function MealParticipationPage() {
     queryFn: getTodaysParticipation,
     enabled: isAuthenticated,
   });
+
+  // Check if the current date is a special day
+  const watchedDate = watch('date');
+  const { data: specialDayData } = useQuery({
+    queryKey: ['special-day-check', watchedDate],
+    queryFn: () => checkSpecialDay(watchedDate),
+    enabled: isAuthenticated && !!watchedDate,
+  });
+
+  const isSpecialDay = !!(specialDayData?.is_closed || (specialDayData?.type && ['Holiday', 'Celebration', 'Closed'].includes(specialDayData.type)));
 
   // Update form when data is loaded
   useEffect(() => {
@@ -194,7 +205,22 @@ export function MealParticipationPage() {
           {/* Meal Selection */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Available Meals</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            {isSpecialDay && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-900 font-semibold">
+                  Office is {specialDayData?.type}
+                </p>
+                <p className="text-red-700 text-sm mt-1">
+                  Meal preferences are not available on {specialDayData?.type} days.
+                </p>
+                {specialDayData?.note && (
+                  <p className="text-red-700 text-sm mt-1">{specialDayData.note}</p>
+                )}
+              </div>
+            )}
+
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${isSpecialDay ? 'opacity-50 pointer-events-none' : ''}`}>
               {mealTypes.map((meal) => (
                 <Controller
                   key={meal.type}
@@ -206,7 +232,7 @@ export function MealParticipationPage() {
                       <button
                         type="button"
                         onClick={() => field.onChange(!isSelected)}
-                        disabled={updateMutation.isPending}
+                        disabled={updateMutation.isPending || isSpecialDay}
                         className={`
                           relative p-6 rounded-lg border-2 transition-all duration-200
                           ${isSelected
@@ -257,7 +283,7 @@ export function MealParticipationPage() {
             </div>
             <button
               type="submit"
-              disabled={!isDirty || updateMutation.isPending || isSubmitting}
+              disabled={!isDirty || updateMutation.isPending || isSubmitting || isSpecialDay}
               className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
             >
               {updateMutation.isPending || isSubmitting ? 'Updating...' : 'Update Participation'}

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from app.auth import get_current_user
 from app.db import JSONStorage
-from app.models import User, MealType, MealRecord, UserRole, UserStatus
+from app.models import User, MealType, MealRecord, UserRole, UserStatus, SpecialDayType
 
 
 router = APIRouter(prefix="/api/meals", tags=["meals"])
@@ -16,12 +16,18 @@ def get_todays_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
+def get_cutoff_time() -> tuple[int, int]:
+    """Get the configured cutoff hour and minute from settings."""
+    settings = storage.read_settings()
+    return settings.get("cutoff_hour", 21), settings.get("cutoff_minute", 0)
+
+
 def is_cutoff_passed(target_date: str) -> bool:
     """
     Check if cutoff time has passed for the target date.
-    Cutoff is 9:00 PM the previous day.
-    - For today's meals: cutoff was yesterday 9 PM (always passed).
-    - For tomorrow's meals: cutoff is today 9 PM.
+    Cutoff time is read from settings (default 9:00 PM).
+    - For today's meals: cutoff was yesterday (always passed).
+    - For tomorrow's meals: cutoff is today at the configured time.
     - For past dates: always locked.
     """
     now = datetime.now()
@@ -33,10 +39,14 @@ def is_cutoff_passed(target_date: str) -> bool:
     if target <= today:
         return True
 
-    # Tomorrow's meals: cutoff is today at 9 PM
+    # Tomorrow's meals: cutoff is today at configured time
+    # Hour 0 (12 AM) means midnight = end of day, so cutoff never passes today
     if target == tomorrow:
-        cutoff_time = datetime.strptime("21:00", "%H:%M").time()
-        return now.time() >= cutoff_time
+        cutoff_hour, cutoff_minute = get_cutoff_time()
+        if cutoff_hour == 0 and cutoff_minute == 0:
+            return False
+        cutoff = now.replace(hour=cutoff_hour, minute=cutoff_minute, second=0, microsecond=0)
+        return now >= cutoff
 
     # Future dates beyond tomorrow are open
     return False
@@ -74,11 +84,8 @@ async def get_todays_participation(current_user: User = Depends(get_current_user
             detail="Your account is not yet approved"
         )
 
-    # Employees set preferences for tomorrow; others view today
-    if current_user.role == UserRole.EMPLOYEE.value:
-        target_date = get_tomorrows_date()
-    else:
-        target_date = get_todays_date()
+    # All roles set preferences for tomorrow
+    target_date = get_tomorrows_date()
 
     participation_data = storage.read_participation()
 
@@ -111,20 +118,32 @@ async def update_participation(
             detail="Your account is not yet approved"
         )
 
-    # Employees default to tomorrow; Admin/Logistics/TeamLead default to today
+    # All roles default to tomorrow
     if update_data.date:
         target_date = update_data.date
-    elif current_user.role == UserRole.EMPLOYEE.value:
-        target_date = get_tomorrows_date()
     else:
-        target_date = get_todays_date()
+        target_date = get_tomorrows_date()
+
+    # Admin and Logistics bypass all restrictions
+    is_privileged = current_user.role in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]
+
+    # Block updates on special days (Closed, Holiday, Celebration) — not for Admin/Logistics
+    if not is_privileged:
+        special_days = storage.read_special_days()
+        for sd in special_days:
+            if sd.get("date") == target_date:
+                sd_type = sd.get("type", "Closed")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot update meal preferences for a {sd_type} day"
+                )
 
     # Cutoff only applies to Employees
     if current_user.role == UserRole.EMPLOYEE.value:
         if is_cutoff_passed(target_date):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cutoff time has passed (9:00 PM). You can no longer update tomorrow's meal preferences."
+                detail=f"Cutoff time has passed ({get_cutoff_time()[0]}:{get_cutoff_time()[1]:02d}). You can no longer update tomorrow's meal preferences."
             )
     
     participation_data = storage.read_participation()

@@ -233,3 +233,8 @@ export interface SpecialDayCheck {
   type: SpecialDayType | null;
   note?: string | null;
 }
+
+export interface AppSettings {
+  cutoff_hour: number;
+  cutoff_minute: number;
+}

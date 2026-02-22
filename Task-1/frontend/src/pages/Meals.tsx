@@ -2,9 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
 import { getCurrentUser } from '../features/users/api';
-import { getMyLocation } from '../features/locations/api';
+import { getMyLocation, checkSpecialDay } from '../features/locations/api';
+import { getSettings } from '../features/admin/api';
 import type { MealType } from '../types';
 import { getTodaysParticipation, updateParticipation } from '../features/meals/api';
+import { toDateKey } from '../utils/formatDate';
 
 const mealTypes: { type: MealType; label: string; icon: string }[] = [
   { type: 'Lunch', label: 'Lunch', icon: '🍱' },
@@ -25,17 +27,28 @@ export function Meals() {
   });
 
   const isEmployee = currentUser?.role === 'Employee';
+  const isAdminOrLogistics = currentUser?.role === 'Admin' || currentUser?.role === 'Logistics';
 
-  // Check if cutoff has passed (9 PM today)
+  // Fetch cutoff settings
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    enabled: isAuthenticated,
+  });
+
+  const cutoffHour = settingsData?.cutoff_hour ?? 21;
+  const cutoffMinute = settingsData?.cutoff_minute ?? 0;
+
+  // Check if cutoff has passed (dynamic time, employees only)
+  // Hour 0 (12 AM) means midnight = end of day, so cutoff never passes today
   const now = new Date();
-  const cutoffPassed = isEmployee && now.getHours() >= 21;
+  const effectiveCutoffHour = cutoffHour === 0 ? 24 : cutoffHour;
+  const cutoffPassed = isEmployee && (now.getHours() > effectiveCutoffHour || (now.getHours() === effectiveCutoffHour && now.getMinutes() >= cutoffMinute));
 
-  // Determine the date to check (tomorrow for employees, today for others)
+  // Always show tomorrow's meal preferences
   const targetDate = new Date(now);
-  if (isEmployee) {
-    targetDate.setDate(targetDate.getDate() + 1);
-  }
-  const targetDateStr = targetDate.toISOString().split('T')[0];
+  targetDate.setDate(targetDate.getDate() + 1);
+  const targetDateStr = toDateKey(targetDate);
 
   // Fetch user's work location for the target date
   const { data: locationData } = useQuery({
@@ -44,6 +57,15 @@ export function Meals() {
     enabled: isAuthenticated,
   });
 
+  // Fetch special day status for the target date
+  const { data: specialDayData } = useQuery({
+    queryKey: ['special-day-check', targetDateStr],
+    queryFn: () => checkSpecialDay(targetDateStr),
+    enabled: isAuthenticated,
+  });
+
+  const isSpecialDay = !!(specialDayData?.is_closed || (specialDayData?.type && ['Holiday', 'Celebration', 'Closed'].includes(specialDayData.type)));
+
   // Fetch today's meal participation
   const { data: mealData, isLoading } = useQuery({
     queryKey: ['meals', 'today'],
@@ -51,7 +73,8 @@ export function Meals() {
   });
 
   const workLocation = locationData?.location;
-  const canSelectMeals = workLocation === 'Office';
+  // Admin/Logistics can always select meals (no WFH/cutoff/special day restriction)
+  const canSelectMeals = isAdminOrLogistics || (workLocation === 'Office' && !isSpecialDay && !cutoffPassed);
 
   // Update meal participation
   const updateMutation = useMutation({
@@ -100,21 +123,29 @@ export function Meals() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Meals</h1>
         <p className="mt-2 text-gray-600">
-          {isEmployee
-            ? "Set your meal preferences for tomorrow"
-            : "Manage meal preferences"}
+          Set your meal preferences for tomorrow
         </p>
-        {workLocation === 'WFH' && (
+        {isSpecialDay && (
+          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-800">
+              Office is <strong>{specialDayData?.type}</strong> on this day. Meal preferences are not available.
+            </p>
+            {specialDayData?.note && (
+              <p className="text-sm text-red-700 mt-1">{specialDayData.note}</p>
+            )}
+          </div>
+        )}
+        {!isSpecialDay && workLocation === 'WFH' && (
           <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
               🏠 You are set to work from home. Meal preferences are only available when working from the office.
             </p>
           </div>
         )}
-        {cutoffPassed && workLocation !== 'WFH' && (
+        {cutoffPassed && workLocation !== 'WFH' && !isSpecialDay && (
           <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
-              Cutoff time (9:00 PM) has passed. You can no longer update tomorrow's meal preferences.
+              Cutoff time ({cutoffHour === 0 ? '12' : cutoffHour > 12 ? cutoffHour - 12 : cutoffHour}:{String(cutoffMinute).padStart(2, '0')} {cutoffHour >= 12 ? 'PM' : 'AM'}) has passed. You can no longer update tomorrow's meal preferences.
             </p>
           </div>
         )}
@@ -128,19 +159,29 @@ export function Meals() {
           <input
             id="date"
             type="date"
-            value={mealData?.date || new Date().toISOString().split('T')[0]}
+            value={mealData?.date || targetDateStr}
             disabled
             className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
           />
           <p className="mt-1 text-sm text-gray-500">
-            {isEmployee ? "Tomorrow's meal preferences" : "Today's meal preferences"}
+            Tomorrow's meal preferences
           </p>
         </div>
 
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Available Meals</h2>
           
-          {!canSelectMeals && workLocation && (
+          {!canSelectMeals && isSpecialDay && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-900 font-semibold">
+                Office is {specialDayData?.type}
+              </p>
+              <p className="text-red-700 text-sm mt-1">
+                Meal preferences are not available on {specialDayData?.type} days.
+              </p>
+            </div>
+          )}
+          {!canSelectMeals && !isSpecialDay && workLocation && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-yellow-900 font-semibold">
                 🏠 Work from Home
@@ -158,14 +199,14 @@ export function Meals() {
                 <button
                   key={meal.type}
                   onClick={() => toggleMeal(meal.type)}
-                  disabled={updateMutation.isPending || cutoffPassed || !canSelectMeals}
+                  disabled={updateMutation.isPending || !canSelectMeals}
                   className={`
                     relative p-6 rounded-lg border-2 transition-all duration-200
                     ${isSelected
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300'
                     }
-                    ${(updateMutation.isPending || cutoffPassed || !canSelectMeals) ? 'opacity-50 cursor-not-allowed' : ''}
+                    ${(updateMutation.isPending || !canSelectMeals) ? 'opacity-50 cursor-not-allowed' : ''}
                   `}
                 >
                   <div className="flex items-center space-x-4">
@@ -201,7 +242,7 @@ export function Meals() {
         <div className="mt-8 flex justify-end">
           <button
             onClick={handleSave}
-            disabled={updateMutation.isPending || cutoffPassed || !canSelectMeals}
+            disabled={updateMutation.isPending || !canSelectMeals}
             className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {updateMutation.isPending ? 'Saving...' : 'Save Preferences'}
@@ -212,7 +253,11 @@ export function Meals() {
       {mealData && (
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Selection</h2>
-          {workLocation === 'WFH' ? (
+          {isSpecialDay ? (
+            <p className="text-gray-500">
+              Office is {specialDayData?.type} - no meal selection applicable.
+            </p>
+          ) : workLocation === 'WFH' ? (
             <p className="text-gray-500">
               🏠 Working from home - no meal selection applicable.
             </p>

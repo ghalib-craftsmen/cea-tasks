@@ -5,6 +5,7 @@ import type {
   PendingUser,
   ApproveUserRequest,
   AdminUser,
+  AppSettings,
 } from '../../types';
 
 export async function getAllParticipation(teamId?: number): Promise<UserParticipation[]> {
@@ -47,5 +48,15 @@ export async function deleteUser(userId: number): Promise<{ message: string }> {
 
 export async function updateUser(userId: number, data: { role?: string; team_id?: number | null }): Promise<{ message: string }> {
   const response = await api.put<{ message: string }>(`/admin/users/${userId}`, data);
+  return response.data;
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  const response = await api.get<AppSettings>('/settings');
+  return response.data;
+}
+
+export async function updateSettings(data: Partial<AppSettings>): Promise<AppSettings> {
+  const response = await api.put<AppSettings>('/settings', data);
   return response.data;
 }

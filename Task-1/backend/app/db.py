@@ -154,3 +154,17 @@ class JSONStorage:
 
     def write_special_days(self, special_days: List[Any]) -> None:
         self.write("special_days.json", special_days)
+
+    def read_settings(self) -> dict:
+        file_path = self._get_file_path("settings.json")
+        if not file_path.exists():
+            default_settings = {"cutoff_hour": 21, "cutoff_minute": 0}
+            self._write_atomic(file_path, default_settings)
+            return default_settings
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def write_settings(self, settings: dict) -> None:
+        file_path = self._get_file_path("settings.json")
+        with self._lock:
+            self._write_atomic(file_path, settings)
