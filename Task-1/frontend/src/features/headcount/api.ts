@@ -5,8 +5,14 @@ import type {
   HeadcountAggregationResponse,
 } from '../../types';
 
-export async function getHeadcountSummary(teamId?: number): Promise<HeadcountSummary> {
-  const params = teamId ? { team_id: teamId } : {};
+export async function getHeadcountSummary(teamId?: number, date?: string): Promise<HeadcountSummary> {
+  const params: Record<string, string | number> = {};
+  if (teamId !== undefined) {
+    params.team_id = teamId;
+  }
+  if (date !== undefined) {
+    params.date = date;
+  }
   const response = await api.get<HeadcountSummary>('/headcount', { params });
   return response.data;
 }

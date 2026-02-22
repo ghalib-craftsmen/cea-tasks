@@ -74,8 +74,20 @@ class HeadcountAggregationResponse(BaseModel):
 @router.get("", response_model=HeadcountSummary)
 async def get_headcount_summary(
     team_id: Optional[int] = Query(None, description="Filter by team ID (Admin/Logistics only)"),
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (default: tomorrow)"),
     current_user: User = Depends(require_admin_logistics_or_teamlead)):
-    today = get_tomorrows_date()
+    # Default to tomorrow if no date provided
+    if date is None:
+        date = get_tomorrows_date()
+    else:
+        # Validate date format
+        try:
+            datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Please use YYYY-MM-DD format."
+            )
 
     users_data = storage.read_users()
     participation_data = storage.read_participation()
@@ -94,7 +106,7 @@ async def get_headcount_summary(
 
     participation_lookup: Dict[int, Dict] = {}
     for record in participation_data:
-        if record.get("date") == today:
+        if record.get("date") == date:
             participation_lookup[record.get("user_id")] = record
 
     total_employees = len(filtered_users)
@@ -136,7 +148,7 @@ async def get_headcount_summary(
         ))
 
     return HeadcountSummary(
-        date=today,
+        date=date,
         total_employees=total_employees,
         meal_counts=meal_count_summaries
     )
