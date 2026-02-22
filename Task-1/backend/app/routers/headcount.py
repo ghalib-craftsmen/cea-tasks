@@ -62,8 +62,10 @@ class HeadcountAggregationRow(BaseModel):
     meal: str
     total_in: int
     total_out: int
-    office_count: int
-    wfh_count: int
+    office_count: int   # total employees in office on this date (location-level, not meal-specific)
+    wfh_count: int      # total employees WFH on this date (location-level, not meal-specific)
+    office_in: int = 0  # opted-in employees who are in office for this meal
+    wfh_in: int = 0     # opted-in employees who are WFH for this meal
 
 
 class HeadcountAggregationResponse(BaseModel):
@@ -245,8 +247,12 @@ async def get_headcount_aggregation(
                     "total_in": 0,
                     "total_out": 0,
                     "office_count": loc["office"],
-                    "wfh_count": loc["wfh"]
+                    "wfh_count": loc["wfh"],
+                    "office_in": 0,
+                    "wfh_in": 0,
                 }
+
+            work_location = work_location_lookup.get(user_id, WorkLocationType.OFFICE)
 
             if participation_record:
                 meals = participation_record.get("meals", {})
@@ -256,6 +262,10 @@ async def get_headcount_aggregation(
 
             if opted_in:
                 aggregation[key]["total_in"] += 1
+                if work_location == WorkLocationType.OFFICE:
+                    aggregation[key]["office_in"] += 1
+                else:
+                    aggregation[key]["wfh_in"] += 1
             else:
                 aggregation[key]["total_out"] += 1
 
@@ -269,7 +279,9 @@ async def get_headcount_aggregation(
             total_in=value["total_in"],
             total_out=value["total_out"],
             office_count=value["office_count"],
-            wfh_count=value["wfh_count"]
+            wfh_count=value["wfh_count"],
+            office_in=value["office_in"],
+            wfh_in=value["wfh_in"],
         ))
 
     # Sort by team name, then by meal type
