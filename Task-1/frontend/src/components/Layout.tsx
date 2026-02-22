@@ -14,12 +14,14 @@ interface NavItem {
 const baseNavItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊' },
   { path: '/meals', label: 'Meals', icon: '🍽️' },
+  { path: '/locations', label: 'Locations', icon: '📍' },
 ];
 
 const headcountNavItem: NavItem = { path: '/headcount', label: 'Headcount', icon: '👥' };
 
 const adminNavItems: NavItem[] = [
   { path: '/admin', label: 'Admin', icon: '⚙️' },
+  { path: '/admin/management', label: 'WFH & Special Days', icon: '📅' },
 ];
 
 export function Layout() {
@@ -36,11 +38,13 @@ export function Layout() {
   });
 
   const isAdmin = currentUser?.role === 'Admin';
-  const canViewHeadcount = isAdmin || currentUser?.role === 'Logistics' || currentUser?.role === 'TeamLead';
+  const isLogistics = currentUser?.role === 'Logistics';
+  const canViewHeadcount = isAdmin || isLogistics || currentUser?.role === 'TeamLead';
+  const canManageWFHAndSpecialDays = isAdmin || isLogistics;
   const allNavItems = [
     ...baseNavItems,
     ...(canViewHeadcount ? [headcountNavItem] : []),
-    ...(isAdmin ? adminNavItems : []),
+    ...(canManageWFHAndSpecialDays ? adminNavItems : []),
   ];
 
   return (
