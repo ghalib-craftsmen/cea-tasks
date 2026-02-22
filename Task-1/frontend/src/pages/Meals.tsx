@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
 import { getCurrentUser } from '../features/users/api';
+import { getMyLocation } from '../features/locations/api';
 import type { MealType } from '../types';
 import { getTodaysParticipation, updateParticipation } from '../features/meals/api';
 
@@ -29,11 +30,28 @@ export function Meals() {
   const now = new Date();
   const cutoffPassed = isEmployee && now.getHours() >= 21;
 
+  // Determine the date to check (tomorrow for employees, today for others)
+  const targetDate = new Date(now);
+  if (isEmployee) {
+    targetDate.setDate(targetDate.getDate() + 1);
+  }
+  const targetDateStr = targetDate.toISOString().split('T')[0];
+
+  // Fetch user's work location for the target date
+  const { data: locationData } = useQuery({
+    queryKey: ['me', 'location', targetDateStr],
+    queryFn: () => getMyLocation(targetDateStr),
+    enabled: isAuthenticated,
+  });
+
   // Fetch today's meal participation
   const { data: mealData, isLoading } = useQuery({
     queryKey: ['meals', 'today'],
     queryFn: getTodaysParticipation,
   });
+
+  const workLocation = locationData?.location;
+  const canSelectMeals = workLocation === 'Office';
 
   // Update meal participation
   const updateMutation = useMutation({
@@ -41,7 +59,7 @@ export function Meals() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meals', 'today'] });
     },
-    onError: (error: any) => {
+    onError: (error: { response?: { status?: number } }) => {
       if (error?.response?.status === 403) {
         toast.error('Cutoff time passed. Updates locked for tomorrow\'s meals.');
       } else {
@@ -86,7 +104,14 @@ export function Meals() {
             ? "Set your meal preferences for tomorrow"
             : "Manage meal preferences"}
         </p>
-        {cutoffPassed && (
+        {workLocation === 'WFH' && (
+          <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              🏠 You are set to work from home. Meal preferences are only available when working from the office.
+            </p>
+          </div>
+        )}
+        {cutoffPassed && workLocation !== 'WFH' && (
           <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
               Cutoff time (9:00 PM) has passed. You can no longer update tomorrow's meal preferences.
@@ -114,21 +139,33 @@ export function Meals() {
 
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Available Meals</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          
+          {!canSelectMeals && workLocation && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-yellow-900 font-semibold">
+                🏠 Work from Home
+              </p>
+              <p className="text-yellow-700 text-sm mt-1">
+                Meal preferences are only available when working from the office. Please update your work location to Office to select meals.
+              </p>
+            </div>
+          )}
+          
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${!canSelectMeals ? 'opacity-50 pointer-events-none' : ''}`}>
             {mealTypes.map((meal) => {
               const isSelected = mealData?.meals?.[meal.type] || false;
               return (
                 <button
                   key={meal.type}
                   onClick={() => toggleMeal(meal.type)}
-                  disabled={updateMutation.isPending || cutoffPassed}
+                  disabled={updateMutation.isPending || cutoffPassed || !canSelectMeals}
                   className={`
                     relative p-6 rounded-lg border-2 transition-all duration-200
                     ${isSelected
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300'
                     }
-                    ${(updateMutation.isPending || cutoffPassed) ? 'opacity-50 cursor-not-allowed' : ''}
+                    ${(updateMutation.isPending || cutoffPassed || !canSelectMeals) ? 'opacity-50 cursor-not-allowed' : ''}
                   `}
                 >
                   <div className="flex items-center space-x-4">
@@ -164,7 +201,7 @@ export function Meals() {
         <div className="mt-8 flex justify-end">
           <button
             onClick={handleSave}
-            disabled={updateMutation.isPending || cutoffPassed}
+            disabled={updateMutation.isPending || cutoffPassed || !canSelectMeals}
             className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {updateMutation.isPending ? 'Saving...' : 'Save Preferences'}
@@ -175,7 +212,11 @@ export function Meals() {
       {mealData && (
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Selection</h2>
-          {Object.entries(mealData.meals).filter(([, selected]) => selected).length === 0 ? (
+          {workLocation === 'WFH' ? (
+            <p className="text-gray-500">
+              🏠 Working from home - no meal selection applicable.
+            </p>
+          ) : Object.entries(mealData.meals).filter(([, selected]) => selected).length === 0 ? (
             <p className="text-gray-500">No meals selected for today.</p>
           ) : (
             <div className="flex flex-wrap gap-2">

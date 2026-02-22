@@ -157,7 +157,8 @@ export function Calendar({
       const location = locationData[dateKey];
       const specialDay = specialDays[dateKey];
       const isWFH = isDateInWFHPeriod(date);
-      const isClosed = specialDay?.is_closed;
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6; // Sunday (0) or Saturday (6)
+      const isClosed = specialDay?.is_closed || isWeekend;
       const isSelected = isDateSelected(date);
       const isRangeStart = isDateInRangeStart(date);
       const isRangeEnd = isDateInRangeEnd(date);
