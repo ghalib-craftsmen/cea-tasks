@@ -238,3 +238,18 @@ export interface AppSettings {
   cutoff_hour: number;
   cutoff_minute: number;
 }
+
+export interface HeadcountAggregationRow {
+  team?: string | null;
+  team_id?: number | null;
+  meal: string;
+  total_in: number;
+  total_out: number;
+  office_count: number;
+  wfh_count: number;
+}
+
+export interface HeadcountAggregationResponse {
+  date: string;
+  data: HeadcountAggregationRow[];
+}

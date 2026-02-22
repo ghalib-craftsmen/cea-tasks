@@ -142,69 +142,6 @@ async def get_headcount_summary(
     )
 
 
-@router.get("/{meal_type}", response_model=MealUserList)
-async def get_meal_users(
-    meal_type: str,
-    team_id: Optional[int] = Query(None, description="Filter by team ID (Admin/Logistics only)"),
-    current_user: User = Depends(require_admin_logistics_or_teamlead)):
-    today = get_tomorrows_date()
-
-    valid_meal_types = {mt.value for mt in MealType}
-    if meal_type not in valid_meal_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid meal type: {meal_type}. Valid types are: {', '.join(sorted(valid_meal_types))}"
-        )
-
-    users_data = storage.read_users()
-    participation_data = storage.read_participation()
-    teams_data = storage.read_teams()
-    team_name_map = {t["id"]: t["name"] for t in teams_data}
-
-    # Scope: TeamLead can only see their own team
-    effective_team_id = team_id
-    if current_user.role == UserRole.TEAM_LEAD.value:
-        effective_team_id = current_user.team_id
-
-    # Filter users: only approved; when filtering by team, exclude users without a team
-    filtered_users = [
-        u for u in users_data
-        if u.get("status") == UserStatus.APPROVED.value
-        and (effective_team_id is None or u.get("team_id") == effective_team_id)
-    ]
-
-    participation_lookup: Dict[int, Dict] = {}
-    for record in participation_data:
-        if record.get("date") == today:
-            participation_lookup[record.get("user_id")] = record
-
-    opted_in_users = []
-    for user_dict in filtered_users:
-        user_id = user_dict.get("id")
-        participation_record = participation_lookup.get(user_id)
-
-        if participation_record:
-            meals = participation_record.get("meals", {})
-            opted_in = meals.get(meal_type, False)
-        else:
-            opted_in = True
-
-        if opted_in:
-            opted_in_users.append(MealUserDetail(
-                user_id=user_dict.get("id"),
-                name=user_dict.get("name"),
-                team_id=user_dict.get("team_id"),
-                team_name=team_name_map.get(user_dict.get("team_id"))
-            ))
-
-    return MealUserList(
-        meal_type=meal_type,
-        date=today,
-        opted_in_count=len(opted_in_users),
-        users=opted_in_users
-    )
-
-
 @router.get("/aggregation", response_model=HeadcountAggregationResponse)
 async def get_headcount_aggregation(
     date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (default: today)"),
@@ -320,4 +257,67 @@ async def get_headcount_aggregation(
     return HeadcountAggregationResponse(
         date=date,
         data=data_rows
+    )
+
+
+@router.get("/{meal_type}", response_model=MealUserList)
+async def get_meal_users(
+    meal_type: str,
+    team_id: Optional[int] = Query(None, description="Filter by team ID (Admin/Logistics only)"),
+    current_user: User = Depends(require_admin_logistics_or_teamlead)):
+    today = get_tomorrows_date()
+
+    valid_meal_types = {mt.value for mt in MealType}
+    if meal_type not in valid_meal_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid meal type: {meal_type}. Valid types are: {', '.join(sorted(valid_meal_types))}"
+        )
+
+    users_data = storage.read_users()
+    participation_data = storage.read_participation()
+    teams_data = storage.read_teams()
+    team_name_map = {t["id"]: t["name"] for t in teams_data}
+
+    # Scope: TeamLead can only see their own team
+    effective_team_id = team_id
+    if current_user.role == UserRole.TEAM_LEAD.value:
+        effective_team_id = current_user.team_id
+
+    # Filter users: only approved; when filtering by team, exclude users without a team
+    filtered_users = [
+        u for u in users_data
+        if u.get("status") == UserStatus.APPROVED.value
+        and (effective_team_id is None or u.get("team_id") == effective_team_id)
+    ]
+
+    participation_lookup: Dict[int, Dict] = {}
+    for record in participation_data:
+        if record.get("date") == today:
+            participation_lookup[record.get("user_id")] = record
+
+    opted_in_users = []
+    for user_dict in filtered_users:
+        user_id = user_dict.get("id")
+        participation_record = participation_lookup.get(user_id)
+
+        if participation_record:
+            meals = participation_record.get("meals", {})
+            opted_in = meals.get(meal_type, False)
+        else:
+            opted_in = True
+
+        if opted_in:
+            opted_in_users.append(MealUserDetail(
+                user_id=user_dict.get("id"),
+                name=user_dict.get("name"),
+                team_id=user_dict.get("team_id"),
+                team_name=team_name_map.get(user_dict.get("team_id"))
+            ))
+
+    return MealUserList(
+        meal_type=meal_type,
+        date=today,
+        opted_in_count=len(opted_in_users),
+        users=opted_in_users
     )
