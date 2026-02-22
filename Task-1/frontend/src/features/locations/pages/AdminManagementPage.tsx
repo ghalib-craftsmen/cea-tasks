@@ -3,12 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { getWFHPeriods, createWFHPeriod, deleteWFHPeriod, getSpecialDays, createSpecialDay, deleteSpecialDay } from '../api';
+import { getCurrentUser } from '../../../features/users/api';
 import { Calendar } from '../../../components/Calendar';
 import type { WFHPeriodCreate, SpecialDayCreate, SpecialDayType, SpecialDayCheck } from '../../../types';
 import { Toast } from '../../../components/ui/toastUtils';
 
 export function AdminManagementPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedRange, setSelectedRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
@@ -19,8 +20,15 @@ export function AdminManagementPage() {
     note: '',
   });
 
+  // Fetch current user to get role
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    enabled: isAuthenticated,
+  });
+
   // Check if user has access (Admin or Logistics)
-  const hasAccess = user?.role === 'Admin' || user?.role === 'Logistics';
+  const hasAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Logistics';
 
   // Fetch WFH periods
   const { data: wfhPeriods = [] } = useQuery({

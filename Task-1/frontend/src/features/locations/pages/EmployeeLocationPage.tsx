@@ -84,9 +84,11 @@ export function EmployeeLocationPage() {
   const handleDateClick = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
     const specialDay = specialDaysData[dateStr];
+    const dayOfWeek = date.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday (0) or Saturday (6)
     
-    if (specialDay?.is_closed) {
-      Toast.warning('Office is closed on this day. Location cannot be changed.');
+    if (specialDay?.is_closed || isWeekend) {
+      Toast.warning('Office is closed on this day (weekend). Location cannot be changed.');
       return;
     }
     
@@ -108,6 +110,21 @@ export function EmployeeLocationPage() {
         disabled.add(date);
       }
     });
+    
+    // Add all weekends (Saturday and Sunday) for the current month
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday (0) or Saturday (6)
+        const dateStr = date.toISOString().split('T')[0];
+        disabled.add(dateStr);
+      }
+    }
+    
     return disabled;
   };
 

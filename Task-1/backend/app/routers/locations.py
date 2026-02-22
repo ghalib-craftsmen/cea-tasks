@@ -62,7 +62,17 @@ def get_user_location(user_id: int, date: str) -> WorkLocationType:
 
 
 def is_office_closed(date: str) -> bool:
-    """Check if a date is marked as closed."""
+    """Check if a date is marked as closed or is a weekend."""
+    # Check if it's a weekend (Saturday or Sunday)
+    try:
+        target_date = datetime.strptime(date, "%Y-%m-%d")
+        day_of_week = target_date.weekday()  # 0=Monday, 6=Sunday
+        if day_of_week == 5 or day_of_week == 6:  # Saturday (5) or Sunday (6)
+            return True
+    except ValueError:
+        pass
+    
+    # Check special days
     special_days = storage.read_special_days()
     for special_day in special_days:
         if special_day.get("date") == date and special_day.get("type") == SpecialDayType.CLOSED.value:
