@@ -44,7 +44,10 @@ export function Calendar({
   };
 
   const formatDateKey = (date: Date): string => {
-    return date.toISOString().split('T')[0];
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
   const isDateInWFHPeriod = (date: Date): boolean => {
@@ -53,6 +56,8 @@ export function Calendar({
       (period) => dateKey >= period.start_date && dateKey <= period.end_date
     );
   };
+
+
 
   const isDateSelected = (date: Date): boolean => {
     if (selectionMode === 'single') {
@@ -79,46 +84,36 @@ export function Calendar({
     if (disabledDates.has(formatDateKey(date))) return;
 
     if (selectionMode === 'range' && onRangeSelect) {
-      if (!isSelecting || !rangeStart) {
+      if (!isSelecting || !rangeAnchor) {
+        // First click: set anchor
+        setRangeAnchor(date);
         setRangeStart(date);
         setRangeEnd(date);
         setIsSelecting(true);
         onRangeSelect(date, date);
       } else {
-        const newEnd = date < rangeStart ? date : date;
-        const newStart = date < rangeStart ? date : rangeStart;
-        setRangeStart(newStart);
-        setRangeEnd(newEnd);
+        // Second click: finalize range
+        const [start, end] = date < rangeAnchor ? [date, rangeAnchor] : [rangeAnchor, date];
+        setRangeStart(start);
+        setRangeEnd(end);
         setIsSelecting(false);
-        onRangeSelect(newStart, newEnd);
+        setRangeAnchor(null);
+        onRangeSelect(start, end);
       }
     } else if (onDateClick) {
       onDateClick(date);
     }
   };
 
+  // Track the original click anchor separately from rangeStart/rangeEnd
+  const [rangeAnchor, setRangeAnchor] = useState<Date | null>(null);
+
   const handleDateMouseEnter = (date: Date) => {
-    if (selectionMode === 'range' && isSelecting && rangeStart && onRangeSelect) {
-      const newEnd = date < rangeStart ? date : date;
-      const newStart = date < rangeStart ? date : rangeStart;
-      setRangeEnd(newEnd);
-      onRangeSelect(newStart, newEnd);
-    }
-  };
-
-  const handleDateMouseUp = () => {
-    if (selectionMode === 'range') {
-      setIsSelecting(false);
-    }
-  };
-
-  const handleDateMouseDown = (date: Date) => {
-    if (disabledDates.has(formatDateKey(date))) return;
-    if (selectionMode === 'range' && onRangeSelect) {
-      setRangeStart(date);
-      setRangeEnd(date);
-      setIsSelecting(true);
-      onRangeSelect(date, date);
+    if (selectionMode === 'range' && isSelecting && rangeAnchor) {
+      // Live preview: highlight range between anchor and hovered date
+      const [start, end] = date < rangeAnchor ? [date, rangeAnchor] : [rangeAnchor, date];
+      setRangeStart(start);
+      setRangeEnd(end);
     }
   };
 
@@ -171,6 +166,10 @@ export function Calendar({
         bgColor = 'bg-red-50';
         textColor = 'text-red-900';
         borderColor = 'border-red-200';
+      } else if (specialDay) {
+        bgColor = 'bg-yellow-50';
+        textColor = 'text-yellow-900';
+        borderColor = 'border-yellow-200';
       } else if (isSelected) {
         bgColor = 'bg-blue-100';
         textColor = 'text-blue-900';
@@ -196,26 +195,32 @@ export function Calendar({
             disabledDates.has(dateKey) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
           onClick={() => handleDateClick(date)}
-          onMouseDown={() => handleDateMouseDown(date)}
           onMouseEnter={() => handleDateMouseEnter(date)}
-          onMouseUp={handleDateMouseUp}
         >
           <div className="flex justify-between items-start">
             <span className="font-semibold">{day}</span>
-            {isClosed && (
-              <span className="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded">Closed</span>
-            )}
-            {specialDay && !isClosed && (
+            {isClosed && specialDay?.type && specialDay.type !== 'Closed' ? (
               <span className="text-xs bg-yellow-600 text-white px-1.5 py-0.5 rounded">
                 {specialDay.type}
               </span>
-            )}
+            ) : isClosed ? (
+              <span className="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded">Closed</span>
+            ) : specialDay?.type ? (
+              <span className="text-xs bg-yellow-600 text-white px-1.5 py-0.5 rounded">
+                {specialDay.type}
+              </span>
+            ) : null}
           </div>
           <div className="text-xs">
-            {location && !isClosed && (
+            {specialDay?.note && (
+              <span className={`font-medium block truncate ${isClosed ? 'text-red-700' : 'text-yellow-700'}`}>
+                {specialDay.note}
+              </span>
+            )}
+            {!specialDay && !isClosed && location && (
               <span className="font-medium">{location}</span>
             )}
-            {!location && isWFH && !isClosed && (
+            {!specialDay && !isClosed && !location && isWFH && (
               <span className="font-medium text-green-700">WFH Period</span>
             )}
           </div>
@@ -272,6 +277,10 @@ export function Calendar({
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-red-50 border border-red-200 rounded" />
           <span className="text-gray-600">Closed</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-yellow-50 border border-yellow-200 rounded" />
+          <span className="text-gray-600">Holiday / Special</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded" />

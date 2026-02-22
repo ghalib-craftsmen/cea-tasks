@@ -18,8 +18,15 @@ export const formatDateTime = (dateString: string): string => {
   });
 };
 
+export const toDateKey = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 export const getTodayDate = (): string => {
-  return new Date().toISOString().split('T')[0];
+  return toDateKey(new Date());
 };
 
 export const isToday = (dateString: string): boolean => {

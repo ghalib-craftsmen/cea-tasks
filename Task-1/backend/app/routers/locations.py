@@ -19,6 +19,7 @@ from app.models import (
     SpecialDayCreate,
     SpecialDayResponse,
     SpecialDayType,
+    SpecialDayCheck,
 )
 
 
@@ -26,10 +27,14 @@ router = APIRouter(prefix="/api", tags=["locations"])
 storage = JSONStorage()
 
 
-def is_date_in_wfh_period(date: str, wfh_periods: List[Dict]) -> bool:
-    """Check if a date falls within any WFH period."""
+def is_date_in_wfh_period(date: str, wfh_periods: List[Dict], user_team_id: Optional[int] = None) -> bool:
+    """Check if a date falls within any WFH period for the user's team."""
     target_date = datetime.strptime(date, "%Y-%m-%d")
     for period in wfh_periods:
+        # If period has team_id, only apply if user's team matches
+        period_team_id = period.get("team_id")
+        if period_team_id is not None and user_team_id != period_team_id:
+            continue
         start_date = datetime.strptime(period["start_date"], "%Y-%m-%d")
         end_date = datetime.strptime(period["end_date"], "%Y-%m-%d")
         if start_date <= target_date <= end_date:
@@ -37,7 +42,7 @@ def is_date_in_wfh_period(date: str, wfh_periods: List[Dict]) -> bool:
     return False
 
 
-def get_user_location(user_id: int, date: str) -> WorkLocationType:
+def get_user_location(user_id: int, date: str, user_team_id: Optional[int] = None) -> WorkLocationType:
     """
     Get user's location for a specific date.
     Logic:
@@ -54,7 +59,7 @@ def get_user_location(user_id: int, date: str) -> WorkLocationType:
     
     # Check WFH periods
     wfh_periods = storage.read_wfh_periods()
-    if is_date_in_wfh_period(date, wfh_periods):
+    if is_date_in_wfh_period(date, wfh_periods, user_team_id):
         return WorkLocationType.WFH
     
     # Default to Office
@@ -80,15 +85,26 @@ def is_office_closed(date: str) -> bool:
     return False
 
 
+async def require_admin_or_logistics(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to require Admin or Logistics role."""
+    if current_user.role not in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin or Logistics role can access this endpoint"
+        )
+    return current_user
+
+
 # Work Location Endpoints
+
 
 @router.get("/me/location", response_model=WorkLocationResponse)
 async def get_my_location(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     current_user: User = Depends(get_current_user)
 ):
-    """Get the current user's location for a specific date."""
-    location = get_user_location(current_user.id, date)
+    """Get current user's location for a specific date."""
+    location = get_user_location(current_user.id, date, current_user.team_id)
     return WorkLocationResponse(
         user_id=current_user.id,
         date=date,
@@ -101,7 +117,7 @@ async def update_my_location(
     request: WorkLocationUpdate,
     current_user: User = Depends(get_current_user)
 ):
-    """Update the current user's location for a specific date."""
+    """Update current user's location for a specific date."""
     # Check if office is closed on this date
     if is_office_closed(request.date):
         raise HTTPException(
@@ -115,7 +131,7 @@ async def update_my_location(
     updated = False
     for location in work_locations:
         if location.get("user_id") == current_user.id and location.get("date") == request.date:
-            location["location"] = request.location.value
+            location["location"] = request.location
             updated = True
             break
     
@@ -124,7 +140,7 @@ async def update_my_location(
         work_locations.append({
             "user_id": current_user.id,
             "date": request.date,
-            "location": request.location.value
+            "location": request.location
         })
     
     storage.write_work_locations(work_locations)
@@ -189,7 +205,7 @@ async def update_user_location(
     updated = False
     for location in work_locations:
         if location.get("user_id") == request.user_id and location.get("date") == request.date:
-            location["location"] = request.location.value
+            location["location"] = request.location
             updated = True
             break
     
@@ -198,7 +214,7 @@ async def update_user_location(
         work_locations.append({
             "user_id": request.user_id,
             "date": request.date,
-            "location": request.location.value
+            "location": request.location
         })
     
     storage.write_work_locations(work_locations)
@@ -212,15 +228,6 @@ async def update_user_location(
 
 # WFH Period Endpoints
 
-async def require_admin_or_logistics(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency to require Admin or Logistics role."""
-    if current_user.role not in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Admin or Logistics role can access this endpoint"
-        )
-    return current_user
-
 
 @router.get("/wfh-periods", response_model=List[WFHPeriodResponse])
 async def get_wfh_periods(current_user: User = Depends(require_admin_or_logistics)):
@@ -230,7 +237,8 @@ async def get_wfh_periods(current_user: User = Depends(require_admin_or_logistic
         WFHPeriodResponse(
             id=period.get("id"),
             start_date=period.get("start_date"),
-            end_date=period.get("end_date")
+            end_date=period.get("end_date"),
+            team_id=period.get("team_id")
         )
         for period in wfh_periods
     ]
@@ -260,7 +268,8 @@ async def create_wfh_period(
     new_period = {
         "id": new_id,
         "start_date": request.start_date,
-        "end_date": request.end_date
+        "end_date": request.end_date,
+        "team_id": request.team_id
     }
     
     wfh_periods.append(new_period)
@@ -269,7 +278,8 @@ async def create_wfh_period(
     return WFHPeriodResponse(
         id=new_id,
         start_date=request.start_date,
-        end_date=request.end_date
+        end_date=request.end_date,
+        team_id=request.team_id
     )
 
 
@@ -297,9 +307,10 @@ async def delete_wfh_period(
 
 # Special Days Endpoints
 
+
 @router.get("/special-days", response_model=List[SpecialDayResponse])
-async def get_special_days(current_user: User = Depends(require_admin_or_logistics)):
-    """Get all special days. Access: Admin, Logistics."""
+async def get_special_days(current_user: User = Depends(get_current_user)):
+    """Get all special days. Access: All authenticated users."""
     special_days = storage.read_special_days()
     return [
         SpecialDayResponse(
@@ -320,25 +331,17 @@ async def create_special_day(
     """Create a new special day. Access: Admin, Logistics."""
     special_days = storage.read_special_days()
     
-    # Check if date already exists
-    for day in special_days:
-        if day.get("date") == request.date:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Special day for this date already exists"
-            )
-    
     # Generate new ID
     new_id = max((day.get("id", 0) for day in special_days), default=0) + 1
     
-    new_special_day = {
+    new_day = {
         "id": new_id,
         "date": request.date,
-        "type": request.type.value,
+        "type": request.type,
         "note": request.note
     }
     
-    special_days.append(new_special_day)
+    special_days.append(new_day)
     storage.write_special_days(special_days)
     
     return SpecialDayResponse(
@@ -357,7 +360,7 @@ async def delete_special_day(
     """Delete a special day by ID. Access: Admin, Logistics."""
     special_days = storage.read_special_days()
     
-    # Find and remove the special day
+    # Find and remove the day
     updated_days = [d for d in special_days if d.get("id") != day_id]
     
     if len(updated_days) == len(special_days):
@@ -371,27 +374,21 @@ async def delete_special_day(
     return None
 
 
-# Public endpoint to check if office is closed (used by frontend)
-@router.get("/special-days/check")
-async def check_office_closed(
+@router.get("/special-days/check", response_model=SpecialDayCheck)
+async def check_special_day(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     current_user: User = Depends(get_current_user)
 ):
-    """Check if a date is marked as closed or has a special day."""
+    """Check if a date is a special day."""
     special_days = storage.read_special_days()
     
-    for day in special_days:
-        if day.get("date") == date:
-            return {
-                "date": date,
-                "is_closed": day.get("type") == SpecialDayType.CLOSED.value,
-                "type": day.get("type"),
-                "note": day.get("note")
-            }
-    
-    return {
-        "date": date,
-        "is_closed": False,
-        "type": None,
-        "note": None
-    }
+    for special_day in special_days:
+        if special_day.get("date") == date:
+            return SpecialDayCheck(
+                date=date,
+                is_closed=special_day.get("type") == SpecialDayType.CLOSED.value,
+                type=special_day.get("type"),
+                note=special_day.get("note")
+            )
+
+    return SpecialDayCheck(date=date, is_closed=False, type=None, note=None)
