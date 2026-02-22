@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import type { MealType, UserParticipation, UserRole } from '../types';
-import { getAllParticipation, updateUserParticipation, getPendingUsers, approveUser, rejectUser } from '../features/admin/api';
+import type { MealType, UserParticipation, UserRole, AdminUser } from '../types';
+import { getAllParticipation, updateUserParticipation, getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser } from '../features/admin/api';
 import { getTeams } from '../features/users/api';
 
 const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
@@ -16,15 +16,24 @@ const roleOptions: { value: UserRole; label: string }[] = [
 
 export function Admin() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'teams' | 'settings'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'participation' | 'teams'>('pending');
   const [approveModalUser, setApproveModalUser] = useState<{ id: number; name: string; username: string } | null>(null);
   const [approveRole, setApproveRole] = useState<UserRole>('Employee');
   const [approveTeamId, setApproveTeamId] = useState<number | undefined>(undefined);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [editRole, setEditRole] = useState<string>('');
+  const [editTeamId, setEditTeamId] = useState<number | undefined>(undefined);
 
   // Fetch all user participation data
-  const { data: users, isLoading } = useQuery({
+  const { data: participationUsers, isLoading: participationLoading } = useQuery({
     queryKey: ['admin', 'participation'],
     queryFn: () => getAllParticipation(),
+  });
+
+  // Fetch all users (admin management)
+  const { data: allUsers, isLoading: usersLoading } = useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: getAllUsers,
   });
 
   // Fetch pending users
@@ -60,13 +69,15 @@ export function Admin() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'pending-users'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       toast.success(data.message || 'User approved successfully!');
       setApproveModalUser(null);
       setApproveRole('Employee');
       setApproveTeamId(undefined);
     },
-    onError: () => {
-      toast.error('Failed to approve user. Please try again.');
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail || 'Failed to approve user.';
+      toast.error(msg);
     },
   });
 
@@ -75,6 +86,7 @@ export function Admin() {
     mutationFn: (userId: number) => rejectUser(userId),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'pending-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       toast.success(data.message || 'User rejected.');
     },
     onError: () => {
@@ -82,8 +94,40 @@ export function Admin() {
     },
   });
 
+  // Delete user mutation
+  const deleteMutation = useMutation({
+    mutationFn: (userId: number) => deleteUser(userId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pending-users'] });
+      toast.success(data.message || 'User deleted.');
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail || 'Failed to delete user.';
+      toast.error(msg);
+    },
+  });
+
+  // Update user role/team mutation
+  const updateUserMutation = useMutation({
+    mutationFn: ({ userId, data }: { userId: number; data: { role?: string; team_id?: number | null } }) =>
+      updateUser(userId, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast.success(data.message || 'User updated.');
+      setEditingUser(null);
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.detail || 'Failed to update user.';
+      toast.error(msg);
+    },
+  });
+
   const handleMealToggle = (userId: number, mealType: MealType, currentValue: boolean) => {
-    const user = users?.find((u) => u.user_id === userId);
+    const user = participationUsers?.find((u) => u.user_id === userId);
     if (!user) return;
 
     const updatedMeals = {
@@ -109,52 +153,66 @@ export function Admin() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const handleDeleteUser = (userId: number, username: string) => {
+    if (window.confirm(`Are you sure you want to permanently delete "${username}"? This cannot be undone.`)) {
+      deleteMutation.mutate(userId);
+    }
+  };
 
-  // Group users by team for teams tab
-  const teamsMap = users?.reduce((acc, user) => {
-    const teamId = user.team_id || 0;
-    if (!acc[teamId]) {
-      acc[teamId] = { members: [], leads: [] };
-    }
-    acc[teamId].members.push(user);
-    if (user.role === 'TeamLead') {
-      acc[teamId].leads.push(user);
-    }
-    return acc;
-  }, {} as Record<number, { members: UserParticipation[]; leads: UserParticipation[] }>);
+  const handleEditSubmit = () => {
+    if (!editingUser) return;
+    updateUserMutation.mutate({
+      userId: editingUser.id,
+      data: {
+        role: editRole || undefined,
+        team_id: editTeamId ?? undefined,
+      },
+    });
+  };
 
   const pendingCount = pendingUsers?.length || 0;
+
+  const getRoleBadgeClass = (role: string) => {
+    switch (role) {
+      case 'Admin': return 'bg-purple-100 text-purple-800';
+      case 'TeamLead': return 'bg-blue-100 text-blue-800';
+      case 'Logistics': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'Approved': return 'bg-green-100 text-green-800';
+      case 'Pending': return 'bg-yellow-100 text-yellow-800';
+      case 'Rejected': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
         <p className="mt-2 text-gray-600">
-          Manage users, teams, and system settings
+          Manage users, teams, and participation
         </p>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
+          <nav className="flex -mb-px overflow-x-auto">
             {([
               { id: 'pending' as const, label: 'Pending Users', icon: '🕐', badge: pendingCount },
-              { id: 'users' as const, label: 'Users', icon: '👥', badge: 0 },
+              { id: 'users' as const, label: 'User Management', icon: '👥', badge: 0 },
+              { id: 'participation' as const, label: 'Participation', icon: '🍽️', badge: 0 },
               { id: 'teams' as const, label: 'Teams', icon: '🏢', badge: 0 },
-              { id: 'settings' as const, label: 'Settings', icon: '⚙️', badge: 0 },
             ]).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`
-                  flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors
+                  flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
                   ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
@@ -175,13 +233,12 @@ export function Admin() {
         </div>
 
         <div className="p-6">
+          {/* Pending Users Tab */}
           {activeTab === 'pending' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900">Pending Registrations</h2>
-                <span className="text-sm text-gray-500">
-                  {pendingCount} pending
-                </span>
+                <span className="text-sm text-gray-500">{pendingCount} pending</span>
               </div>
 
               {pendingLoading ? (
@@ -198,10 +255,10 @@ export function Admin() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -210,9 +267,7 @@ export function Admin() {
                           <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                                <span className="text-sm font-medium text-yellow-600">
-                                  {pu.name.charAt(0)}
-                                </span>
+                                <span className="text-sm font-medium text-yellow-600">{pu.name.charAt(0)}</span>
                               </div>
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">{pu.name}</div>
@@ -220,13 +275,9 @@ export function Admin() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {pu.email}
-                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{pu.email}</td>
                           <td className="px-4 py-4 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                              Pending
-                            </span>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                             <button
@@ -252,193 +303,215 @@ export function Admin() {
             </div>
           )}
 
+          {/* User Management Tab */}
           {activeTab === 'users' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-                <span className="text-sm text-gray-500">
-                  {users?.length || 0} users
-                </span>
+                <span className="text-sm text-gray-500">{allUsers?.length || 0} users</span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        User
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Role
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Team
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Meals
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {users?.map((user) => (
-                      <tr key={user.user_id} className="hover:bg-gray-50">
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                              <span className="text-sm font-medium text-blue-600">
-                                {user.name.charAt(0)}
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                              <div className="text-sm text-gray-500">@{user.username}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              user.role === 'Admin'
-                                ? 'bg-purple-100 text-purple-800'
-                                : user.role === 'TeamLead'
-                                ? 'bg-blue-100 text-blue-800'
-                                : user.role === 'Logistics'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {user.team_id ? `Team ${user.team_id}` : 'None'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex flex-wrap gap-1">
-                            {mealTypes.map((mealType) => {
-                              const mealValue = user.meals?.[mealType] ?? false;
-                              return (
-                                <button
-                                  key={mealType}
-                                  onClick={() => handleMealToggle(user.user_id, mealType, mealValue)}
-                                  disabled={updateMutation.isPending}
-                                  className={`
-                                    px-2 py-1 text-xs rounded border transition-colors
-                                    ${
-                                      mealValue
-                                        ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
-                                        : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
-                                    }
-                                    ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}
-                                  `}
-                                >
-                                  {mealType.substring(0, 3)}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </td>
+              {usersLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {allUsers?.map((u) => (
+                        <tr key={u.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-blue-600">{u.name.charAt(0)}</span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">{u.name}</div>
+                                <div className="text-sm text-gray-500">@{u.username}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{u.email}</td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeClass(u.role)}`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {u.team_name || (u.team_id ? `Team ${u.team_id}` : 'None')}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(u.status)}`}>
+                              {u.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button
+                              onClick={() => {
+                                setEditingUser(u);
+                                setEditRole(u.role);
+                                setEditTeamId(u.team_id ?? undefined);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.username)}
+                              disabled={deleteMutation.isPending}
+                              className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
+          {/* Participation Tab */}
+          {activeTab === 'participation' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-gray-900">Meal Participation</h2>
+                <span className="text-sm text-gray-500">{participationUsers?.length || 0} users</span>
+              </div>
+
+              {participationLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meals</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {participationUsers?.map((user) => (
+                        <tr key={user.user_id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-blue-600">{user.name.charAt(0)}</span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                <div className="text-sm text-gray-500">@{user.username}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {user.team_id ? `Team ${user.team_id}` : 'None'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex flex-wrap gap-1">
+                              {mealTypes.map((mealType) => {
+                                const mealValue = user.meals?.[mealType] ?? false;
+                                return (
+                                  <button
+                                    key={mealType}
+                                    onClick={() => handleMealToggle(user.user_id, mealType, mealValue)}
+                                    disabled={updateMutation.isPending}
+                                    className={`
+                                      px-2 py-1 text-xs rounded border transition-colors
+                                      ${mealValue
+                                        ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                                        : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
+                                      }
+                                      ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}
+                                    `}
+                                  >
+                                    {mealType.substring(0, 3)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Teams Tab */}
           {activeTab === 'teams' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-900">Team Management</h2>
-                <span className="text-sm text-gray-500">
-                  {Object.keys(teamsMap || {}).length} teams
-                </span>
+                <h2 className="text-lg font-semibold text-gray-900">Team Overview</h2>
+                <span className="text-sm text-gray-500">{teams?.length || 0} teams</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(teamsMap || {}).map(([teamId, teamData]) => (
-                  <div key={teamId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                {teams?.map((team) => (
+                  <div key={team.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-gray-900">
-                        {teamId === '0' ? 'No Team' : `Team ${teamId}`}
-                      </h3>
-                      <span className="text-2xl">🏢</span>
+                      <h3 className="font-semibold text-gray-900">{team.name}</h3>
+                      <span className="text-xs text-gray-400">ID: {team.id}</span>
                     </div>
                     <div className="space-y-2 text-sm text-gray-600">
-                      <p>Members: {teamData.members?.length || 0}</p>
-                      <p>Team Leads: {teamData.leads?.length || 0}</p>
-                      {(teamData.leads?.length || 0) > 0 && (
-                        <p className="text-xs text-blue-600">
-                          Lead: {teamData.leads?.map((l) => l.name).join(', ') || ''}
-                        </p>
+                      <p>Members: {team.member_count || 0}</p>
+                      {team.lead_name && (
+                        <p className="text-xs text-blue-600">Lead: {team.lead_name}</p>
+                      )}
+                      {team.members && team.members.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Members:</p>
+                          <div className="space-y-1">
+                            {team.members.map((m) => (
+                              <div key={m.user_id} className="flex items-center justify-between text-xs">
+                                <span className="text-gray-700">{m.name}</span>
+                                {m.meals && (
+                                  <div className="flex gap-0.5">
+                                    {mealTypes.map((mt) => (
+                                      <span
+                                        key={mt}
+                                        className={`w-4 h-4 rounded text-center text-[10px] leading-4 ${
+                                          m.meals?.[mt] ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700'
+                                        }`}
+                                        title={`${mt}: ${m.meals?.[mt] ? 'In' : 'Out'}`}
+                                      >
+                                        {mt.charAt(0)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'settings' && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">System Settings</h2>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Company Name
-                  </label>
-                  <input
-                    type="text"
-                    defaultValue="CraftMeal Inc."
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Contact admin to change</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Default Meal Time
-                  </label>
-                  <input
-                    type="time"
-                    defaultValue="12:00"
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Contact admin to change</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Notification Email
-                  </label>
-                  <input
-                    type="email"
-                    defaultValue="admin@craftmeal.com"
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Contact admin to change</p>
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Email Notifications</p>
-                    <p className="text-sm text-gray-500">Receive daily meal reminders</p>
-                  </div>
-                  <button className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-blue-600">
-                    <span className="sr-only">Use setting</span>
-                    <span className="translate-x-5 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" />
-                  </button>
-                </div>
-
-                <div className="pt-4">
-                  <button className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
-                    Save Settings
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -458,9 +531,7 @@ export function Admin() {
 
             <div className="space-y-4">
               <div>
-                <label htmlFor="approve-role" className="block text-sm font-medium text-gray-700 mb-1">
-                  Role
-                </label>
+                <label htmlFor="approve-role" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
                   id="approve-role"
                   value={approveRole}
@@ -474,9 +545,7 @@ export function Admin() {
               </div>
 
               <div>
-                <label htmlFor="approve-team" className="block text-sm font-medium text-gray-700 mb-1">
-                  Team
-                </label>
+                <label htmlFor="approve-team" className="block text-sm font-medium text-gray-700 mb-1">Team (optional)</label>
                 <select
                   id="approve-team"
                   value={approveTeamId ?? ''}
@@ -508,6 +577,67 @@ export function Admin() {
                 className="px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 {approveMutation.isPending ? 'Approving...' : 'Approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Edit User: {editingUser.name}
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Update role and team for <span className="font-medium">@{editingUser.username}</span>
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="edit-role" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select
+                  id="edit-role"
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {roleOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="edit-team" className="block text-sm font-medium text-gray-700 mb-1">Team</label>
+                <select
+                  id="edit-team"
+                  value={editTeamId ?? ''}
+                  onChange={(e) => setEditTeamId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">No Team</option>
+                  {teams?.map((team) => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => setEditingUser(null)}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSubmit}
+                disabled={updateUserMutation.isPending}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

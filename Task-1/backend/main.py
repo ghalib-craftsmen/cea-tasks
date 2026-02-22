@@ -10,7 +10,7 @@ from app.auth import (
     Token
 )
 from app.db import JSONStorage
-from app.models import User, RegisterRequest, SelfRegisterRequest, UserResponse, UserStatus
+from app.models import User, RegisterRequest, SelfRegisterRequest, UserResponse, UserRole, UserStatus
 from app.routers import meals, admin, headcount, users
 from app.config import (
     API_TITLE,
@@ -168,6 +168,19 @@ async def admin_register(request: RegisterRequest, current_user: User = Depends(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Email '{request.email}' already exists"
             )
+
+    # Enforce one TeamLead per team
+    if request.role == UserRole.EMPLOYEE.value:
+        pass  # no constraint
+    if request.role == UserRole.TEAM_LEAD.value and request.team_id is not None:
+        for u in users_data:
+            if (u.get("team_id") == request.team_id
+                and u.get("role") == UserRole.TEAM_LEAD.value
+                and u.get("status") == UserStatus.APPROVED.value):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Team {request.team_id} already has a TeamLead. Each team can have only one TeamLead."
+                )
 
     new_id = max((u.get("id", 0) for u in users_data), default=0) + 1
 

@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
-import { ProtectedRoute, AdminRoute, AdminOrLogisticsRoute } from '../components/ProtectedRoute';
+import { ProtectedRoute, AdminRoute, AdminOrLogisticsRoute, HeadcountRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
 import { Loading } from '../components/ui/Loading';
 
@@ -15,6 +15,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: 
 const Meals = lazy(() => import('../pages/Meals').then(m => ({ default: m.Meals })));
 const Admin = lazy(() => import('../pages/Admin').then(m => ({ default: m.Admin })));
 const Headcount = lazy(() => import('../pages/Headcount').then(m => ({ default: m.Headcount })));
+const Profile = lazy(() => import('../pages/Profile').then(m => ({ default: m.Profile })));
 const PendingApproval = lazy(() => import('../pages/PendingApproval').then(m => ({ default: m.PendingApproval })));
 const NotFound = lazy(() => import('../pages/NotFound').then(m => ({ default: m.NotFound })));
 
@@ -48,8 +49,15 @@ const routes: RouteObject[] = [
     element: (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-3xl font-bold text-center mb-6">
-            Welcome to <span className="text-orange-600">Craft</span><span className="text-black">Meal</span>
+          <div className="flex justify-center mb-4">
+            <div className="h-14 w-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-center mb-6 tracking-tight">
+            Welcome to <span className="text-orange-600">Craft</span><span className="text-gray-900">Meal</span>
           </h1>
           <p className="text-gray-600 text-center mb-6">
             Your meal planning and headcount management system
@@ -107,13 +115,33 @@ const routes: RouteObject[] = [
         ),
       },
       {
-        path: 'headcount',
+        path: 'profile',
         element: (
           <ProtectedRoute>
             <Suspense fallback={<Loading />}>
-              <Headcount />
+              <Profile />
             </Suspense>
           </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'headcount',
+        element: (
+          <HeadcountRoute>
+            <Suspense fallback={<Loading />}>
+              <Headcount />
+            </Suspense>
+          </HeadcountRoute>
+        ),
+      },
+      {
+        path: 'headcount/team/:teamId',
+        element: (
+          <HeadcountRoute>
+            <Suspense fallback={<Loading />}>
+              <Headcount />
+            </Suspense>
+          </HeadcountRoute>
         ),
       },
       {
