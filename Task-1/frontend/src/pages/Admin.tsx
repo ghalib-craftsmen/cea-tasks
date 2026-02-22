@@ -1,19 +1,42 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import type { MealType, UserParticipation } from '../types';
-import { getAllParticipation, updateUserParticipation } from '../features/admin/api';
+import type { MealType, UserParticipation, UserRole } from '../types';
+import { getAllParticipation, updateUserParticipation, getPendingUsers, approveUser, rejectUser } from '../features/admin/api';
+import { getTeams } from '../features/users/api';
 
 const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
 
+const roleOptions: { value: UserRole; label: string }[] = [
+  { value: 'Employee', label: 'Employee' },
+  { value: 'TeamLead', label: 'Team Lead' },
+  { value: 'Admin', label: 'Admin' },
+  { value: 'Logistics', label: 'Logistics' },
+];
+
 export function Admin() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'users' | 'teams' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'teams' | 'settings'>('pending');
+  const [approveModalUser, setApproveModalUser] = useState<{ id: number; name: string; username: string } | null>(null);
+  const [approveRole, setApproveRole] = useState<UserRole>('Employee');
+  const [approveTeamId, setApproveTeamId] = useState<number | undefined>(undefined);
 
   // Fetch all user participation data
   const { data: users, isLoading } = useQuery({
     queryKey: ['admin', 'participation'],
     queryFn: () => getAllParticipation(),
+  });
+
+  // Fetch pending users
+  const { data: pendingUsers, isLoading: pendingLoading } = useQuery({
+    queryKey: ['admin', 'pending-users'],
+    queryFn: getPendingUsers,
+  });
+
+  // Fetch teams
+  const { data: teams } = useQuery({
+    queryKey: ['teams'],
+    queryFn: getTeams,
   });
 
   // Update user participation
@@ -30,6 +53,35 @@ export function Admin() {
     },
   });
 
+  // Approve user mutation
+  const approveMutation = useMutation({
+    mutationFn: ({ userId, role, teamId }: { userId: number; role: UserRole; teamId?: number }) =>
+      approveUser({ user_id: userId, role, team_id: teamId || null }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pending-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
+      toast.success(data.message || 'User approved successfully!');
+      setApproveModalUser(null);
+      setApproveRole('Employee');
+      setApproveTeamId(undefined);
+    },
+    onError: () => {
+      toast.error('Failed to approve user. Please try again.');
+    },
+  });
+
+  // Reject user mutation
+  const rejectMutation = useMutation({
+    mutationFn: (userId: number) => rejectUser(userId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pending-users'] });
+      toast.success(data.message || 'User rejected.');
+    },
+    onError: () => {
+      toast.error('Failed to reject user. Please try again.');
+    },
+  });
+
   const handleMealToggle = (userId: number, mealType: MealType, currentValue: boolean) => {
     const user = users?.find((u) => u.user_id === userId);
     if (!user) return;
@@ -42,9 +94,19 @@ export function Admin() {
     updateMutation.mutate({ targetUserId: userId, meals: updatedMeals });
   };
 
-  const handleDeleteUser = () => {
-    // Note: User deletion would need a separate API endpoint
-    toast('User deletion is not yet implemented');
+  const handleApproveSubmit = () => {
+    if (!approveModalUser) return;
+    approveMutation.mutate({
+      userId: approveModalUser.id,
+      role: approveRole,
+      teamId: approveTeamId,
+    });
+  };
+
+  const handleReject = (userId: number, username: string) => {
+    if (window.confirm(`Are you sure you want to reject "${username}"?`)) {
+      rejectMutation.mutate(userId);
+    }
   };
 
   if (isLoading) {
@@ -68,6 +130,8 @@ export function Admin() {
     return acc;
   }, {} as Record<number, { members: UserParticipation[]; leads: UserParticipation[] }>);
 
+  const pendingCount = pendingUsers?.length || 0;
+
   return (
     <div className="space-y-6">
       <div>
@@ -80,14 +144,15 @@ export function Admin() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
-            {[
-              { id: 'users', label: 'Users', icon: '👥' },
-              { id: 'teams', label: 'Teams', icon: '🏢' },
-              { id: 'settings', label: 'Settings', icon: '⚙️' },
-            ].map((tab) => (
+            {([
+              { id: 'pending' as const, label: 'Pending Users', icon: '🕐', badge: pendingCount },
+              { id: 'users' as const, label: 'Users', icon: '👥', badge: 0 },
+              { id: 'teams' as const, label: 'Teams', icon: '🏢', badge: 0 },
+              { id: 'settings' as const, label: 'Settings', icon: '⚙️', badge: 0 },
+            ]).map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'users' | 'teams' | 'settings')}
+                onClick={() => setActiveTab(tab.id)}
                 className={`
                   flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors
                   ${
@@ -99,12 +164,94 @@ export function Admin() {
               >
                 <span className="mr-2">{tab.icon}</span>
                 {tab.label}
+                {tab.badge > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
         </div>
 
         <div className="p-6">
+          {activeTab === 'pending' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-gray-900">Pending Registrations</h2>
+                <span className="text-sm text-gray-500">
+                  {pendingCount} pending
+                </span>
+              </div>
+
+              {pendingLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : pendingCount === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-lg">No pending registrations</p>
+                  <p className="text-sm mt-1">New user registrations will appear here for approval.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {pendingUsers?.map((pu) => (
+                        <tr key={pu.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-yellow-600">
+                                  {pu.name.charAt(0)}
+                                </span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">{pu.name}</div>
+                                <div className="text-sm text-gray-500">@{pu.username}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {pu.email}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              Pending
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button
+                              onClick={() => setApproveModalUser({ id: pu.id, name: pu.name, username: pu.username })}
+                              className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleReject(pu.id, pu.username)}
+                              disabled={rejectMutation.isPending}
+                              className="inline-flex items-center px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'users' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
@@ -129,9 +276,6 @@ export function Admin() {
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Meals
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
                       </th>
                     </tr>
                   </thead>
@@ -194,14 +338,6 @@ export function Admin() {
                             })}
                           </div>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={handleDeleteUser}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -236,14 +372,6 @@ export function Admin() {
                           Lead: {teamData.leads?.map((l) => l.name).join(', ') || ''}
                         </p>
                       )}
-                    </div>
-                    <div className="mt-4 flex space-x-2">
-                      <button className="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors">
-                        Edit
-                      </button>
-                      <button className="flex-1 px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
-                        View Members
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -316,6 +444,75 @@ export function Admin() {
           )}
         </div>
       </div>
+
+      {/* Approve User Modal */}
+      {approveModalUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Approve User: {approveModalUser.name}
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Assign a role and team for <span className="font-medium">@{approveModalUser.username}</span>
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="approve-role" className="block text-sm font-medium text-gray-700 mb-1">
+                  Role
+                </label>
+                <select
+                  id="approve-role"
+                  value={approveRole}
+                  onChange={(e) => setApproveRole(e.target.value as UserRole)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {roleOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="approve-team" className="block text-sm font-medium text-gray-700 mb-1">
+                  Team
+                </label>
+                <select
+                  id="approve-team"
+                  value={approveTeamId ?? ''}
+                  onChange={(e) => setApproveTeamId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">No Team</option>
+                  {teams?.map((team) => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setApproveModalUser(null);
+                  setApproveRole('Employee');
+                  setApproveTeamId(undefined);
+                }}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApproveSubmit}
+                disabled={approveMutation.isPending}
+                className="px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {approveMutation.isPending ? 'Approving...' : 'Approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

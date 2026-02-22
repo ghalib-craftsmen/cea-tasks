@@ -47,7 +47,8 @@ def create_admin_user(
         "name": name,
         "email": email,
         "role": "Admin",
-        "team_id": team_id
+        "team_id": team_id,
+        "status": "Approved"
     }
 
 

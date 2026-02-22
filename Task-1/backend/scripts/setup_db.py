@@ -131,9 +131,10 @@ def generate_users():
         "name": "System Administrator",
         "email": "admin@company.com",
         "role": "Admin",
-        "team_id": None
+        "team_id": None,
+        "status": "Approved"
     })
-    
+
     users.append({
         "id": 2,
         "username": "logistics",
@@ -141,9 +142,10 @@ def generate_users():
         "name": "Logistics Manager",
         "email": "logistics@company.com",
         "role": "Logistics",
-        "team_id": None
+        "team_id": None,
+        "status": "Approved"
     })
-    
+
     for i in range(NUM_TEAMS):
         users.append({
             "id": 3 + i,
@@ -152,9 +154,10 @@ def generate_users():
             "name": f"Team Lead {i+1}",
             "email": f"teamlead{i+1}@company.com",
             "role": "TeamLead",
-            "team_id": i + 1
+            "team_id": i + 1,
+            "status": "Approved"
         })
-    
+
     employee_id = 3 + NUM_TEAMS
     for i in range((NUM_USERS - 3 - NUM_TEAMS) + 1):
         team_id = (i % NUM_TEAMS) + 1
@@ -165,7 +168,8 @@ def generate_users():
             "name": f"Employee {i+1}",
             "email": f"employee{i+1}@company.com",
             "role": "Employee",
-            "team_id": team_id
+            "team_id": team_id,
+            "status": "Approved"
         })
     
     return users

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app.auth import get_current_user
 from app.db import JSONStorage
-from app.models import User, UserRole, UserResponse, Team
+from app.models import User, UserRole, UserStatus, UserResponse, Team
 from app.routers.admin import UserParticipation, create_default_participation, get_todays_date
 
 
@@ -47,7 +47,8 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         role=current_user.role,
         team_id=current_user.team_id,
-        team_name=team_name
+        team_name=team_name,
+        status=current_user.status
     )
 
 
@@ -69,6 +70,9 @@ async def get_all_participation(
 
     for user_dict in users_data:
         user = User(**user_dict)
+
+        if user.status != UserStatus.APPROVED.value:
+            continue
 
         if current_user.role == UserRole.TEAM_LEAD.value:
             if user.team_id != current_user.team_id:

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from app.auth import get_current_user
 from app.db import JSONStorage
-from app.models import User, MealType, MealRecord, UserRole
+from app.models import User, MealType, MealRecord, UserRole, UserStatus
 
 
 router = APIRouter(prefix="/api/meals", tags=["meals"])
@@ -54,6 +54,11 @@ class ParticipationUpdate(BaseModel):
 
 @router.get("/today", response_model=MealRecord)
 async def get_todays_participation(current_user: User = Depends(get_current_user)):
+    if current_user.status != UserStatus.APPROVED.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not yet approved"
+        )
     today = get_todays_date()
     
     participation_data = storage.read_participation()
@@ -81,8 +86,14 @@ async def update_participation(
     update_data: ParticipationUpdate,
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.status != UserStatus.APPROVED.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not yet approved"
+        )
+
     target_date = update_data.date if update_data.date else get_todays_date()
-    
+
     if current_user.role == UserRole.EMPLOYEE.value:
         if is_cutoff_passed(target_date):
             raise HTTPException(
