@@ -99,7 +99,7 @@ export function Headcount() {
               disabled
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
             />
-            <p className="mt-1 text-sm text-gray-500">Today's statistics</p>
+            <p className="mt-1 text-sm text-gray-500">Tomorrow's statistics</p>
           </div>
           <div className="flex-1">
             <label htmlFor="meal" className="block text-sm font-medium text-gray-700 mb-2">

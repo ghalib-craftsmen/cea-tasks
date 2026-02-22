@@ -244,3 +244,13 @@ class SpecialDayCheck(BaseModel):
 
     class Config:
         use_enum_values = True
+
+
+class AppSettings(BaseModel):
+    cutoff_hour: int = 21
+    cutoff_minute: int = 0
+
+
+class AppSettingsUpdate(BaseModel):
+    cutoff_hour: Optional[int] = None
+    cutoff_minute: Optional[int] = None

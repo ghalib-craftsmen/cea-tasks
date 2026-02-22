@@ -152,7 +152,7 @@ export const HeadcountSummaryPage = () => {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Headcount Summary</h1>
         <p className="mt-2 text-gray-600">
-          View meal participation counts for today
+          View meal participation counts for tomorrow
         </p>
       </div>
 

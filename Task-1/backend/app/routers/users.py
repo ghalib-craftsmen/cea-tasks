@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
@@ -15,6 +15,10 @@ storage = JSONStorage()
 
 def get_todays_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
+
+
+def get_tomorrows_date() -> str:
+    return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 def create_default_participation(user_id: int, date: str) -> MealRecord:
@@ -125,7 +129,7 @@ async def get_all_participation(
     team_id: Optional[int] = Query(None, description="Filter by team ID (Admin only)"),
     current_user: User = Depends(require_admin_or_teamlead_or_logistics)):
     """Get participation list. Scoped: TeamLead sees own team only, Admin sees all (optional ?team_id= filter)."""
-    today = get_todays_date()
+    today = get_tomorrows_date()
     
     users_data = storage.read_users()
     participation_data = storage.read_participation()
@@ -182,7 +186,7 @@ async def update_user_participation(
     update_data: ParticipationUpdateRequest,
     current_user: User = Depends(require_admin_or_teamlead)):
     """Update someone's meals. Scoped: Admin can update anyone, TeamLead only their team. Logistics cannot update."""
-    today = get_todays_date()
+    today = get_tomorrows_date()
 
     users_data = storage.read_users()
     participation_data = storage.read_participation()

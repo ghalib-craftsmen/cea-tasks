@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -12,8 +12,8 @@ router = APIRouter(prefix="/api/headcount", tags=["headcount"])
 storage = JSONStorage()
 
 
-def get_todays_date() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+def get_tomorrows_date() -> str:
+    return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 async def require_admin_logistics_or_teamlead(
@@ -60,7 +60,7 @@ class MealUserList(BaseModel):
 async def get_headcount_summary(
     team_id: Optional[int] = Query(None, description="Filter by team ID (Admin/Logistics only)"),
     current_user: User = Depends(require_admin_logistics_or_teamlead)):
-    today = get_todays_date()
+    today = get_tomorrows_date()
 
     users_data = storage.read_users()
     participation_data = storage.read_participation()
@@ -132,7 +132,7 @@ async def get_meal_users(
     meal_type: str,
     team_id: Optional[int] = Query(None, description="Filter by team ID (Admin/Logistics only)"),
     current_user: User = Depends(require_admin_logistics_or_teamlead)):
-    today = get_todays_date()
+    today = get_tomorrows_date()
 
     valid_meal_types = {mt.value for mt in MealType}
     if meal_type not in valid_meal_types:
