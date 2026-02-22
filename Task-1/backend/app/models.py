@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from pydantic import BaseModel, Field
 
 
@@ -131,5 +131,104 @@ class MealRecord(BaseModel):
                     "EventDinner": False,
                     "OptionalDinner": False,
                 },
-            }
         }
+
+        }
+
+
+class WorkLocationType(str, Enum):
+    OFFICE = "Office"
+    WFH = "WFH"
+
+
+class SpecialDayType(str, Enum):
+    CLOSED = "Closed"
+    HOLIDAY = "Holiday"
+    CELEBRATION = "Celebration"
+
+
+class WorkLocation(BaseModel):
+    user_id: int
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    location: WorkLocationType
+
+    class Config:
+        use_enum_values = True
+
+
+class WorkLocationUpdate(BaseModel):
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    location: WorkLocationType
+
+    class Config:
+        use_enum_values = True
+
+
+class WorkLocationResponse(BaseModel):
+    user_id: int
+    date: str
+    location: WorkLocationType
+
+    class Config:
+        use_enum_values = True
+
+
+class WorkLocationAdminUpdate(BaseModel):
+    user_id: int
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    location: WorkLocationType
+
+    class Config:
+        use_enum_values = True
+
+
+class WFHPeriod(BaseModel):
+    id: int
+    start_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+    class Config:
+        use_enum_values = True
+
+
+class WFHPeriodCreate(BaseModel):
+    start_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class WFHPeriodResponse(BaseModel):
+    id: int
+    start_date: str
+    end_date: str
+
+    class Config:
+        use_enum_values = True
+
+
+class SpecialDay(BaseModel):
+    id: int
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    type: SpecialDayType
+    note: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class SpecialDayCreate(BaseModel):
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    type: SpecialDayType
+    note: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class SpecialDayResponse(BaseModel):
+    id: int
+    date: str
+    type: SpecialDayType
+    note: Optional[str] = None
+
+    class Config:
+        use_enum_values = True

@@ -136,3 +136,21 @@ class JSONStorage:
 
     def get_file_path(self, filename: str) -> str:
         return str(self._get_file_path(filename).resolve())
+
+    def read_work_locations(self) -> List[Any]:
+        return self.read("work_locations.json")
+
+    def write_work_locations(self, work_locations: List[Any]) -> None:
+        self.write("work_locations.json", work_locations)
+
+    def read_wfh_periods(self) -> List[Any]:
+        return self.read("wfh_periods.json")
+
+    def write_wfh_periods(self, wfh_periods: List[Any]) -> None:
+        self.write("wfh_periods.json", wfh_periods)
+
+    def read_special_days(self) -> List[Any]:
+        return self.read("special_days.json")
+
+    def write_special_days(self, special_days: List[Any]) -> None:
+        self.write("special_days.json", special_days)
