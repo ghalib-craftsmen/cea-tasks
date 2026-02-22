@@ -23,6 +23,11 @@ export async function register(request: RegisterRequest): Promise<RegisterRespon
   return response.data;
 }
 
+export async function adminRegister(request: RegisterRequest): Promise<RegisterResponse> {
+  const response = await api.post<RegisterResponse>('/auth/admin-register', request);
+  return response.data;
+}
+
 export async function getCurrentUser(): Promise<User> {
   const response = await api.get<User>('/auth/me');
   return response.data;

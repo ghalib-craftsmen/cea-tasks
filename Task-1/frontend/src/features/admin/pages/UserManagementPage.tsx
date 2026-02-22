@@ -4,40 +4,27 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AdminRoute } from '../../../components/ProtectedRoute';
 import { useToast } from '../../../hooks/useToast';
-import { register as registerUser } from '../../auth/api';
+import { adminRegister } from '../../auth/api';
+import { getTeams } from '../../users/api';
 
-// Zod schema for form validation
 const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
   role: z.enum(['Employee', 'TeamLead', 'Admin', 'Logistics']),
-  team_id: z.union([z.number(), z.null(), z.undefined()]).optional(),
+  team_id: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? null : Number(val)),
+    z.number().nullable().optional()
+  ),
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
-// Mock team data
-const mockTeams = [
-  { id: 1, name: 'Development' },
-  { id: 2, name: 'Design' },
-  { id: 3, name: 'Marketing' },
-  { id: 4, name: 'Operations' },
-  { id: 5, name: 'HR' },
-];
-
-// Mock function to fetch teams
-async function fetchTeams() {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return mockTeams;
-}
-
 function UserManagementForm() {
   const { data: teams, isLoading: teamsLoading } = useQuery({
     queryKey: ['teams'],
-    queryFn: fetchTeams,
+    queryFn: getTeams,
   });
 
   const { success, error: showError } = useToast();
@@ -56,13 +43,13 @@ function UserManagementForm() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: (data: RegisterFormData) => registerUser(data),
+    mutationFn: (data: RegisterFormData) => adminRegister(data),
     onSuccess: () => {
-      success('User registered successfully!');
+      success('User created successfully!');
       reset();
     },
     onError: (error: unknown) => {
-      const errorMessage = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to register user. Please try again.';
+      const errorMessage = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to create user. Please try again.';
       showError(errorMessage);
     },
   });
@@ -74,13 +61,13 @@ function UserManagementForm() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-        <p className="mt-2 text-gray-600">Register new users to the system</p>
+        <h1 className="text-3xl font-bold text-gray-900">Create New User</h1>
+        <p className="mt-2 text-gray-600">Register a new user directly into the system</p>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Register New User</h2>
+          <h2 className="text-lg font-semibold text-gray-900">User Details</h2>
           <p className="text-sm text-gray-500 mt-1">Fill in the details below to create a new user account</p>
         </div>
 
@@ -206,36 +193,19 @@ function UserManagementForm() {
               disabled={isSubmitting || registerMutation.isPending}
               className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting || registerMutation.isPending ? 'Registering...' : 'Register User'}
+              {isSubmitting || registerMutation.isPending ? 'Creating...' : 'Create User'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Info Box */}
       <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex">
-          <div className="flex-shrink-0">
-            <svg
-              className="h-5 w-5 text-blue-400"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-800">Registration Information</h3>
-            <div className="mt-2 text-sm text-blue-700">
-              <p>
-                All fields marked with <span className="text-red-500">*</span> are required.
-                The username must be unique and the password should be at least 6 characters long.
-              </p>
-            </div>
+          <svg className="h-5 w-5 text-blue-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <div className="ml-3 text-sm text-blue-700">
+            Users created here are <strong>immediately active</strong> — no approval required.
           </div>
         </div>
       </div>
