@@ -19,7 +19,7 @@ const baseNavItems: NavItem[] = [
 
 const headcountNavItem: NavItem = { path: '/headcount', label: 'Headcount', icon: '👥' };
 
-const adminOnlyNavItems: NavItem[] = [
+const adminNavItems: NavItem[] = [
   { path: '/admin', label: 'Admin', icon: '⚙️' },
 ];
 
@@ -42,11 +42,13 @@ export function Layout() {
   
   const isAdmin = currentUser?.role === 'Admin';
   const isLogistics = currentUser?.role === 'Logistics';
-  const canViewHeadcount = isAdmin || isLogistics || currentUser?.role === 'TeamLead';
+  const isTeamLead = currentUser?.role === 'TeamLead';
+  const canViewHeadcount = isAdmin || isLogistics || isTeamLead;
   const allNavItems = [
     ...baseNavItems,
     ...(canViewHeadcount ? [headcountNavItem] : []),
-    ...(isAdmin ? adminOnlyNavItems : []),
+    ...(isAdmin || isTeamLead ? adminNavItems : []),
+    ...(isAdmin ? [{ path: '/admin/management', label: 'WFH & Special Days', icon: '📅' }] : []),
     ...(isLogistics ? logisticsNavItems : []),
   ];
 

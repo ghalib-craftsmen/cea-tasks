@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import type { MealType, UserRole, AdminUser, AppSettings } from '../types';
+import type { MealType, UserRole, AdminUser, AppSettings, WorkLocationType } from '../types';
 import { getAllParticipation, updateUserParticipation, bulkUpdateParticipation, getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser, getSettings, updateSettings } from '../features/admin/api';
 import { getTeams, getCurrentUser } from '../features/users/api';
+import { updateUserLocation } from '../features/locations/api';
 
 const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
 
@@ -24,6 +26,7 @@ const roleOptions: { value: UserRole; label: string }[] = [
 
 export function Admin() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: currentUser } = useQuery({
     queryKey: ['currentUser'],
@@ -169,6 +172,25 @@ export function Admin() {
     onError: (error: unknown) => {
       const err = error as { response?: { data?: { detail?: string } } };
       toast.error(err?.response?.data?.detail || 'Bulk update failed.');
+    },
+  });
+
+  // Update work location mutation
+  const locationMutation = useMutation({
+    mutationFn: ({ userId, location }: { userId: number; location: WorkLocationType }) => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const date = tomorrow.toISOString().split('T')[0];
+      return updateUserLocation({ user_id: userId, date, location });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
+      queryClient.invalidateQueries({ queryKey: ['headcount'] });
+      toast.success('Location updated!');
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } };
+      toast.error(err?.response?.data?.detail || 'Failed to update location.');
     },
   });
 
@@ -395,7 +417,18 @@ export function Admin() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{allUsers?.length || 0} users</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{allUsers?.length || 0} users</span>
+                  <button
+                    onClick={() => navigate('/admin/users')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Create New User
+                  </button>
+                </div>
               </div>
 
               {usersLoading ? (
@@ -443,20 +476,28 @@ export function Admin() {
                               {u.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right space-x-3">
-                            <button
-                              onClick={() => { setEditingUser(u); setEditRole(u.role); setEditTeamId(u.team_id ?? undefined); }}
-                              className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(u.id, u.username)}
-                              disabled={deleteMutation.isPending}
-                              className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
-                            >
-                              Delete
-                            </button>
+                          <td className="px-4 py-3 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => { setEditingUser(u); setEditRole(u.role); setEditTeamId(u.team_id ?? undefined); }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.username)}
+                                disabled={deleteMutation.isPending}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -551,6 +592,7 @@ export function Admin() {
                                       {mealLabels[mt]}
                                     </th>
                                   ))}
+                                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Location</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-50">
@@ -614,6 +656,23 @@ export function Admin() {
                                           </td>
                                         );
                                       })}
+                                      <td className="px-3 py-2.5 text-center">
+                                        <button
+                                          onClick={() => {
+                                            const next: WorkLocationType = user.location === 'WFH' ? 'Office' : 'WFH';
+                                            locationMutation.mutate({ userId: user.user_id, location: next });
+                                          }}
+                                          disabled={locationMutation.isPending}
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border transition-all ${
+                                            user.location === 'WFH'
+                                              ? 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'
+                                              : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                                          } ${locationMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                          title="Click to toggle location"
+                                        >
+                                          {user.location === 'WFH' ? '🏠 WFH' : '🏢 Office'}
+                                        </button>
+                                      </td>
                                     </tr>
                                   );
                                 })}
