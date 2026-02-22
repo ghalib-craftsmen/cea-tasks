@@ -22,7 +22,7 @@ const adminNavItems: NavItem[] = [
 ];
 
 export function Layout() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -34,6 +34,7 @@ export function Layout() {
     enabled: !!user,
   });
 
+  const isAdmin = currentUser?.role === 'Admin';
   const allNavItems = [...navItems, ...(isAdmin ? adminNavItems : [])];
 
   return (

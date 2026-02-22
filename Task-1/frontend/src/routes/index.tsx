@@ -15,6 +15,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: 
 const Meals = lazy(() => import('../pages/Meals').then(m => ({ default: m.Meals })));
 const Admin = lazy(() => import('../pages/Admin').then(m => ({ default: m.Admin })));
 const Headcount = lazy(() => import('../pages/Headcount').then(m => ({ default: m.Headcount })));
+const PendingApproval = lazy(() => import('../pages/PendingApproval').then(m => ({ default: m.PendingApproval })));
 const NotFound = lazy(() => import('../pages/NotFound').then(m => ({ default: m.NotFound })));
 
 const routes: RouteObject[] = [
@@ -35,6 +36,14 @@ const routes: RouteObject[] = [
     ),
   },
   {
+    path: '/pending',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <PendingApproval />
+      </Suspense>
+    ),
+  },
+  {
     path: '/',
     element: (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -51,6 +60,12 @@ const routes: RouteObject[] = [
               className="block w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-medium transition-colors"
             >
               Login
+            </a>
+            <a
+              href="/register"
+              className="block w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 text-center font-medium transition-colors"
+            >
+              Register
             </a>
           </div>
         </div>

@@ -5,7 +5,8 @@ from pydantic import BaseModel
 
 from app.auth import get_current_user
 from app.db import JSONStorage
-from app.models import User, UserRole, MealType, MealRecord
+from app.models import User, UserRole, UserStatus, MealType, MealRecord, ApproveUserRequest, RejectUserRequest
+from app.auth import require_admin
 
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -142,4 +143,101 @@ async def update_user_participation(
         date=today,
         meals=updated_record["meals"]
     )
+
+
+class PendingUserResponse(BaseModel):
+    id: int
+    username: str
+    name: str
+    email: str
+    status: str
+
+
+@router.get("/pending-users", response_model=List[PendingUserResponse])
+async def get_pending_users(current_user: User = Depends(require_admin)):
+    """Get all users with Pending status. Admin only."""
+    users_data = storage.read_users()
+    return [
+        PendingUserResponse(
+            id=u["id"],
+            username=u["username"],
+            name=u["name"],
+            email=u["email"],
+            status=u.get("status", UserStatus.PENDING.value)
+        )
+        for u in users_data
+        if u.get("status") == UserStatus.PENDING.value
+    ]
+
+
+@router.put("/approve-user")
+async def approve_user(
+    request: ApproveUserRequest,
+    current_user: User = Depends(require_admin)):
+    """Approve a pending user and assign role + team. Admin only."""
+    users_data = storage.read_users()
+
+    user_index = None
+    for i, u in enumerate(users_data):
+        if u.get("id") == request.user_id:
+            user_index = i
+            break
+
+    if user_index is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {request.user_id} not found"
+        )
+
+    if users_data[user_index].get("status") != UserStatus.PENDING.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not in Pending status"
+        )
+
+    users_data[user_index]["role"] = request.role
+    users_data[user_index]["team_id"] = request.team_id
+    users_data[user_index]["status"] = UserStatus.APPROVED.value
+
+    storage.write_users(users_data)
+
+    return {
+        "message": f"User '{users_data[user_index]['username']}' has been approved",
+        "user_id": request.user_id
+    }
+
+
+@router.put("/reject-user")
+async def reject_user(
+    request: RejectUserRequest,
+    current_user: User = Depends(require_admin)):
+    """Reject a pending user. Admin only."""
+    users_data = storage.read_users()
+
+    user_index = None
+    for i, u in enumerate(users_data):
+        if u.get("id") == request.user_id:
+            user_index = i
+            break
+
+    if user_index is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {request.user_id} not found"
+        )
+
+    if users_data[user_index].get("status") != UserStatus.PENDING.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not in Pending status"
+        )
+
+    users_data[user_index]["status"] = UserStatus.REJECTED.value
+
+    storage.write_users(users_data)
+
+    return {
+        "message": f"User '{users_data[user_index]['username']}' has been rejected",
+        "user_id": request.user_id
+    }
 

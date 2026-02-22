@@ -8,6 +8,8 @@ export interface ApiError {
   status?: number;
 }
 
+export type UserStatus = 'Pending' | 'Approved' | 'Rejected';
+
 export interface User {
   id: number;
   username: string;
@@ -17,6 +19,7 @@ export interface User {
   role: UserRole;
   team_id?: number | null;
   team_name?: string | null;
+  status?: UserStatus;
 }
 
 export type UserRole = 'Employee' | 'TeamLead' | 'Admin' | 'Logistics';
@@ -37,12 +40,33 @@ export interface AuthResponse {
   token_type: string;
 }
 
+export interface SelfRegisterRequest {
+  username: string;
+  password: string;
+  name: string;
+  email: string;
+}
+
 export interface RegisterRequest {
   username: string;
   password: string;
   name: string;
   email: string;
   role?: UserRole;
+  team_id?: number | null;
+}
+
+export interface PendingUser {
+  id: number;
+  username: string;
+  name: string;
+  email: string;
+  status: string;
+}
+
+export interface ApproveUserRequest {
+  user_id: number;
+  role: UserRole;
   team_id?: number | null;
 }
 
