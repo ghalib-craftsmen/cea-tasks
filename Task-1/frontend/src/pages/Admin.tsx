@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import type { MealType, UserParticipation, UserRole, AdminUser } from '../types';
+import type { MealType, UserRole, AdminUser } from '../types';
 import { getAllParticipation, updateUserParticipation, getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser } from '../features/admin/api';
 import { getTeams } from '../features/users/api';
 
@@ -75,8 +75,9 @@ export function Admin() {
       setApproveRole('Employee');
       setApproveTeamId(undefined);
     },
-    onError: (error: any) => {
-      const msg = error?.response?.data?.detail || 'Failed to approve user.';
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } };
+      const msg = err?.response?.data?.detail || 'Failed to approve user.';
       toast.error(msg);
     },
   });
@@ -103,8 +104,9 @@ export function Admin() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'pending-users'] });
       toast.success(data.message || 'User deleted.');
     },
-    onError: (error: any) => {
-      const msg = error?.response?.data?.detail || 'Failed to delete user.';
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } };
+      const msg = err?.response?.data?.detail || 'Failed to delete user.';
       toast.error(msg);
     },
   });
@@ -120,8 +122,9 @@ export function Admin() {
       toast.success(data.message || 'User updated.');
       setEditingUser(null);
     },
-    onError: (error: any) => {
-      const msg = error?.response?.data?.detail || 'Failed to update user.';
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } };
+      const msg = err?.response?.data?.detail || 'Failed to update user.';
       toast.error(msg);
     },
   });
