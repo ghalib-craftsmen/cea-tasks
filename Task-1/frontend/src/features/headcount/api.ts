@@ -4,12 +4,14 @@ import type {
   MealUserList,
 } from '../../types';
 
-export async function getHeadcountSummary(): Promise<HeadcountSummary> {
-  const response = await api.get<HeadcountSummary>('/headcount');
+export async function getHeadcountSummary(teamId?: number): Promise<HeadcountSummary> {
+  const params = teamId ? { team_id: teamId } : {};
+  const response = await api.get<HeadcountSummary>('/headcount', { params });
   return response.data;
 }
 
-export async function getMealUsers(mealType: string): Promise<MealUserList> {
-  const response = await api.get<MealUserList>(`/headcount/${mealType}`);
+export async function getMealUsers(mealType: string, teamId?: number): Promise<MealUserList> {
+  const params = teamId ? { team_id: teamId } : {};
+  const response = await api.get<MealUserList>(`/headcount/${mealType}`, { params });
   return response.data;
 }

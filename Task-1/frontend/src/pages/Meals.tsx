@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../hooks/useAuth';
+import { getCurrentUser } from '../features/users/api';
 import type { MealType } from '../types';
 import { getTodaysParticipation, updateParticipation } from '../features/meals/api';
 
@@ -13,6 +15,19 @@ const mealTypes: { type: MealType; label: string; icon: string }[] = [
 
 export function Meals() {
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
+
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    enabled: isAuthenticated,
+  });
+
+  const isEmployee = currentUser?.role === 'Employee';
+
+  // Check if cutoff has passed (9 PM today)
+  const now = new Date();
+  const cutoffPassed = isEmployee && now.getHours() >= 21;
 
   // Fetch today's meal participation
   const { data: mealData, isLoading } = useQuery({
@@ -26,8 +41,12 @@ export function Meals() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meals', 'today'] });
     },
-    onError: () => {
-      toast.error('Failed to update meal preferences. Please try again.');
+    onError: (error: any) => {
+      if (error?.response?.status === 403) {
+        toast.error('Cutoff time passed. Updates locked for tomorrow\'s meals.');
+      } else {
+        toast.error('Failed to update meal preferences. Please try again.');
+      }
     },
   });
 
@@ -63,8 +82,17 @@ export function Meals() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Meals</h1>
         <p className="mt-2 text-gray-600">
-          Select your meal preferences for the day
+          {isEmployee
+            ? "Set your meal preferences for tomorrow"
+            : "Manage meal preferences"}
         </p>
+        {cutoffPassed && (
+          <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              Cutoff time (9:00 PM) has passed. You can no longer update tomorrow's meal preferences.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
@@ -79,7 +107,9 @@ export function Meals() {
             disabled
             className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
           />
-          <p className="mt-1 text-sm text-gray-500">Today's meal preferences</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {isEmployee ? "Tomorrow's meal preferences" : "Today's meal preferences"}
+          </p>
         </div>
 
         <div className="space-y-4">
@@ -91,14 +121,14 @@ export function Meals() {
                 <button
                   key={meal.type}
                   onClick={() => toggleMeal(meal.type)}
-                  disabled={updateMutation.isPending}
+                  disabled={updateMutation.isPending || cutoffPassed}
                   className={`
                     relative p-6 rounded-lg border-2 transition-all duration-200
                     ${isSelected
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300'
                     }
-                    ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}
+                    ${(updateMutation.isPending || cutoffPassed) ? 'opacity-50 cursor-not-allowed' : ''}
                   `}
                 >
                   <div className="flex items-center space-x-4">
@@ -134,7 +164,7 @@ export function Meals() {
         <div className="mt-8 flex justify-end">
           <button
             onClick={handleSave}
-            disabled={updateMutation.isPending}
+            disabled={updateMutation.isPending || cutoffPassed}
             className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {updateMutation.isPending ? 'Saving...' : 'Save Preferences'}

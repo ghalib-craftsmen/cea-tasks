@@ -60,8 +60,13 @@ export function MealParticipationPage() {
       queryClient.invalidateQueries({ queryKey: ['meals', 'today'] });
       success('Meal participation updated successfully!');
     },
-    onError: (error: Error) => {
-      showError(error.message || 'Failed to update meal participation. Please try again.');
+    onError: (error: unknown) => {
+      const err = error as { response?: { status?: number; data?: { detail?: string } } };
+      if (err.response?.status === 403) {
+        showError(err.response.data?.detail || 'Cutoff time passed. Updates locked for tomorrow\'s meals.');
+      } else {
+        showError((error as Error).message || 'Failed to update meal participation. Please try again.');
+      }
     },
   });
 
@@ -71,7 +76,7 @@ export function MealParticipationPage() {
   }
 
   const onSubmit = (formData: MealParticipationFormData) => {
-    updateMutation.mutate({ meals: formData.meals });
+    updateMutation.mutate({ meals: formData.meals, date: formData.date });
   };
 
   const handleRetry = () => {

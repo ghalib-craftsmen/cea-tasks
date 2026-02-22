@@ -10,6 +10,12 @@ class UserRole(str, Enum):
     LOGISTICS = "Logistics"
 
 
+class UserStatus(str, Enum):
+    PENDING = "Pending"
+    APPROVED = "Approved"
+    REJECTED = "Rejected"
+
+
 class MealType(str, Enum):
     LUNCH = "Lunch"
     SNACKS = "Snacks"
@@ -26,6 +32,7 @@ class User(BaseModel):
     email: str = Field(..., min_length=1, max_length=100)
     role: UserRole
     team_id: Optional[int] = None
+    status: Optional[str] = UserStatus.PENDING.value
 
     class Config:
         use_enum_values = True
@@ -55,6 +62,26 @@ class RegisterRequest(BaseModel):
         use_enum_values = True
 
 
+class SelfRegisterRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=8, max_length=100)
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=1, max_length=100)
+
+
+class ApproveUserRequest(BaseModel):
+    user_id: int
+    role: UserRole
+    team_id: Optional[int] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class RejectUserRequest(BaseModel):
+    user_id: int
+
+
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -62,6 +89,17 @@ class UserResponse(BaseModel):
     email: str
     role: UserRole
     team_id: Optional[int] = None
+    team_name: Optional[str] = None
+    status: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class Team(BaseModel):
+    id: int
+    name: str
+    leadId: int
 
     class Config:
         use_enum_values = True
@@ -72,11 +110,11 @@ class MealRecord(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     meals: Dict[MealType, bool] = Field(
         default_factory=lambda: {
-            MealType.LUNCH: False,
-            MealType.SNACKS: False,
-            MealType.IFTAR: False,
-            MealType.EVENT_DINNER: False,
-            MealType.OPTIONAL_DINNER: False,
+            MealType.LUNCH.value: False,
+            MealType.SNACKS.value: False,
+            MealType.IFTAR.value: False,
+            MealType.EVENT_DINNER.value: False,
+            MealType.OPTIONAL_DINNER.value: False,
         }
     )
 

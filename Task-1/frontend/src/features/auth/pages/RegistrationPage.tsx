@@ -1,20 +1,29 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
-import { useApiPost } from '../../../hooks/useApi';
+import { useMutation } from '@tanstack/react-query';
+import { z } from 'zod';
+import axios from 'axios';
 import { useToast } from '../../../hooks/useToast';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
-import { registrationSchema, type RegistrationFormData, defaultRegistrationValues } from '../../../schemas/formSchemas';
-import type { RegisterRequest, RegisterResponse } from '../../../types';
+import type { SelfRegisterRequest, RegisterResponse } from '../../../types';
 
-const roleOptions = [
-  { value: 'Employee', label: 'Employee' },
-  { value: 'TeamLead', label: 'Team Lead' },
-  { value: 'Admin', label: 'Admin' },
-  { value: 'Logistics', label: 'Logistics' },
-] as const;
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+
+const selfRegistrationSchema = z.object({
+  username: z.string().min(1, 'Username is required').max(50),
+  name: z.string().min(1, 'Full name is required').max(100),
+  email: z.string().min(1, 'Email is required').email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(100),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+});
+
+type SelfRegistrationFormData = z.infer<typeof selfRegistrationSchema>;
 
 export const RegistrationPage = () => {
   const navigate = useNavigate();
@@ -25,19 +34,28 @@ export const RegistrationPage = () => {
     handleSubmit,
     formState: { errors, isSubmitting },
     setError,
-  } = useForm<RegistrationFormData>({
-    resolver: zodResolver(registrationSchema),
-    defaultValues: defaultRegistrationValues,
+  } = useForm<SelfRegistrationFormData>({
+    resolver: zodResolver(selfRegistrationSchema),
+    defaultValues: {
+      username: '',
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
   });
 
-  const registerMutation = useApiPost<RegisterRequest, RegisterResponse>('/auth/register', {
+  const registerMutation = useMutation({
+    mutationFn: async (data: SelfRegisterRequest) => {
+      const response = await axios.post<RegisterResponse>(`${API_URL}/auth/register`, data);
+      return response.data;
+    },
     onSuccess: (data) => {
-      success(data.message || 'Registration successful! Please log in.');
+      success(data.message || 'Registration successful! Your account is pending admin approval.');
       navigate('/login');
     },
-    onError: (error) => {
-      // Show error message for registration failure
-      const errorMessage = error.detail || 'Registration failed. Please try again.';
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.detail || 'Registration failed. Please try again.';
       showError(errorMessage);
       setError('root', {
         type: 'manual',
@@ -46,18 +64,13 @@ export const RegistrationPage = () => {
     },
   });
 
-  const onSubmit = (data: RegistrationFormData) => {
-    // Remove confirmPassword before sending to API
-    // Also convert empty string role to undefined
-    const registerData = {
+  const onSubmit = (data: SelfRegistrationFormData) => {
+    registerMutation.mutate({
       username: data.username,
       password: data.password,
       name: data.name,
       email: data.email,
-      role: data.role || undefined,
-      team_id: data.team_id,
-    };
-    registerMutation.mutate(registerData);
+    });
   };
 
   return (
@@ -65,7 +78,9 @@ export const RegistrationPage = () => {
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900">Create Account</h2>
-          <p className="mt-2 text-sm text-gray-600">Register to get started</p>
+          <p className="mt-2 text-sm text-gray-600">
+            Register to get started. An admin will review and approve your account.
+          </p>
         </div>
 
         {errors.root && (
@@ -105,43 +120,11 @@ export const RegistrationPage = () => {
             {...register('email')}
           />
 
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-              Role
-            </label>
-            <select
-              id="role"
-              {...register('role')}
-              disabled={isSubmitting}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">Select a role</option>
-              {roleOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.role && (
-              <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
-            )}
-          </div>
-
-          <Input
-            id="team_id"
-            label="Team ID (Optional)"
-            type="number"
-            placeholder="Enter team ID"
-            error={errors.team_id?.message}
-            disabled={isSubmitting}
-            {...register('team_id', { valueAsNumber: true })}
-          />
-
           <Input
             id="password"
             label="Password"
             type="password"
-            placeholder="Enter your password"
+            placeholder="Enter your password (min 8 characters)"
             error={errors.password?.message}
             disabled={isSubmitting}
             {...register('password')}

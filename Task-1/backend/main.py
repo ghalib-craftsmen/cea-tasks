@@ -10,8 +10,8 @@ from app.auth import (
     Token
 )
 from app.db import JSONStorage
-from app.models import User, RegisterRequest, UserResponse
-from app.routers import meals, admin, headcount
+from app.models import User, RegisterRequest, SelfRegisterRequest, UserResponse, UserRole, UserStatus
+from app.routers import meals, admin, headcount, users
 from app.config import (
     API_TITLE,
     API_DESCRIPTION,
@@ -48,6 +48,7 @@ app.add_middleware(
 app.include_router(meals.router)
 app.include_router(admin.router)
 app.include_router(headcount.router)
+app.include_router(users.router)
 
 
 @app.get("/")
@@ -103,10 +104,10 @@ async def logout(current_user: User = Depends(get_current_user)):
 
 
 @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
-async def register(request: RegisterRequest, current_user: User = Depends(require_admin)):
-
+async def register(request: SelfRegisterRequest):
+    """Public self-registration. User is created with Pending status."""
     users_data = storage.read_users()
-    
+
     request_username_lower = request.username.lower()
     for user_data in users_data:
         if user_data.get("username", "").lower() == request_username_lower:
@@ -114,7 +115,7 @@ async def register(request: RegisterRequest, current_user: User = Depends(requir
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Username '{request.username}' already exists"
             )
-    
+
     request_email_lower = request.email.lower()
     for user_data in users_data:
         existing_email = user_data.get("email", "")
@@ -123,9 +124,66 @@ async def register(request: RegisterRequest, current_user: User = Depends(requir
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Email '{request.email}' already exists"
             )
-    
-    new_id = len(users_data) + 1 if users_data else 1
-    
+
+    new_id = max((u.get("id", 0) for u in users_data), default=0) + 1
+
+    new_user_dict = {
+        "id": new_id,
+        "username": request.username,
+        "password": hash_password(request.password),
+        "name": request.name,
+        "email": request.email,
+        "role": "Employee",
+        "team_id": None,
+        "status": UserStatus.PENDING.value
+    }
+
+    users_data.append(new_user_dict)
+    storage.write_users(users_data)
+
+    return {
+        "message": f"Registration successful! Your account is pending admin approval.",
+        "code": status.HTTP_201_CREATED
+    }
+
+
+@app.post("/api/auth/admin-register", status_code=status.HTTP_201_CREATED)
+async def admin_register(request: RegisterRequest, current_user: User = Depends(require_admin)):
+    """Admin-only registration. Creates a fully approved user."""
+    users_data = storage.read_users()
+
+    request_username_lower = request.username.lower()
+    for user_data in users_data:
+        if user_data.get("username", "").lower() == request_username_lower:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Username '{request.username}' already exists"
+            )
+
+    request_email_lower = request.email.lower()
+    for user_data in users_data:
+        existing_email = user_data.get("email", "")
+        if existing_email.lower() == request_email_lower:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email '{request.email}' already exists"
+            )
+
+    # Enforce one TeamLead per team
+    if request.role == UserRole.EMPLOYEE.value:
+        pass  # no constraint
+    if request.role == UserRole.TEAM_LEAD.value and request.team_id is not None:
+        for u in users_data:
+            if (u.get("team_id") == request.team_id
+                and u.get("role") == UserRole.TEAM_LEAD.value
+                and u.get("status") == UserStatus.APPROVED.value):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Team {request.team_id} already has a TeamLead. Each team can have only one TeamLead."
+                )
+
+    new_id = max((u.get("id", 0) for u in users_data), default=0) + 1
+
     new_user_dict = {
         "id": new_id,
         "username": request.username,
@@ -133,13 +191,13 @@ async def register(request: RegisterRequest, current_user: User = Depends(requir
         "name": request.name,
         "email": request.email,
         "role": request.role,
-        "team_id": request.team_id
+        "team_id": request.team_id,
+        "status": UserStatus.APPROVED.value
     }
-    
+
     users_data.append(new_user_dict)
-    
     storage.write_users(users_data)
-    
+
     return {
         "message": f"{request.username} is registered successfully",
         "code": status.HTTP_201_CREATED

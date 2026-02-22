@@ -103,7 +103,7 @@ export const LoginPage = () => {
           <p className="text-sm text-gray-500">
             Don't have an account?{' '}
             <a href="/register" className="font-medium text-blue-600 hover:text-blue-500">
-              Contact administrator
+              Sign up
             </a>
           </p>
         </div>

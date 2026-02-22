@@ -1,7 +1,9 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { LogoutButton } from '../features/auth/components/LogoutButton';
+import { getCurrentUser } from '../features/users/api';
 
 interface NavItem {
   path: string;
@@ -9,32 +11,53 @@ interface NavItem {
   icon: string;
 }
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊' },
   { path: '/meals', label: 'Meals', icon: '🍽️' },
-  { path: '/headcount', label: 'Headcount', icon: '👥' },
 ];
+
+const headcountNavItem: NavItem = { path: '/headcount', label: 'Headcount', icon: '👥' };
 
 const adminNavItems: NavItem[] = [
   { path: '/admin', label: 'Admin', icon: '⚙️' },
 ];
 
 export function Layout() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const allNavItems = [...navItems, ...(isAdmin ? adminNavItems : [])];
+  // Fetch current user with team name
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    enabled: !!user,
+  });
+
+  const isAdmin = currentUser?.role === 'Admin';
+  const canViewHeadcount = isAdmin || currentUser?.role === 'Logistics' || currentUser?.role === 'TeamLead';
+  const allNavItems = [
+    ...baseNavItems,
+    ...(canViewHeadcount ? [headcountNavItem] : []),
+    ...(isAdmin ? adminNavItems : []),
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
       {/* Mobile Header */}
       <header className="md:hidden bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
         <div className="px-4 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-bold">
-            <span className="text-orange-600">Craft</span><span className="text-black">Meal</span>
-          </h1>
+          <div className="flex items-center space-x-2">
+            <div className="h-8 w-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-sm">
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 14h18v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1zm0-1a8 8 0 018-8 8 8 0 018 8H3zm8-6.5a1 1 0 01.5-.87 1 1 0 011 0 1 1 0 01.5.87v2a1 1 0 01-2 0v-2zM8.5 20h7l.5 1.5a.5.5 0 01-.47.5H8.47a.5.5 0 01-.47-.5L8.5 20z"/>
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold tracking-tight">
+              <span className="text-orange-600">Craft</span><span className="text-gray-900">Meal</span>
+            </h1>
+          </div>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -85,10 +108,17 @@ export function Layout() {
         aria-label="Main navigation"
       >
         {/* Desktop Logo */}
-        <div className="hidden md:flex items-center justify-center h-16 border-b border-gray-200">
-          <h1 className="text-xl font-bold">
-            <span className="text-orange-600">Craft</span><span className="text-black">Meal</span>
-          </h1>
+        <div className="hidden md:flex items-center justify-center h-20 border-b border-gray-200">
+          <div className="flex items-center space-x-3">
+            <div className="h-10 w-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-md">
+              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 14h18v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1zm0-1a8 8 0 018-8 8 8 0 018 8H3zm8-6.5a1 1 0 01.5-.87 1 1 0 011 0 1 1 0 01.5.87v2a1 1 0 01-2 0v-2zM8.5 20h7l.5 1.5a.5.5 0 01-.47.5H8.47a.5.5 0 01-.47-.5L8.5 20z"/>
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              <span className="text-orange-600">Craft</span><span className="text-gray-900">Meal</span>
+            </h1>
+          </div>
         </div>
 
         {/* Navigation */}
@@ -119,13 +149,30 @@ export function Layout() {
           })}
         </nav>
 
-        {/* User Info & Logout */}
+        {/* User Profile & Logout */}
         <div className="border-t border-gray-200 p-4">
-          {user && (
-            <div className="mb-4">
-              <p className="text-sm font-medium text-gray-900">{user.username}</p>
-              <p className="text-xs text-gray-500 capitalize">{user.role}</p>
-            </div>
+          {currentUser && (
+            <button
+              onClick={() => {
+                navigate('/profile');
+                setSidebarOpen(false);
+              }}
+              className="mb-4 w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              aria-label="Go to profile"
+            >
+              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-sm font-bold text-blue-600">
+                  {currentUser.name?.charAt(0)?.toUpperCase() || '?'}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="text-sm font-medium text-gray-900 truncate">{currentUser.name}</p>
+                <p className="text-xs text-gray-500">{currentUser.role}</p>
+                {currentUser.team_name && (
+                  <p className="text-xs text-gray-400 truncate">{currentUser.team_name}</p>
+                )}
+              </div>
+            </button>
           )}
           <LogoutButton />
         </div>
