@@ -74,6 +74,12 @@ class ParticipationUpdateRequest(BaseModel):
     meals: Dict[str, bool]
 
 
+class BulkParticipationRequest(BaseModel):
+    user_ids: List[int]
+    date: str
+    action: str  # "opt_in" or "opt_out"
+
+
 async def require_admin_or_teamlead_or_logistics(
     current_user: User = Depends(get_current_user)
 ) -> User:
@@ -249,6 +255,63 @@ async def update_user_participation(
         date=today,
         meals=updated_record["meals"]
     )
+
+
+@router.post("/participation/bulk", status_code=status.HTTP_200_OK)
+async def bulk_update_participation(
+    update_data: BulkParticipationRequest,
+    current_user: User = Depends(require_admin_or_teamlead)):
+    """Bulk update all meal types for a list of users. TeamLead scope-validated."""
+
+    if update_data.action not in ("opt_in", "opt_out"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="action must be 'opt_in' or 'opt_out'"
+        )
+
+    opted_in = update_data.action == "opt_in"
+    all_meals = {mt.value: opted_in for mt in MealType}
+
+    users_data = storage.read_users()
+    participation_data = storage.read_participation()
+
+    # Build a lookup of approved users by id
+    user_lookup: Dict[int, dict] = {
+        u.get("id"): u for u in users_data
+        if u.get("status") == UserStatus.APPROVED.value
+    }
+
+    # Validate all requested user_ids exist and are in scope
+    for uid in update_data.user_ids:
+        user_dict = user_lookup.get(uid)
+        if user_dict is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User {uid} not found"
+            )
+        if current_user.role == UserRole.TEAM_LEAD.value:
+            if user_dict.get("team_id") != current_user.team_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="One or more users are outside your team scope"
+                )
+
+    # Upsert participation records
+    for uid in update_data.user_ids:
+        record_index = None
+        for i, record in enumerate(participation_data):
+            if record.get("user_id") == uid and record.get("date") == update_data.date:
+                record_index = i
+                break
+
+        if record_index is None:
+            new_record = {"user_id": uid, "date": update_data.date, "meals": dict(all_meals)}
+            participation_data.append(new_record)
+        else:
+            participation_data[record_index]["meals"].update(all_meals)
+
+    storage.write_participation(participation_data)
+    return {"updated": len(update_data.user_ids), "action": update_data.action}
 
 
 class TeamMemberInfo(BaseModel):

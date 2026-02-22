@@ -111,6 +111,42 @@ export const AdminOrLogisticsRoute = ({ children }: AdminOrLogisticsRouteProps) 
   return <>{children}</>;
 };
 
+interface AdminOrTeamLeadRouteProps {
+  children: React.ReactNode;
+}
+
+export const AdminOrTeamLeadRoute = ({ children }: AdminOrTeamLeadRouteProps) => {
+  const { isAuthenticated } = useAuth();
+
+  const { data: currentUser, isLoading } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    enabled: isAuthenticated,
+  });
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (currentUser && currentUser.status !== 'Approved') {
+    return <Navigate to="/pending" replace />;
+  }
+
+  if (currentUser?.role !== 'Admin' && currentUser?.role !== 'TeamLead') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 interface HeadcountRouteProps {
   children: React.ReactNode;
 }
