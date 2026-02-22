@@ -1,20 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getCurrentUser, getTeams } from '../features/users/api';
-import { getHeadcountSummary, getMealUsers } from '../features/headcount/api';
+import { getHeadcountSummary, getHeadcountAggregation } from '../features/headcount/api';
 import type { MealType } from '../types';
 
-const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
+const mealTypes: (MealType | 'All')[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner', 'All'];
 
 export function Headcount() {
   const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-  const { teamId: teamIdParam } = useParams<{ teamId: string }>();
   const [selectedMeal, setSelectedMeal] = useState<MealType>('Lunch');
-
-  const selectedTeamId = teamIdParam ? parseInt(teamIdParam, 10) : undefined;
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | undefined>(undefined);
 
   const { data: currentUser } = useQuery({
     queryKey: ['currentUser'],
@@ -29,36 +26,46 @@ export function Headcount() {
   });
 
   const { data: headcountData, isLoading: summaryLoading } = useQuery({
-    queryKey: ['headcount', selectedTeamId],
+    queryKey: ['headcount', selectedTeamId, currentUser?.id],
     queryFn: () => getHeadcountSummary(selectedTeamId),
+    enabled: !!currentUser,
   });
 
-  const { data: mealUsersData, isLoading: usersLoading } = useQuery({
-    queryKey: ['headcount', 'users', selectedMeal, selectedTeamId],
-    queryFn: () => getMealUsers(selectedMeal, selectedTeamId),
+  const { data: aggregationData, isLoading: aggregationLoading, refetch: refetchAggregation } = useQuery({
+    queryKey: ['headcount', 'aggregation', selectedDate, currentUser?.id],
+    queryFn: () => getHeadcountAggregation(selectedDate),
+    enabled: !!currentUser,
   });
 
   const isAdmin = currentUser?.role === 'Admin';
   const isLogistics = currentUser?.role === 'Logistics';
   const isTeamLead = currentUser?.role === 'TeamLead';
 
-  const selectedMealSummary = headcountData?.meal_counts?.find(
-    (mc) => mc.meal_type === selectedMeal
+  // Calculate summary based on selected meal type
+  const selectedMealSummary = (selectedMeal as string) === 'All' ? null : headcountData?.meal_counts?.find(
+    (mc) => mc.meal_type === (selectedMeal as MealType)
   );
 
-  const optedInPercentage = selectedMealSummary?.opted_in_percentage || 0;
-  const optedOutPercentage = selectedMealSummary?.opted_out_percentage || 0;
+  // When 'All' is selected, aggregate totals across all meal types
+  const allMealSummary = (selectedMeal as string) === 'All' && headcountData?.meal_counts ? {
+    opted_in: headcountData.meal_counts.reduce((sum, mc) => sum + mc.opted_in, 0),
+    opted_out: headcountData.meal_counts.reduce((sum, mc) => sum + mc.opted_out, 0),
+    opted_in_percentage: headcountData.meal_counts.reduce((sum, mc) => sum + mc.opted_in, 0) / headcountData.total_employees * 100,
+    opted_out_percentage: headcountData.meal_counts.reduce((sum, mc) => sum + mc.opted_out, 0) / headcountData.total_employees * 100
+  } : null;
 
-  const handleTeamFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    if (value === '') {
-      navigate('/headcount');
-    } else {
-      navigate(`/headcount/team/${value}`);
-    }
-  };
+  const optedInPercentage = (selectedMeal as string) === 'All' ? (allMealSummary?.opted_in_percentage || 0) : (selectedMealSummary?.opted_in_percentage || 0);
+  const optedOutPercentage = (selectedMeal as string) === 'All' ? (allMealSummary?.opted_out_percentage || 0) : (selectedMealSummary?.opted_out_percentage || 0);
 
-  if (summaryLoading) {
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetchAggregation();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [refetchAggregation]);
+
+  if (!currentUser || summaryLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -66,79 +73,16 @@ export function Headcount() {
     );
   }
 
-  const selectedTeamName = teams?.find(t => t.id === selectedTeamId)?.name;
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">
           Headcount
-          {selectedTeamName && (
-            <span className="text-lg font-normal text-gray-500 ml-2">- {selectedTeamName}</span>
-          )}
-          {isTeamLead && currentUser?.team_name && (
-            <span className="text-lg font-normal text-gray-500 ml-2">- {currentUser.team_name}</span>
+          {isTeamLead && currentUser.team_name && (
+            <span className="text-lg font-normal text-gray-500 ml-2">— {currentUser.team_name}</span>
           )}
         </h1>
-        <p className="mt-2 text-gray-600">
-          View meal participation and headcount statistics
-        </p>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-2">
-              Date
-            </label>
-            <input
-              id="date"
-              type="date"
-              value={headcountData?.date || new Date().toISOString().split('T')[0]}
-              disabled
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-            />
-            <p className="mt-1 text-sm text-gray-500">Tomorrow's statistics</p>
-          </div>
-          <div className="flex-1">
-            <label htmlFor="meal" className="block text-sm font-medium text-gray-700 mb-2">
-              Select Meal Type
-            </label>
-            <select
-              id="meal"
-              value={selectedMeal}
-              onChange={(e) => setSelectedMeal(e.target.value as MealType)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              {mealTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </div>
-          {(isAdmin || isLogistics) && (
-            <div className="flex-1">
-              <label htmlFor="teamFilter" className="block text-sm font-medium text-gray-700 mb-2">
-                Filter by Team
-              </label>
-              <select
-                id="teamFilter"
-                value={selectedTeamId?.toString() || ''}
-                onChange={handleTeamFilterChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Teams</option>
-                {teams?.map((team) => (
-                  <option key={team.id} value={team.id.toString()}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
+        <p className="mt-2 text-gray-600">View meal participation and headcount statistics</p>
       </div>
 
       {/* Stats Cards */}
@@ -162,7 +106,7 @@ export function Headcount() {
             <div>
               <p className="text-sm font-medium text-green-600">Opted In ({selectedMeal})</p>
               <p className="mt-2 text-3xl font-bold text-green-900">
-                {selectedMealSummary?.opted_in || 0}
+                {(selectedMeal as string) === 'All' ? (allMealSummary?.opted_in || 0) : (selectedMealSummary?.opted_in || 0)}
               </p>
               <p className="text-sm text-green-700">{optedInPercentage.toFixed(1)}%</p>
             </div>
@@ -177,7 +121,7 @@ export function Headcount() {
             <div>
               <p className="text-sm font-medium text-red-600">Opted Out ({selectedMeal})</p>
               <p className="mt-2 text-3xl font-bold text-red-900">
-                {selectedMealSummary?.opted_out || 0}
+                {(selectedMeal as string) === 'All' ? (allMealSummary?.opted_out || 0) : (selectedMealSummary?.opted_out || 0)}
               </p>
               <p className="text-sm text-red-700">{optedOutPercentage.toFixed(1)}%</p>
             </div>
@@ -205,58 +149,255 @@ export function Headcount() {
         </div>
       </div>
 
-      {/* Employee List */}
+      {/* Headcount Summary Table */}
       <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Employee List ({selectedMeal})
-        </h2>
-        {usersLoading ? (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Headcount Summary</h2>
+          <span className="text-sm text-gray-500">Auto-refreshes every 10 seconds</span>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex-1">
+            <label htmlFor="agg-date" className="block text-sm font-medium text-gray-700 mb-2">
+              Date
+            </label>
+            <input
+              id="agg-date"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div className="flex-1">
+            <label htmlFor="agg-meal" className="block text-sm font-medium text-gray-700 mb-2">
+              Meal Type
+            </label>
+            <select
+              id="agg-meal"
+              value={selectedMeal}
+              onChange={(e) => setSelectedMeal(e.target.value as MealType)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {mealTypes.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+          </div>
+          {(isAdmin || isLogistics) && (
+            <div className="flex-1">
+              <label htmlFor="agg-team" className="block text-sm font-medium text-gray-700 mb-2">
+                Team
+              </label>
+              <select
+                id="agg-team"
+                value={selectedTeamId?.toString() || ''}
+                onChange={(e) =>
+                  setSelectedTeamId(e.target.value ? parseInt(e.target.value, 10) : undefined)
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Teams</option>
+                {teams?.map((team) => (
+                  <option key={team.id} value={team.id.toString()}>{team.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {aggregationLoading ? (
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Team
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {mealUsersData?.users?.map((user) => (
-                  <tr key={user.user_id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {user.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {user.team_name || 'None'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Opted In
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {(!mealUsersData?.users || mealUsersData.users.length === 0) && (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-4 text-center text-sm text-gray-500">
-                      No employees opted in for this meal
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+        ) : (() => {
+          const originalData = aggregationData?.data ?? [];
+          if (originalData.length === 0) {
+            return (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm font-medium">No headcount data for the selected filters</p>
+              </div>
+            );
+          }
+
+          // Get unique teams from original data
+          const uniqueTeams = Array.from(new Set(originalData.map(row => row.team || 'Unassigned')));
+          
+          // Filter by team if selected
+          const filteredTeams = selectedTeamId !== undefined 
+            ? uniqueTeams.filter(team => {
+                const teamData = originalData.find(row => (row.team || 'Unassigned') === team);
+                return teamData?.team_id === selectedTeamId;
+              })
+            : uniqueTeams;
+
+          return (
+            <>
+              <div className="mb-3 flex items-center gap-2 text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{filteredTeams.length}</span> team{filteredTeams.length !== 1 ? 's' : ''} · {selectedMeal}
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-indigo-600 to-indigo-800">
+                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                        Team
+                      </th>
+                      {/* Show meal type columns based on selection */}
+                      {(selectedMeal as string) === 'All' ? (
+                        ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'].map(mealType => (
+                          <th key={mealType} className="px-5 py-3.5 text-center text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                            {mealType}
+                          </th>
+                        ))
+                      ) : (
+                        <th className="px-5 py-3.5 text-center text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                          {selectedMeal}
+                        </th>
+                      )}
+                      <th className="px-5 py-3.5 text-center text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                        Total
+                      </th>
+                      <th className="px-5 py-3.5 text-center text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                        Out
+                      </th>
+                      <th className="px-5 py-3.5 text-center text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                        Office
+                      </th>
+                      <th className="px-5 py-3.5 text-center text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                        WFH
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {filteredTeams.map((team, index) => {
+                      // Calculate totals for this team
+                      const teamData = originalData.filter(row => (row.team || 'Unassigned') === team);
+                      const totalIn = teamData.reduce((sum, row) => sum + row.total_in, 0);
+                      const totalOut = teamData.reduce((sum, row) => sum + row.total_out, 0);
+                      const totalOffice = teamData.reduce((sum, row) => sum + row.office_count, 0);
+                      const totalWFH = teamData.reduce((sum, row) => sum + row.wfh_count, 0);
+                      
+                      // Get opted in count for specific meal type when not "All"
+                      const getMealInCount = (mealType: string) => {
+                        return teamData
+                          .filter(row => row.meal === mealType)
+                          .reduce((sum, row) => sum + row.total_in, 0);
+                      };
+                      
+                      return (
+                        <tr
+                          key={team}
+                          className={`transition-colors duration-100 hover:bg-indigo-50/50 ${
+                            index % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'
+                          }`}
+                        >
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 ring-2 ring-indigo-50">
+                                <span className="text-xs font-bold text-indigo-700">
+                                  {(team || 'U').charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <span className="text-sm font-semibold text-gray-900">{team || 'Unassigned'}</span>
+                            </div>
+                          </td>
+                          {/* Show meal type columns based on selection */}
+                          {(selectedMeal as string) === 'All' ? (
+                            ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'].map(mealType => (
+                              <td key={mealType} className="px-5 py-3.5 whitespace-nowrap text-center">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-green-50 text-green-700 border border-green-200">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414 1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  {getMealInCount(mealType)}
+                                </span>
+                              </td>
+                            ))
+                          ) : (
+                            <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-green-50 text-green-700 border border-green-200">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414 1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                                {getMealInCount(selectedMeal as string)}
+                              </span>
+                            </td>
+                          )}
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-indigo-700">{totalIn}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-red-700">{totalOut}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-blue-700">{totalOffice}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-violet-700">{totalWFH}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Totals row — only shown when multiple teams are visible */}
+                    {filteredTeams.length > 1 && (() => {
+                      const totalIn = originalData.reduce((s, r) => s + r.total_in, 0);
+                      const totalOut = originalData.reduce((s, r) => s + r.total_out, 0);
+                      const totalOffice = originalData.reduce((s, r) => s + r.office_count, 0);
+                      const totalWFH = originalData.reduce((s, r) => s + r.wfh_count, 0);
+                      
+                      // Get totals for each meal type
+                      const getMealTotal = (mealType: string) => {
+                        return originalData
+                          .filter(row => row.meal === mealType)
+                          .reduce((sum, row) => sum + row.total_in, 0);
+                      };
+                      
+                      return (
+                        <tr className="bg-indigo-100 border-t-2 border-indigo-300">
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">
+                              All Teams
+                            </span>
+                          </td>
+                          {/* Show meal type totals based on selection */}
+                          {(selectedMeal as string) === 'All' ? (
+                            ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'].map(mealType => (
+                              <td key={mealType} className="px-5 py-3.5 whitespace-nowrap text-center">
+                                <span className="text-sm font-bold text-green-700">{getMealTotal(mealType)}</span>
+                              </td>
+                            ))
+                          ) : (
+                            <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                              <span className="text-sm font-bold text-green-700">{getMealTotal(selectedMeal as string)}</span>
+                            </td>
+                          )}
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-indigo-700">{totalIn}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-red-700">{totalOut}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-blue-700">{totalOffice}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap text-center">
+                            <span className="text-sm font-bold text-violet-700">{totalWFH}</span>
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
       </div>
     </div>
   );
