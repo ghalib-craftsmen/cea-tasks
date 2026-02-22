@@ -21,6 +21,15 @@ export async function updateUserParticipation(
   return response.data;
 }
 
+export async function bulkUpdateParticipation(data: {
+  user_ids: number[];
+  date: string;
+  action: 'opt_in' | 'opt_out';
+}): Promise<{ updated: number; action: string }> {
+  const response = await api.post('/participation/bulk', data);
+  return response.data;
+}
+
 export async function getPendingUsers(): Promise<PendingUser[]> {
   const response = await api.get<PendingUser[]>('/admin/pending-users');
   return response.data;

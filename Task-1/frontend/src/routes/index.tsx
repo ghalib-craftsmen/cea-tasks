@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
-import { ProtectedRoute, AdminRoute, AdminOrLogisticsRoute, HeadcountRoute } from '../components/ProtectedRoute';
+import { ProtectedRoute, AdminRoute, AdminOrLogisticsRoute, HeadcountRoute, AdminOrTeamLeadRoute } from '../components/ProtectedRoute';
 import { Layout } from '../components/Layout';
 import { Loading } from '../components/ui/Loading';
 
@@ -132,11 +132,11 @@ const routes: RouteObject[] = [
       {
         path: 'admin',
         element: (
-          <AdminRoute>
+          <AdminOrTeamLeadRoute>
             <Suspense fallback={<Loading />}>
               <Admin />
             </Suspense>
-          </AdminRoute>
+          </AdminOrTeamLeadRoute>
         ),
       },
       {

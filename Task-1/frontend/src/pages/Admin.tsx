@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import type { MealType, UserRole, AdminUser, AppSettings } from '../types';
-import { getAllParticipation, updateUserParticipation, getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser, getSettings, updateSettings } from '../features/admin/api';
-import { getTeams } from '../features/users/api';
+import { getAllParticipation, updateUserParticipation, bulkUpdateParticipation, getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser, getSettings, updateSettings } from '../features/admin/api';
+import { getTeams, getCurrentUser } from '../features/users/api';
 
 const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
 
@@ -24,7 +24,16 @@ const roleOptions: { value: UserRole; label: string }[] = [
 
 export function Admin() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'participation' | 'settings'>('pending');
+
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+  });
+
+  const isAdmin = currentUser?.role === 'Admin';
+  const isTeamLead = currentUser?.role === 'TeamLead';
+
+  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'participation' | 'settings'>('participation');
   const [approveModalUser, setApproveModalUser] = useState<{ id: number; name: string; username: string } | null>(null);
   const [approveRole, setApproveRole] = useState<UserRole>('Employee');
   const [approveTeamId, setApproveTeamId] = useState<number | undefined>(undefined);
@@ -32,6 +41,7 @@ export function Admin() {
   const [editRole, setEditRole] = useState<string>('');
   const [editTeamId, setEditTeamId] = useState<number | undefined>(undefined);
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set(['all']));
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
 
   // Fetch all user participation data
   const { data: participationUsers, isLoading: participationLoading } = useQuery({
@@ -139,6 +149,26 @@ export function Admin() {
     },
     onError: () => {
       toast.error('Failed to update participation.');
+    },
+  });
+
+  // Bulk update participation mutation
+  const bulkMutation = useMutation({
+    mutationFn: (action: 'opt_in' | 'opt_out') => {
+      const today = new Date();
+      today.setDate(today.getDate() + 1);
+      const date = today.toISOString().split('T')[0];
+      return bulkUpdateParticipation({ user_ids: Array.from(selectedUserIds), date, action });
+    },
+    onSuccess: (_, action) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
+      queryClient.invalidateQueries({ queryKey: ['headcount'] });
+      toast.success(`Bulk ${action === 'opt_in' ? 'opt-in' : 'opt-out'} applied to ${selectedUserIds.size} user(s).`);
+      setSelectedUserIds(new Set());
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } };
+      toast.error(err?.response?.data?.detail || 'Bulk update failed.');
     },
   });
 
@@ -258,19 +288,22 @@ export function Admin() {
     }
   };
 
-  const tabs = [
-    { id: 'pending' as const, label: 'Pending', badge: pendingCount },
-    { id: 'users' as const, label: 'Users', badge: 0 },
-    { id: 'participation' as const, label: 'Participation', badge: 0 },
-    { id: 'settings' as const, label: 'Settings', badge: 0 },
+  const allTabs = [
+    { id: 'pending' as const, label: 'Pending', badge: pendingCount, adminOnly: true },
+    { id: 'users' as const, label: 'Users', badge: 0, adminOnly: true },
+    { id: 'participation' as const, label: 'Participation', badge: 0, adminOnly: false },
+    { id: 'settings' as const, label: 'Settings', badge: 0, adminOnly: true },
   ];
+  const tabs = allTabs.filter((t) => !t.adminOnly || isAdmin);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
-        <p className="mt-1 text-sm text-gray-500">Manage users, meal participation, and settings</p>
+        <h1 className="text-2xl font-bold text-gray-900">{isTeamLead ? 'Team Participation' : 'Admin Panel'}</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          {isTeamLead ? 'Manage meal participation for your team' : 'Manage users, meal participation, and settings'}
+        </p>
       </div>
 
       {/* Tab Navigation */}
@@ -459,6 +492,9 @@ export function Admin() {
                   {teamGroups.map((group) => {
                     const key = group.teamId != null ? String(group.teamId) : 'unassigned';
                     const isExpanded = expandedTeams.has(key);
+                    const groupUserIds = group.users.map((u) => u.user_id);
+                    const allGroupSelected = groupUserIds.length > 0 && groupUserIds.every((id) => selectedUserIds.has(id));
+                    const someGroupSelected = groupUserIds.some((id) => selectedUserIds.has(id));
 
                     return (
                       <div key={key} className="rounded-lg border border-gray-200 overflow-hidden">
@@ -488,6 +524,26 @@ export function Admin() {
                             <table className="min-w-full divide-y divide-gray-100">
                               <thead>
                                 <tr className="bg-white">
+                                  <th className="px-3 py-2 w-8">
+                                    <input
+                                      type="checkbox"
+                                      checked={allGroupSelected}
+                                      ref={(el) => { if (el) el.indeterminate = !allGroupSelected && someGroupSelected; }}
+                                      onChange={(e) => {
+                                        setSelectedUserIds((prev) => {
+                                          const next = new Set(prev);
+                                          if (e.target.checked) {
+                                            groupUserIds.forEach((id) => next.add(id));
+                                          } else {
+                                            groupUserIds.forEach((id) => next.delete(id));
+                                          }
+                                          return next;
+                                        });
+                                      }}
+                                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                      title="Select all in team"
+                                    />
+                                  </th>
                                   <th className="px-5 py-2 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Member</th>
                                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Role</th>
                                   {mealTypes.map((mt) => (
@@ -498,48 +554,69 @@ export function Admin() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-50">
-                                {group.users.map((user) => (
-                                  <tr key={user.user_id} className="hover:bg-blue-50/30 transition-colors">
-                                    <td className="px-5 py-2.5 whitespace-nowrap">
-                                      <div className="flex items-center gap-2.5">
-                                        <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                          <span className="text-xs font-semibold text-blue-700">{user.name.charAt(0)}</span>
+                                {group.users.map((user) => {
+                                  const isSelected = selectedUserIds.has(user.user_id);
+                                  return (
+                                    <tr
+                                      key={user.user_id}
+                                      className={`transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-blue-50/30'}`}
+                                    >
+                                      <td className="px-3 py-2.5 w-8">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            setSelectedUserIds((prev) => {
+                                              const next = new Set(prev);
+                                              if (e.target.checked) next.add(user.user_id);
+                                              else next.delete(user.user_id);
+                                              return next;
+                                            });
+                                          }}
+                                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                        />
+                                      </td>
+                                      <td className="px-5 py-2.5 whitespace-nowrap">
+                                        <div className="flex items-center gap-2.5">
+                                          <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                            <span className="text-xs font-semibold text-blue-700">{user.name.charAt(0)}</span>
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                                            <p className="text-xs text-gray-400">@{user.username}</p>
+                                          </div>
                                         </div>
-                                        <div>
-                                          <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                                          <p className="text-xs text-gray-400">@{user.username}</p>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td className="px-3 py-2.5 whitespace-nowrap">
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getRoleBadgeClass(user.role)}`}>
-                                        {user.role}
-                                      </span>
-                                    </td>
-                                    {mealTypes.map((mealType) => {
-                                      const mealValue = user.meals?.[mealType] ?? false;
-                                      return (
-                                        <td key={mealType} className="px-2 py-2.5 text-center">
-                                          <button
-                                            onClick={() => handleMealToggle(user.user_id, mealType, mealValue)}
-                                            disabled={updateMutation.isPending}
-                                            className={`
-                                              w-7 h-7 rounded-md border text-xs font-bold transition-all
-                                              ${mealValue
-                                                ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200'
-                                                : 'bg-red-50 border-red-200 text-red-400 hover:bg-red-100'
-                                              }
-                                              ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                                            `}
-                                            title={`${mealLabels[mealType]}: ${mealValue ? 'Opted In' : 'Opted Out'}`}
-                                          >
-                                            {mealValue ? '✓' : '✗'}
-                                          </button>
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                ))}
+                                      </td>
+                                      <td className="px-3 py-2.5 whitespace-nowrap">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getRoleBadgeClass(user.role)}`}>
+                                          {user.role}
+                                        </span>
+                                      </td>
+                                      {mealTypes.map((mealType) => {
+                                        const mealValue = user.meals?.[mealType] ?? false;
+                                        return (
+                                          <td key={mealType} className="px-2 py-2.5 text-center">
+                                            <button
+                                              onClick={() => handleMealToggle(user.user_id, mealType, mealValue)}
+                                              disabled={updateMutation.isPending}
+                                              className={`
+                                                w-7 h-7 rounded-md border text-xs font-bold transition-all
+                                                ${mealValue
+                                                  ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200'
+                                                  : 'bg-red-50 border-red-200 text-red-400 hover:bg-red-100'
+                                                }
+                                                ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                                              `}
+                                              title={`${mealLabels[mealType]}: ${mealValue ? 'Opted In' : 'Opted Out'}`}
+                                            >
+                                              {mealValue ? '✓' : '✗'}
+                                            </button>
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -547,6 +624,35 @@ export function Admin() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Floating bulk action bar */}
+              {selectedUserIds.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-gray-900 text-white rounded-xl shadow-2xl">
+                  <span className="text-sm font-medium">{selectedUserIds.size} selected</span>
+                  <div className="w-px h-4 bg-gray-600" />
+                  <button
+                    onClick={() => bulkMutation.mutate('opt_in')}
+                    disabled={bulkMutation.isPending}
+                    className="px-4 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-500 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Opt In (All Meals)
+                  </button>
+                  <button
+                    onClick={() => bulkMutation.mutate('opt_out')}
+                    disabled={bulkMutation.isPending}
+                    className="px-4 py-1.5 text-sm font-medium bg-red-600 hover:bg-red-500 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Opt Out (All Meals)
+                  </button>
+                  <button
+                    onClick={() => setSelectedUserIds(new Set())}
+                    className="ml-1 text-gray-400 hover:text-white transition-colors"
+                    title="Clear selection"
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
             </div>
