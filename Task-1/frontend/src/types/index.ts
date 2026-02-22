@@ -159,3 +159,74 @@ export interface MealUserList {
   opted_in_count: number;
   users: MealUserDetail[];
 }
+
+export type WorkLocationType = 'Office' | 'WFH';
+
+export type SpecialDayType = 'Closed' | 'Holiday' | 'Celebration';
+
+export interface WorkLocation {
+  user_id: number;
+  date: string;
+  location: WorkLocationType;
+}
+
+export interface WorkLocationUpdate {
+  date: string;
+  location: WorkLocationType;
+}
+
+export interface WorkLocationResponse {
+  user_id: number;
+  date: string;
+  location: WorkLocationType;
+}
+
+export interface WorkLocationAdminUpdate {
+  user_id: number;
+  date: string;
+  location: WorkLocationType;
+}
+
+export interface WFHPeriod {
+  id: number;
+  start_date: string;
+  end_date: string;
+}
+
+export interface WFHPeriodCreate {
+  start_date: string;
+  end_date: string;
+}
+
+export interface WFHPeriodResponse {
+  id: number;
+  start_date: string;
+  end_date: string;
+}
+
+export interface SpecialDay {
+  id: number;
+  date: string;
+  type: SpecialDayType;
+  note?: string | null;
+}
+
+export interface SpecialDayCreate {
+  date: string;
+  type: SpecialDayType;
+  note?: string | null;
+}
+
+export interface SpecialDayResponse {
+  id: number;
+  date: string;
+  type: SpecialDayType;
+  note?: string | null;
+}
+
+export interface SpecialDayCheck {
+  date: string;
+  is_closed: boolean;
+  type: SpecialDayType | null;
+  note?: string | null;
+}

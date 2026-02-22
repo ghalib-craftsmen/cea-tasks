@@ -11,6 +11,8 @@ const DashboardPage = lazy(() => import('../features/meals/pages/DashboardPage')
 const AdminDashboardPage = lazy(() => import('../features/admin/pages/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
 const UserManagementPage = lazy(() => import('../features/admin/pages/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
 const HeadcountSummaryPage = lazy(() => import('../features/headcount/pages/HeadcountSummaryPage').then(m => ({ default: m.HeadcountSummaryPage })));
+const EmployeeLocationPage = lazy(() => import('../features/locations/pages').then(m => ({ default: m.EmployeeLocationPage })));
+const AdminManagementPage = lazy(() => import('../features/locations/pages').then(m => ({ default: m.AdminManagementPage })));
 const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Meals = lazy(() => import('../pages/Meals').then(m => ({ default: m.Meals })));
 const Admin = lazy(() => import('../pages/Admin').then(m => ({ default: m.Admin })));
@@ -153,6 +155,26 @@ const routes: RouteObject[] = [
           <Suspense fallback={<Loading />}>
             <UserManagementPage />
           </Suspense>
+        ),
+      },
+      {
+        path: 'admin/management',
+        element: (
+          <AdminOrLogisticsRoute>
+            <Suspense fallback={<Loading />}>
+              <AdminManagementPage />
+            </Suspense>
+          </AdminOrLogisticsRoute>
+        ),
+      },
+      {
+        path: 'locations',
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<Loading />}>
+              <EmployeeLocationPage />
+            </Suspense>
+          </ProtectedRoute>
         ),
       },
     ],
