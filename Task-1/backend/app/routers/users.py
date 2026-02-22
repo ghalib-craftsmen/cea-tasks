@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from app.auth import get_current_user
 from app.db import JSONStorage
-from app.models import User, UserRole, UserStatus, UserResponse, Team, MealType, MealRecord
+from app.models import User, UserRole, UserStatus, UserResponse, Team, MealType, MealRecord, WorkLocationType
 
 
 router = APIRouter(prefix="/api", tags=["users"])
@@ -31,6 +31,25 @@ def create_default_participation(user_id: int, date: str) -> MealRecord:
     )
 
 
+def get_user_location(user_id: int, date: str, work_locations: List[Dict], wfh_periods: List[Dict]) -> WorkLocationType:
+    """Get user's location for a specific date."""
+    # Check for explicit record
+    for location in work_locations:
+        if location.get("user_id") == user_id and location.get("date") == date:
+            return WorkLocationType(location.get("location", "Office"))
+    
+    # Check WFH periods
+    target_date = datetime.strptime(date, "%Y-%m-%d")
+    for period in wfh_periods:
+        start_date = datetime.strptime(period["start_date"], "%Y-%m-%d")
+        end_date = datetime.strptime(period["end_date"], "%Y-%m-%d")
+        if start_date <= target_date <= end_date:
+            return WorkLocationType.WFH
+    
+    # Default to Office
+    return WorkLocationType.OFFICE
+
+
 class UserParticipation(BaseModel):
     user_id: int
     username: str
@@ -38,6 +57,7 @@ class UserParticipation(BaseModel):
     email: str
     role: UserRole
     team_id: Optional[int] = None
+    location: Optional[WorkLocationType] = None
     date: str
     meals: Dict[str, bool]
 
@@ -106,37 +126,42 @@ async def get_all_participation(
     current_user: User = Depends(require_admin_or_teamlead_or_logistics)):
     """Get participation list. Scoped: TeamLead sees own team only, Admin sees all (optional ?team_id= filter)."""
     today = get_todays_date()
-
+    
     users_data = storage.read_users()
     participation_data = storage.read_participation()
-
+    work_locations_data = storage.read_work_locations()
+    wfh_periods_data = storage.read_wfh_periods()
+    
     participation_lookup: Dict[int, Dict] = {}
     for record in participation_data:
         if record.get("date") == today:
             participation_lookup[record.get("user_id")] = record
-
+    
     result = []
-
+    
     for user_dict in users_data:
         user = User(**user_dict)
-
+        
         if user.status != UserStatus.APPROVED.value:
             continue
-
+        
         if current_user.role == UserRole.TEAM_LEAD.value:
             if user.team_id != current_user.team_id:
                 continue
         elif current_user.role == UserRole.ADMIN.value and team_id is not None:
             if user.team_id != team_id:
                 continue
-
+        
         participation_record = participation_lookup.get(user.id)
         if participation_record:
             meals = participation_record.get("meals", {})
         else:
             default_record = create_default_participation(user.id, today)
             meals = default_record.meals
-
+        
+        # Get user location
+        location = get_user_location(user.id, today, work_locations_data, wfh_periods_data)
+        
         result.append(UserParticipation(
             user_id=user.id,
             username=user.username,
@@ -145,9 +170,10 @@ async def get_all_participation(
             role=user.role,
             team_id=user.team_id,
             date=today,
-            meals=meals
+            meals=meals,
+            location=location
         ))
-
+    
     return result
 
 

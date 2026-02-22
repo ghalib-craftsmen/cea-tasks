@@ -124,6 +124,7 @@ export interface UserParticipation {
   team_id?: number | null;
   date: string;
   meals: Record<MealType, boolean>;
+  location?: WorkLocationType;
 }
 
 export interface ParticipationUpdateRequest {
