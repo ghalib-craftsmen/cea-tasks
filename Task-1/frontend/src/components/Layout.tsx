@@ -19,8 +19,11 @@ const baseNavItems: NavItem[] = [
 
 const headcountNavItem: NavItem = { path: '/headcount', label: 'Headcount', icon: '👥' };
 
-const adminNavItems: NavItem[] = [
+const adminOnlyNavItems: NavItem[] = [
   { path: '/admin', label: 'Admin', icon: '⚙️' },
+];
+
+const logisticsNavItems: NavItem[] = [
   { path: '/admin/management', label: 'WFH & Special Days', icon: '📅' },
 ];
 
@@ -29,22 +32,22 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
+  
   // Fetch current user with team name
   const { data: currentUser } = useQuery({
     queryKey: ['currentUser'],
     queryFn: getCurrentUser,
     enabled: !!user,
   });
-
+  
   const isAdmin = currentUser?.role === 'Admin';
   const isLogistics = currentUser?.role === 'Logistics';
   const canViewHeadcount = isAdmin || isLogistics || currentUser?.role === 'TeamLead';
-  const canManageWFHAndSpecialDays = isAdmin || isLogistics;
   const allNavItems = [
     ...baseNavItems,
     ...(canViewHeadcount ? [headcountNavItem] : []),
-    ...(canManageWFHAndSpecialDays ? adminNavItems : []),
+    ...(isAdmin ? adminOnlyNavItems : []),
+    ...(isLogistics ? logisticsNavItems : []),
   ];
 
   return (
