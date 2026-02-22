@@ -211,6 +211,19 @@ async def get_headcount_aggregation(
         and (target_team_ids is None or u.get("team_id") in target_team_ids)
     ]
 
+    # Pre-compute true office/WFH headcounts per team (all employees, regardless of meal opt-in)
+    team_location_totals: Dict = {}
+    for user_dict in filtered_users:
+        team_id = user_dict.get("team_id")
+        user_id = user_dict.get("id")
+        work_location = work_location_lookup.get(user_id, WorkLocationType.OFFICE)
+        if team_id not in team_location_totals:
+            team_location_totals[team_id] = {"office": 0, "wfh": 0}
+        if work_location == WorkLocationType.OFFICE:
+            team_location_totals[team_id]["office"] += 1
+        else:
+            team_location_totals[team_id]["wfh"] += 1
+
     # Aggregate data by (team_id, meal_type)
     aggregation: Dict[tuple, Dict] = {}
 
@@ -219,20 +232,20 @@ async def get_headcount_aggregation(
         team_id = user_dict.get("team_id")
         team_name = team_name_map.get(team_id, "Unassigned")
         participation_record = participation_lookup.get(user_id)
-        work_location = work_location_lookup.get(user_id, WorkLocationType.OFFICE)
 
         for meal_type in MealType:
             key = (team_id, meal_type.value)
 
             if key not in aggregation:
+                loc = team_location_totals.get(team_id, {"office": 0, "wfh": 0})
                 aggregation[key] = {
                     "team_id": team_id,
                     "team_name": team_name,
                     "meal": meal_type.value,
                     "total_in": 0,
                     "total_out": 0,
-                    "office_count": 0,
-                    "wfh_count": 0
+                    "office_count": loc["office"],
+                    "wfh_count": loc["wfh"]
                 }
 
             if participation_record:
@@ -243,10 +256,6 @@ async def get_headcount_aggregation(
 
             if opted_in:
                 aggregation[key]["total_in"] += 1
-                if work_location == WorkLocationType.OFFICE:
-                    aggregation[key]["office_count"] += 1
-                else:
-                    aggregation[key]["wfh_count"] += 1
             else:
                 aggregation[key]["total_out"] += 1
 
