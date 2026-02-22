@@ -63,18 +63,24 @@ export function Headcount() {
       ? filteredData.reduce((sum, row) => sum + row.total_out, 0)
       : filteredData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + row.total_out, 0);
     
-    // Calculate total employees from aggregation data
-    const totalEmployees = data.reduce((sum, row) => {
-      // Count unique employees by summing total_in + total_out for each team/meal combination
-      // This is an approximation - actual unique employee count would need a different approach
-      return sum + row.total_in + row.total_out;
-    }, 0) / (data.length > 0 ? (selectedMeal as string) === 'All' ? 5 : 1 : 1);
+    // Total employees = office + WFH headcount (independent of meal opt-in).
+    // office_count and wfh_count are now true location totals (same across all meal rows for a team),
+    // so deduplicate by team to avoid counting each team multiple times.
+    const seenTeams = new Set<number | string>();
+    let totalEmployees = 0;
+    filteredData.forEach(row => {
+      const key = row.team_id != null ? row.team_id : (row.team ?? 'unassigned');
+      if (!seenTeams.has(key)) {
+        seenTeams.add(key);
+        totalEmployees += row.office_count + row.wfh_count;
+      }
+    });
     
     const optedInPercentage = totalEmployees > 0 ? (totalIn / totalEmployees) * 100 : 0;
     const optedOutPercentage = totalEmployees > 0 ? (totalOut / totalEmployees) * 100 : 0;
     
     return {
-      total_employees: Math.round(totalEmployees),
+      total_employees: totalEmployees,
       opted_in: totalIn,
       opted_out: totalOut,
       opted_in_percentage: optedInPercentage,
@@ -315,12 +321,9 @@ export function Headcount() {
                       const totalOut = (selectedMeal as string) === 'All'
                         ? teamData.reduce((sum, row) => sum + row.total_out, 0)
                         : teamData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + row.total_out, 0);
-                      const totalOffice = (selectedMeal as string) === 'All'
-                        ? teamData.reduce((sum, row) => sum + row.office_count, 0)
-                        : teamData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + row.office_count, 0);
-                      const totalWFH = (selectedMeal as string) === 'All'
-                        ? teamData.reduce((sum, row) => sum + row.wfh_count, 0)
-                        : teamData.filter(row => row.meal === (selectedMeal as string)).reduce((sum, row) => sum + row.wfh_count, 0);
+                      // office_count and wfh_count are per-date, not per-meal — take from first row
+                      const totalOffice = teamData[0]?.office_count ?? 0;
+                      const totalWFH = teamData[0]?.wfh_count ?? 0;
                        
                       // Get opted in count for specific meal type when not "All"
                       const getMealInCount = (mealType: string) => {
@@ -397,12 +400,18 @@ export function Headcount() {
                       const totalOut = (selectedMeal as string) === 'All'
                         ? data.reduce((s, r) => s + r.total_out, 0)
                         : data.filter(row => row.meal === (selectedMeal as string)).reduce((s, r) => s + r.total_out, 0);
-                      const totalOffice = (selectedMeal as string) === 'All'
-                        ? data.reduce((s, r) => s + r.office_count, 0)
-                        : data.filter(row => row.meal === (selectedMeal as string)).reduce((s, r) => s + r.office_count, 0);
-                      const totalWFH = (selectedMeal as string) === 'All'
-                        ? data.reduce((s, r) => s + r.wfh_count, 0)
-                        : data.filter(row => row.meal === (selectedMeal as string)).reduce((s, r) => s + r.wfh_count, 0);
+                      // office_count and wfh_count are per-date, not per-meal — deduplicate by team
+                      const seenTeamKeys = new Set<number | string>();
+                      let totalOffice = 0;
+                      let totalWFH = 0;
+                      data.forEach(row => {
+                        const key = row.team_id != null ? row.team_id : (row.team ?? 'unassigned');
+                        if (!seenTeamKeys.has(key)) {
+                          seenTeamKeys.add(key);
+                          totalOffice += row.office_count;
+                          totalWFH += row.wfh_count;
+                        }
+                      });
                        
                       return (
                         <tr className="bg-indigo-100 border-t-2 border-indigo-300">
