@@ -289,7 +289,6 @@ The Excel spreadsheet we are using for meal headcount is painful. Someone has to
 ## 9. Design
 
 ### Architecture
-
 Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes JSON files for data. The Frontend implements an interval timer to poll the API for headcount updates.
 
 ### API Endpoints
@@ -304,13 +303,19 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 | **Teams** | | | |
 | GET | `/api/teams` | Get list of all teams | Admin, Team Lead, Logistics |
 | **Meal Participation** | | | |
-| GET | `/api/meals/today` | Get today's meals + my status | Logged-in users |
-| PUT | `/api/meals/participation` | Update my meals | Logged-in users |
-| GET | `/api/participation` | Get participation list. Scoped. Returns user details including location. | Team Lead, Admin, Logistics |
+| GET | `/api/meals?date=YYYY-MM-DD` | Get meals + status for specific date | Logged-in users |
+| PUT | `/api/meals/participation` | Update my meals (supports date) | Logged-in users |
+| GET | `/api/participation` | Get participation list. Scoped. | Team Lead, Admin, Logistics |
 | PUT | `/api/participation` | Update someone's meals. Scoped. | Admin, Team Lead |
 | POST | `/api/participation/bulk` | Bulk update participation. Scoped. | Admin, Team Lead |
+| **Event Meals** | | | |
+| GET | `/api/event-meals` | List event meals | Everyone |
+| POST | `/api/event-meals` | Create event meal | Admin, Logistics |
+| DELETE | `/api/event-meals/:id` | Remove event meal | Admin, Logistics |
 | **Headcount & Reporting** | | | |
-| GET | `/api/headcount` | Get aggregated totals. Scoped. Returns Office/WFH split for the requester's scope (All teams for Admin, own team for TL). | Admin, Logistics, Team Lead |
+| GET | `/api/headcount?date=YYYY-MM-DD` | Get aggregated totals. Scoped. | Admin, Logistics, Team Lead |
+| GET | `/api/dashboard/summary` | Get Today + Forecast + Alerts | Admin, Logistics |
+| GET | `/api/wfh-summary` | Get WFH usage stats (scoped) | Team Lead, Admin, Logistics |
 | **Work Location** | | | |
 | GET | `/api/me/location` | Get my work location | Everyone |
 | PUT | `/api/me/location` | Set my work location | Everyone |
@@ -323,6 +328,8 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 | GET | `/api/special-days` | Get special days list | Admin, Logistics |
 | POST | `/api/special-days` | Create special day entry | Admin, Logistics |
 | DELETE | `/api/special-days/:id` | Remove a special day entry | Admin, Logistics |
+| **Audit Logs** | | | |
+| GET | `/api/audit-logs` | View change history (filterable) | Admin, Logistics, Team Lead |
 
 ---
 
