@@ -337,107 +337,101 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 **JSON Files Instead of Database**
 - Why: Fastest way to ship. No setup needed. Easy to inspect.
-- Trade-off: Limited query capability, no transactions. We will move to a database if performance degrades.
+- Trade-off: Limited query capability. Audit logs will require careful file management (rolling files) to prevent performance issues.
 
 **Polling for "Live" Updates**
-- Why: Avoids the complexity of WebSockets (connection state, auth handshake). Sufficient for a small user base (100-200 users).
-- Trade-off: Not truly real-time (up to 10s delay). Generates steady background HTTP traffic.
+- Why: Avoids the complexity of WebSockets. Sufficient for <200 users.
+- Trade-off: Not truly real-time (up to 10s delay).
+
+**Future Planning Window**
+- Decision: Limit forward planning to 14 days.
+- Why: Balances employee convenience with Logistics' need for accurate data, preventing stale commitments months in advance.
+
+**Soft Limit on WFH**
+- Decision: System accepts WFH entries beyond 5 days but flags them.
+- Why: Enforces policy via management review/social pressure rather than hard system lockout, maintaining flexibility.
+
+**Audit Logs**
+- Decision: Append-only JSON log file.
+- Why: Ensures traceability and accountability for all modifications.
 
 **Resource-Based Access Control**
-- Why: Endpoints like `/api/participation` are generalized. The path does not dictate the role; the logic inside does. This allows Team Leads and Admins to use the same endpoints while enforcing strict data scope rules internally.
+- Why: Endpoints like `/api/participation` are generalized. The path does not dictate the role; the logic inside does.
 
 **Team-Scoped API Logic**
 - Why: Security and data privacy. Team Leads should not see other teams' data.
-- Implementation: The backend checks `request.user.role`. If 'Team Lead', it automatically injects `team_id = request.user.team_id` into the query filters.
-
-**Headcount Data Visibility**
-- Decision: Team Leads see the Office/WFH split for their own team. This helps them manage their team's logistics without seeing data for other teams.
-- Implementation: `GET /api/headcount` checks role. If Team Lead, it calculates and returns location splits only for their team.
-
-**Client-side Announcement Generation**
-- Why: Simplifies backend; formats change frequently.
-- Trade-off: Frontend logic increases slightly.
-
-**Implicit vs Explicit Opt-Out for Office Closed**
-- Decision: If a day is "Office Closed", the backend returns 0 counts logically without writing individual "Opt-Out" records for every user.
-
-**JWT for Auth**
-- Why: Stateless, standard, easy to implement.
-- Trade-off: No built-in revocation, but good enough for now.
 
 ---
 
 ## 11. Security and Access Control
 
 ### Authentication
-
-- Passwords hashed with bcrypt
-- JWT tokens for sessions
-- 8-hour token expiry
-- Tokens sent in Authorization header
+- Passwords hashed with bcrypt.
+- JWT tokens for sessions.
+- 8-hour token expiry.
+- Tokens sent in Authorization header.
 
 ### Access Control
 
-| Role | Login | Update Own | View All | Update All | Headcount | Register Users | Bulk Update | Manage Special Days | Correct Location |
-|-------|--------|------------|----------|------------|-----------|------------------|-------------|---------------------|------------------|
-| Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Team Lead | ✓ | ✓ | Team Only | Team Only | Team Only | ✗ | Team Only | ✗ | Team Only |
-| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ | ✗ | ✓ | ✗ |
-
+| Role | Login | Update Own | View All | Update All | Headcount | Register Users | Bulk Update | Manage Special Days | Correct Location | Manage Events | View Audit Logs |
+|-------|--------|------------|----------|------------|-----------|------------------|-------------|---------------------|------------------|----------------|------------------|
+| Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Team Lead | ✓ | ✓ | Team Only | Team Only | Team Only | ✗ | Team Only | ✗ | Team Only | ✗ | Team Only |
+| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ |
 
 ### Secrets
-
-- Never commit passwords or secrets to code
-- Use environment variables
-- Hash passwords before storing
-- HTTPS in production
+- Never commit passwords or secrets to code.
+- Use environment variables.
+- Hash passwords before storing.
+- HTTPS in production.
 
 ---
 
 ## 12. Testing Plan
 
 ### Unit Tests
-
-- Auth logic (login, token generation, registration)
-- Participation logic (opt in/out)
-- Headcount calculations
-- Role checks
-- Special Day logic (Closed day = no meals)
-- Bulk action scope validation
-- API Scope validation (Team Lead forbidden from viewing other teams)
+- Auth logic (login, token generation, registration).
+- Participation logic (opt in/out).
+- Headcount calculations.
+- Role checks.
+- Special Day logic (Closed day = no meals).
+- Bulk action scope validation.
+- API Scope validation (Team Lead forbidden from viewing other teams).
+- Future date validation (allow within window, block outside).
+- WFH Counter logic (reset monthly, count correctly).
+- Audit Log generation on update.
 
 ### Manual QA Checklist
 
 **Authentication:**
-- [ ] Can log in with valid credentials
-- [ ] Wrong password shows error
-- [ ] Session timeout works
+- [ ] Can log in with valid credentials.
+- [ ] Wrong password shows error.
+- [ ] Session timeout works.
 
 **User Profile:**
 - [ ] `GET /api/me` returns correct user details.
 
 **User Registration (API):**
-- [ ] Admin can call registration endpoint
-- [ ] Creates new user successfully with team assignment
-- [ ] Duplicate username rejected
-- [ ] Password is hashed
-- [ ] Non-admin roles get Forbidden
+- [ ] Admin can call registration endpoint.
+- [ ] Creates new user successfully.
 
 **Employee:**
-- [ ] See today's meals and team name
-- [ ] Can opt out/in
-- [ ] Can set Work Location (Office/WFH)
-- [ ] Changes save and persist
+- [ ] See today's meals and team name.
+- [ ] Can opt out/in.
+- [ ] Can set Work Location (Office/WFH).
+- [ ] Can set status for future date (within window).
+- [ ] Cannot set status for date outside window.
+- [ ] Can see own WFH usage count.
 
 **Admin/Team Lead:**
-- [ ] See correct scope of employees
-- [ ] Can update participation within scope
-- [ ] Can perform bulk actions within scope
-- [ ] Team Lead cannot view or update non-team member
-- [ ] Team Lead sees only their team on Headcount page
-- [ ] Team Lead sees Office/WFH split for their team.
-- [ ] Admin/Team Lead can correct work location for users in scope.
+- [ ] See correct scope of employees.
+- [ ] Can update participation within scope.
+- [ ] Can perform bulk actions within scope.
+- [ ] Team Lead cannot view or update non-team member.
+- [ ] Can see Over-Limit indicators for WFH.
+- [ ] Can filter list by Over-Limit.
+- [ ] Can view Audit Logs for changes.
 
 **WFH & Special Days:**
 - [ ] Admin can create WFH period.
@@ -445,60 +439,59 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - [ ] "Office Closed" prevents meal selection.
 - [ ] Announcement generation includes special notes.
 
+**Audit:**
+- [ ] Opt-out action appears in Audit Log.
+- [ ] Admin override appears in Audit Log with correct "Actor".
+
 ---
 
 ## 13. Operations
 
 ### Logging
-
-- Login attempts (success/fail)
-- User registration events
-- Participation updates (individual and bulk)
-- Admin overrides
-- Special day/WFH period changes
-- Errors
-- Authorization failures (Team Lead accessing forbidden data)
+- Login attempts (success/fail).
+- User registration events.
+- Participation updates (individual and bulk).
+- Admin overrides.
+- Special day/WFH period changes.
+- Errors.
+- Authorization failures.
 
 ### Monitoring
-
-- Failed logins
-- Server errors
-- API response times
+- Failed logins.
+- Server errors.
+- API response times.
+- Audit Log file size.
 
 ### Deployment
-
-- Run locally for now
-- Simple npm run commands
-- No CI/CD yet
+- Run locally for now.
+- Simple npm run commands.
+- No CI/CD yet.
 
 ### Rollback
-
-- Revert git commit
-- Restart services
-- Verify basic functionality
+- Revert git commit.
+- Restart services.
+- Verify basic functionality.
 
 ---
 
 ## 14. Risks, Assumptions, Open Questions
 
 ### Risks
-
-- JSON files could get corrupted if server crashes during write → We'll implement atomic writes
-- Performance if we scale beyond 200 users → We'll monitor and move to DB if needed
+- JSON files could get corrupted if server crashes during write → We'll implement atomic writes.
+- Audit Log file growth might impact performance → We will implement manual rotation or move to DB if file size > 10MB.
 
 ### Assumptions
-
-- Internal network only, not public-facing
-- 100-200 employees max
-- Teams are already defined
-- "Office Closed" implies no meals for anyone
-- Work location defaults to Office unless "Company-wide WFH" is active
+- Internal network only, not public-facing.
+- 100-200 employees max.
+- Teams are already defined.
+- "Office Closed" implies no meals for anyone.
+- Work location defaults to Office unless "Company-wide WFH" is active.
+- "Month" is defined as Calendar Month (1st to 30th/31st).
 
 ### Open Questions
-
-- [ ] Do we need audit logging later?
 - [ ] Expected user count beyond 200?
 - [ ] Export functionality needed?
+- [ ] Should WFH limit be prorated for new joiners?
 
 ---
 
@@ -515,11 +508,12 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 | TL | Team Lead |
 | JWT | JSON Web Token — how we do auth |
 | WFH | Work From Home |
+| Soft Limit | A policy limit that triggers a warning but does not block the action |
+| Event Meal | A one-off meal option created by Admins |
 
 ### Sample Output
 
 **Headcount View (Admin/Logistics):**
-*Includes detailed Office vs. WFH split for ALL teams.*
 
 | Team | Meal | Total | In | Out | Office | WFH |
 |-------|--------|-----|------|--------|-----|---|
@@ -527,13 +521,12 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 | HR | Lunch | 10 | 10 | 0 | 8 | 2 |
 | **Total** | **Lunch** | **60** | **55** | **5** | **38** | **17** |
 
-**Headcount View (Team Lead - Engineering):**
-*Shows Office/WFH split for their team ONLY.*
+**WFH Compliance View (Team Lead):**
 
-| Meal | Total | In | Out | Office | WFH |  
-|-------|--------|-----|------|--------|-----|
-| Lunch | 50 | 45 | 5 | 30 | 15 |  
-| Snacks | 50 | 40 | 10 | 25 | 15 |
+| Employee | WFH Days Used | Status |
+|-----------|---------------|--------|
+| Alice | 6 | **Over Limit** |
+| Bob | 3 | OK |
 
 **Announcement Draft:**
 > **Date:** Oct 25, 2026  
@@ -542,5 +535,6 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 > **Headcount:**
 > *   Lunch: 115 (Office: 80, WFH: 35)
 > *   Snacks: 100
+> *   **Event:** Town Hall Dinner: 50
 >
 > Note: Snacks will be served in the cafeteria.
