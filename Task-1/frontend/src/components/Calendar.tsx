@@ -14,6 +14,19 @@ interface CalendarProps {
   onRangeSelect?: (start: Date | null, end: Date | null) => void;
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function formatDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function Calendar({
   currentDate,
   onDateChange,
@@ -27,6 +40,7 @@ export function Calendar({
   onRangeSelect,
 }: CalendarProps) {
   const [isSelecting, setIsSelecting] = useState(false);
+  const [rangeAnchor, setRangeAnchor] = useState<Date | null>(null);
   const [rangeStart, setRangeStart] = useState<Date | null>(selectedRange.start);
   const [rangeEnd, setRangeEnd] = useState<Date | null>(selectedRange.end);
 
@@ -35,64 +49,41 @@ export function Calendar({
     setRangeEnd(selectedRange.end);
   }, [selectedRange]);
 
-  const getDaysInMonth = (date: Date): number => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = formatDateKey(today);
 
-  const getFirstDayOfMonth = (date: Date): number => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
-
-  const formatDateKey = (date: Date): string => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
 
   const isDateInWFHPeriod = (date: Date): boolean => {
-    const dateKey = formatDateKey(date);
-    return wfhPeriods.some(
-      (period) => dateKey >= period.start_date && dateKey <= period.end_date
-    );
+    const key = formatDateKey(date);
+    return wfhPeriods.some(p => key >= p.start_date && key <= p.end_date);
   };
-
-
 
   const isDateSelected = (date: Date): boolean => {
-    if (selectionMode === 'single') {
-      return false;
-    }
-    if (!rangeStart || !rangeEnd) return false;
-    const dateKey = formatDateKey(date);
-    const startKey = formatDateKey(rangeStart);
-    const endKey = formatDateKey(rangeEnd);
-    return dateKey >= startKey && dateKey <= endKey;
+    if (selectionMode !== 'range' || !rangeStart || !rangeEnd) return false;
+    const key = formatDateKey(date);
+    return key >= formatDateKey(rangeStart) && key <= formatDateKey(rangeEnd);
   };
 
-  const isDateInRangeStart = (date: Date): boolean => {
-    if (!rangeStart) return false;
-    return formatDateKey(date) === formatDateKey(rangeStart);
-  };
+  const isDateInRangeStart = (date: Date): boolean =>
+    !!rangeStart && formatDateKey(date) === formatDateKey(rangeStart);
 
-  const isDateInRangeEnd = (date: Date): boolean => {
-    if (!rangeEnd) return false;
-    return formatDateKey(date) === formatDateKey(rangeEnd);
-  };
+  const isDateInRangeEnd = (date: Date): boolean =>
+    !!rangeEnd && formatDateKey(date) === formatDateKey(rangeEnd);
 
   const handleDateClick = (date: Date) => {
     if (disabledDates.has(formatDateKey(date))) return;
 
     if (selectionMode === 'range' && onRangeSelect) {
       if (!isSelecting || !rangeAnchor) {
-        // First click: set anchor
         setRangeAnchor(date);
         setRangeStart(date);
         setRangeEnd(date);
         setIsSelecting(true);
         onRangeSelect(date, date);
       } else {
-        // Second click: finalize range
         const [start, end] = date < rangeAnchor ? [date, rangeAnchor] : [rangeAnchor, date];
         setRangeStart(start);
         setRangeEnd(end);
@@ -105,186 +96,208 @@ export function Calendar({
     }
   };
 
-  // Track the original click anchor separately from rangeStart/rangeEnd
-  const [rangeAnchor, setRangeAnchor] = useState<Date | null>(null);
-
   const handleDateMouseEnter = (date: Date) => {
     if (selectionMode === 'range' && isSelecting && rangeAnchor) {
-      // Live preview: highlight range between anchor and hovered date
       const [start, end] = date < rangeAnchor ? [date, rangeAnchor] : [rangeAnchor, date];
       setRangeStart(start);
       setRangeEnd(end);
     }
   };
 
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    const newDate = new Date(currentDate);
-    if (direction === 'prev') {
-      newDate.setMonth(newDate.getMonth() - 1);
-    } else {
-      newDate.setMonth(newDate.getMonth() + 1);
-    }
-    onDateChange(newDate);
+  const navigateMonth = (dir: 'prev' | 'next') => {
+    const d = new Date(currentDate);
+    d.setMonth(d.getMonth() + (dir === 'prev' ? -1 : 1));
+    onDateChange(d);
   };
 
-  const daysInMonth = getDaysInMonth(currentDate);
-  const firstDay = getFirstDayOfMonth(currentDate);
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const goToToday = () => {
+    onDateChange(new Date());
+  };
 
-  const renderDays = () => {
-    const days = [];
+  // ── Render ──────────────────────────────────────────────────────────────────
+  const cells: React.ReactNode[] = [];
 
-    // Empty cells for days before the first day of the month
-    for (let i = 0; i < firstDay; i++) {
-      days.push(
-        <div key={`empty-${i}`} className="h-20 border border-gray-100 bg-gray-50" />
-      );
-    }
+  // Leading empty cells
+  for (let i = 0; i < firstDay; i++) {
+    cells.push(
+      <div
+        key={`empty-${i}`}
+        className="min-h-[6rem] border-b border-r border-gray-100 bg-gray-50/40"
+      />
+    );
+  }
 
-    // Days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      const dateKey = formatDateKey(date);
-      const location = locationData[dateKey];
-      const specialDay = specialDays[dateKey];
-      const isWFH = isDateInWFHPeriod(date);
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6; // Sunday (0) or Saturday (6)
-      const isClosed = specialDay?.is_closed || isWeekend;
-      const isSelected = isDateSelected(date);
-      const isRangeStart = isDateInRangeStart(date);
-      const isRangeEnd = isDateInRangeEnd(date);
+  // Day cells
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dateKey = formatDateKey(date);
+    const location = locationData[dateKey];
+    const specialDay = specialDays[dateKey];
+    const inWFHPeriod = isDateInWFHPeriod(date);
+    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+    const isClosed = specialDay?.is_closed || isWeekend;
+    const isDisabled = disabledDates.has(dateKey);
+    const isToday = dateKey === todayStr;
+    const isSelected = isDateSelected(date);
+    const isRangeStart = isDateInRangeStart(date);
+    const isRangeEnd = isDateInRangeEnd(date);
+    const isPast = date < today;
 
-      let bgColor = 'bg-white';
-      let textColor = 'text-gray-900';
-      let borderColor = 'border-gray-200';
+    // Determine cell background
+    let cellBg = 'bg-white';
+    if (isClosed) cellBg = 'bg-gray-50';
+    else if (specialDay && !isClosed) cellBg = 'bg-amber-50/50';
+    else if (isSelected) cellBg = 'bg-blue-50/60';
 
-      if (isClosed) {
-        bgColor = 'bg-red-50';
-        textColor = 'text-red-900';
-        borderColor = 'border-red-200';
-      } else if (specialDay) {
-        bgColor = 'bg-yellow-50';
-        textColor = 'text-yellow-900';
-        borderColor = 'border-yellow-200';
-      } else if (isSelected) {
-        bgColor = 'bg-blue-100';
-        textColor = 'text-blue-900';
-        borderColor = 'border-blue-300';
-      } else if (location === 'WFH' || isWFH) {
-        bgColor = 'bg-green-50';
-        textColor = 'text-green-900';
-        borderColor = 'border-green-200';
-      } else if (location === 'Office') {
-        bgColor = 'bg-blue-50';
-        textColor = 'text-blue-900';
-        borderColor = 'border-blue-200';
-      }
+    cells.push(
+      <div
+        key={dateKey}
+        onClick={() => handleDateClick(date)}
+        onMouseEnter={() => handleDateMouseEnter(date)}
+        className={[
+          'min-h-[6rem] border-b border-r border-gray-100 p-1.5 flex flex-col gap-1 transition-colors',
+          cellBg,
+          isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-blue-50/30',
+          (isRangeStart || isRangeEnd) ? 'ring-2 ring-inset ring-blue-400' : '',
+        ].join(' ')}
+      >
+        {/* Day number */}
+        <div className="flex items-center justify-between">
+          <span
+            className={[
+              'w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium',
+              isToday
+                ? 'bg-blue-600 text-white'
+                : isPast
+                ? 'text-gray-400'
+                : isWeekend
+                ? 'text-gray-500'
+                : 'text-gray-800',
+            ].join(' ')}
+          >
+            {day}
+          </span>
 
-      if (isRangeStart || isRangeEnd) {
-        borderColor = 'border-blue-500 border-2';
-      }
-
-      days.push(
-        <div
-          key={day}
-          className={`h-20 p-2 border ${borderColor} ${bgColor} ${textColor} cursor-pointer hover:opacity-80 transition-opacity flex flex-col justify-between ${
-            disabledDates.has(dateKey) ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-          onClick={() => handleDateClick(date)}
-          onMouseEnter={() => handleDateMouseEnter(date)}
-        >
-          <div className="flex justify-between items-start">
-            <span className="font-semibold">{day}</span>
-            {isClosed && specialDay?.type && specialDay.type !== 'Closed' ? (
-              <span className="text-xs bg-yellow-600 text-white px-1.5 py-0.5 rounded">
-                {specialDay.type}
-              </span>
-            ) : isClosed ? (
-              <span className="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded">Closed</span>
-            ) : specialDay?.type ? (
-              <span className="text-xs bg-yellow-600 text-white px-1.5 py-0.5 rounded">
-                {specialDay.type}
-              </span>
-            ) : null}
-          </div>
-          <div className="text-xs">
-            {specialDay?.note && (
-              <span className={`font-medium block truncate ${isClosed ? 'text-red-700' : 'text-yellow-700'}`}>
-                {specialDay.note}
-              </span>
-            )}
-            {!specialDay && !isClosed && location && (
-              <span className="font-medium">{location}</span>
-            )}
-            {!specialDay && !isClosed && !location && isWFH && (
-              <span className="font-medium text-green-700">WFH Period</span>
-            )}
-          </div>
+          {/* Special day badge */}
+          {specialDay?.type && (
+            <span
+              className={[
+                'text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none',
+                specialDay.type === 'Closed' || isClosed
+                  ? 'bg-red-100 text-red-700'
+                  : specialDay.type === 'Holiday'
+                  ? 'bg-orange-100 text-orange-700'
+                  : 'bg-amber-100 text-amber-700',
+              ].join(' ')}
+            >
+              {specialDay.type}
+            </span>
+          )}
+          {isWeekend && !specialDay && (
+            <span className="text-[10px] font-medium text-gray-400">
+              {date.getDay() === 0 ? 'Sun' : 'Sat'}
+            </span>
+          )}
         </div>
-      );
-    }
 
-    return days;
-  };
+        {/* Location / note indicators */}
+        <div className="flex flex-col gap-0.5 mt-auto">
+          {specialDay?.note && (
+            <span className="text-[10px] text-amber-700 truncate leading-tight">
+              {specialDay.note}
+            </span>
+          )}
+          {!isClosed && (location === 'Office' || (!location && !inWFHPeriod && !isPast && !isWeekend)) && location === 'Office' && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-100 rounded px-1.5 py-0.5 w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+              Office
+            </span>
+          )}
+          {!isClosed && (location === 'WFH' || inWFHPeriod) && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 bg-violet-100 rounded px-1.5 py-0.5 w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+              {location === 'WFH' ? 'WFH' : 'WFH Period'}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={() => navigateMonth('prev')}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          aria-label="Previous month"
-        >
-          <span className="text-xl">‹</span>
-        </button>
-        <h2 className="text-xl font-semibold text-gray-900">
-          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-        </h2>
-        <button
-          onClick={() => navigateMonth('next')}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          aria-label="Next month"
-        >
-          <span className="text-xl">›</span>
-        </button>
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden select-none">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-semibold text-gray-900">
+            {MONTH_NAMES[currentDate.getMonth()]} {currentDate.getFullYear()}
+          </h2>
+          <button
+            onClick={goToToday}
+            className="text-xs font-medium text-blue-600 hover:text-blue-700 px-2 py-1 rounded-md hover:bg-blue-50 transition-colors"
+          >
+            Today
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => navigateMonth('prev')}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+            aria-label="Previous month"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            onClick={() => navigateMonth('next')}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+            aria-label="Next month"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-0 mb-2">
-        {dayNames.map((day) => (
-          <div key={day} className="text-center text-sm font-medium text-gray-600 py-2">
-            {day}
+      {/* ── Day-of-week headers ── */}
+      <div className="grid grid-cols-7 border-b border-gray-100">
+        {DAY_NAMES.map((d, i) => (
+          <div
+            key={d}
+            className={[
+              'py-2 text-center text-xs font-medium',
+              i === 0 || i === 6 ? 'text-gray-400' : 'text-gray-500',
+            ].join(' ')}
+          >
+            {d}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-0">
-        {renderDays()}
+      {/* ── Day grid ── */}
+      <div className="grid grid-cols-7 border-l border-t border-gray-100">
+        {cells}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-50 border border-blue-200 rounded" />
-          <span className="text-gray-600">Office</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-50 border border-green-200 rounded" />
-          <span className="text-gray-600">WFH</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-50 border border-red-200 rounded" />
-          <span className="text-gray-600">Closed</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-yellow-50 border border-yellow-200 rounded" />
-          <span className="text-gray-600">Holiday / Special</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded" />
-          <span className="text-gray-600">Selected Range</span>
+      {/* ── Legend ── */}
+      <div className="px-5 py-3 border-t border-gray-100 flex flex-wrap gap-x-5 gap-y-2">
+        {[
+          { dot: 'bg-blue-500', label: 'Office' },
+          { dot: 'bg-violet-500', label: 'WFH' },
+          { dot: 'bg-red-400', label: 'Closed' },
+          { dot: 'bg-amber-400', label: 'Holiday / Special' },
+          // holidays placeholder: { dot: 'bg-rose-500', label: 'National Holiday' },
+        ].map(({ dot, label }) => (
+          <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className={`w-2 h-2 rounded-full ${dot}`} />
+            {label}
+          </div>
+        ))}
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] text-white font-bold">T</span>
+          Today
         </div>
       </div>
     </div>
