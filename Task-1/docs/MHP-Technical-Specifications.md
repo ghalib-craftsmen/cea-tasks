@@ -1,29 +1,30 @@
-# Meal Headcount Planner (MHP) Technical Specification - Iteration 2
+# Meal Headcount Planner (MHP) Technical Specification - Iteration 3
 
 ## 1. Header
 
 **Project:** Meal Headcount Planner (MHP)  
-**Iteration:** 2 — Team/Department Views + Special Days  
+**Iteration:** 3 — Scheduling + Events + Operational Readiness  
 **Author:** Abdullah Al Ghalib  
-**Date:** February 20, 2026  
-**Version:** 2.1  
+**Date:** April 15, 2026  
+**Version:** 3.0  
 **Status:** Draft
 
 **Links:**
-- Project Brief: [(task-iteration2)](https://drive.google.com/file/d/1X5LiRPZ-8SA5ZBLslgaabMxH2tmptmb6/view?ts=698b25e6)
+- Project Brief: [(task-iteration3)](https://drive.google.com/file/d/1vydnfbqoxQQHnOVs5lI62h3J0xJv9qWE/view)
+- Previous Iteration: [(task-iteration2)](https://drive.google.com/file/d/1X5LiRPZ-8SA5ZBLslgaabMxH2tmptmb6/view?ts=698b25e6)
 - Previous Iteration: [(task-iteration1)](https://drive.google.com/file/d/1PE38YEru21tkwHjIReO9-E0sNBAMf0IS/view)
 
 ---
 
 ## 2. Summary
 
-We're building a web app to replace the Excel spreadsheet used for meal headcount. Employees can see meals, opt in/out, and set their work location (Office/WFH) for specific dates. Team Leads and Admins can update participation for their scope, apply bulk actions, and manage exceptions. Logistics gets an accurate headcount view enriched with team and location breakdowns to plan meals better. The system supports team-based visibility and special day controls (holidays, office closures) which automatically adjust meal availability. Everyone's opted in by default unless they say otherwise or the day is marked closed.
+We are building a web app to replace the Excel spreadsheet used for meal headcount. Employees can see meals, opt in/out, and set their work location (Office/WFH) for current and future dates within a defined planning window. Team Leads and Admins can update participation for their scope, apply bulk actions, and manage exceptions. Logistics gets an accurate headcount view enriched with team and location breakdowns to plan meals better. The system supports team-based visibility, special day controls (holidays, office closures), and dynamic "Event Meals" which automatically adjust meal availability. Everyone is opted in by default unless they say otherwise or the day is marked closed. To ensure operational readiness, the system provides an operational dashboard for Logistics with daily snapshots and forecasts, enforces a soft limit policy on monthly WFH days with visibility into usage trends, and maintains a comprehensive audit log of all changes to ensure accountability and traceability for corrections.
 
 ---
 
 ## 3. Problem Statement
 
-The Excel spreadsheet we're using for meal headcount is painful. Someone has to collect entries manually, it's hard to see who's opted in or out in real-time, and there's no easy way to fix mistakes or missing entries. Logistics team struggles to get accurate numbers for meal planning. Additionally, we currently lack visibility into team-specific data, cannot handle company-wide events like holidays or office closures automatically, and have no way to track who is working from home versus in the office. This leads to inaccurate food ordering and wasted resources. Moving to a web app with team structures and working location (Office/WFH) confirmation to solve these issues.
+The Excel spreadsheet we are using for meal headcount is painful. Someone has to collect entries manually, it is hard to see who has opted in or out in real-time, and there is no easy way to fix mistakes or missing entries. Logistics struggles to get accurate numbers for meal planning. We lack visibility into team-specific data, cannot handle company-wide events or ad-hoc "Event Meals" automatically, and have no way to track who is working from home versus in the office. This leads to inaccurate food ordering and wasted resources. Furthermore, employees currently cannot plan meals ahead of time, leading to last-minute rushes, and there is no audit trail to verify who made corrections or why. We also lack a mechanism to monitor WFH compliance against the monthly allowance. Moving to a web app with scheduling, audit trails, and policy tracking solves these issues.
 
 ---
 
@@ -31,29 +32,33 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 
 ### Goals
 
-- Get off Excel and into a proper web app
-- Let employees manage their own meal participation and work location
-- Give Logistics/Admins an accurate headcount view with team and location breakdowns
-- Support 4 roles: Employee, Team Lead, Admin, Logistics
-- Handle 5 meal types: Lunch, Snacks, Iftar, Event Dinner, Optional Dinner
-- Default everyone to opted-in unless they opt out
-- Cutoff window enforcement: Employees can update their meal participation for the current date until 9:00 PM the previous night
-- Implement Team-based visibility and filtering
-- Enable Admins/Logistics to define "Special Days" (Closed, Holiday, Celebration)
-- Enable Admins/Logistics to manage "Company-wide WFH Periods"
-- Provide bulk action capabilities for Admins and Team Leads
-- Generate copy/paste-friendly daily announcements (Client-side)
-- Enrich reporting with Team and Location breakdowns (Available to Admins, Logistics, and Team Leads for their respective scopes).
-- Live updates via Polling (no manual page refresh required)
+- Get off Excel and into a proper web app.
+- Let employees manage their own meal participation and work location for current and future dates (within a 14-day window).
+- Give Logistics/Admins an accurate headcount view with team and location breakdowns, including forecasts for upcoming dates.
+- Support 4 roles: Employee, Team Lead, Admin, Logistics.
+- Handle standard meal types and dynamic "Event Meals" (e.g., Town Hall Dinner).
+- Default everyone to opted-in unless they opt out.
+- Cutoff window enforcement: Employees can update meal participation until 9:00 PM the previous night.
+- Implement Team-based visibility and filtering.
+- Enable Admins/Logistics to define "Special Days" (Closed, Holiday, Celebration) and "Event Meals".
+- Enable Admins/Logistics to manage "Company-wide WFH Periods".
+- Provide bulk action capabilities for Admins and Team Leads.
+- Generate copy/paste-friendly daily announcements (Client-side).
+- Enrich reporting with Team and Location breakdowns.
+- Live updates via Polling (no manual page refresh required).
+- Provide an Operational Dashboard for Logistics/Admins with daily snapshots and forecasts.
+- Implement "Soft Limit" WFH policy tracking (5 days/month) with over-limit indicators and filters.
+- Maintain a full Audit Log of participation and location changes to ensure accountability.
 
 ### Non-Goals
 
-- No password reset in this iteration
-- No email notifications
-- No options for setting future meal participation 
-- No guest meals
-- No HR system integration
-- No WebSockets or Server-Sent Events (SSE)
+- No password reset in this iteration.
+- No email notifications.
+- No guest meals.
+- No HR system integration.
+- No WebSockets or Server-Sent Events (SSE).
+- No hard blocking of WFH entries (Soft Limit only).
+- No retroactive updates for past dates by employees.
 
 ---
 
@@ -65,7 +70,7 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 **Storage:** JSON files   
 
 **Rationale:**
-- **JSON Files:** Fastest way to ship. No setup needed. Easy to inspect. We will monitor performance as we scale.
+- **JSON Files:** Fastest way to ship. No setup needed. Easy to inspect. We will monitor performance and file size (especially for audit logs) as we scale.
 - **FastAPI:** Built-in validation, async support.
 - **React:** Separation of concerns. We can run frontend and backend independently.
 - **Polling for Live Updates:** Uses standard HTTP requests. Sufficient for a user base of <200.
@@ -77,40 +82,50 @@ The Excel spreadsheet we're using for meal headcount is painful. Someone has to 
 ### What We're Building
 
 **Frontend:**
-- Login page
-- Employee page to see and update their meals and work location (Office/WFH)
-- Admin page to view and update anyone's participation, manage special days, and WFH periods.
+- Login page.
+- Employee page to see and update meals and work location (Office/WFH) for current and future dates.
+- Calendar/Date picker to navigate within the allowed scheduling window.
+- Admin page to view and update anyone's participation, manage special days, WFH periods, and Event Meals.
+- Operational Dashboard for Logistics/Admins showing "Today's Snapshot", "Upcoming Forecast", and "WFH Policy Alerts".
 - Headcount page for Logistics/Admin/Team-Lead to see live totals broken down by team and location.
+- WFH Usage Summary views with "Over Limit" indicators and filters for Team Leads and Admins.
 - Headcount data refreshes automatically every 10 seconds (Polling).
 - Team Lead view restricted strictly to their specific team members.
 - Client-side interface to generate daily announcement drafts.
+- Audit Log viewer for Admins/Logistics (and Team Leads for their scope).
 
 **Backend:**
-- Auth endpoints (login, logout)
-- Meal participation endpoints (individual and bulk) generalized for shared access by Admins and Team Leads
-- Endpoint to list all teams
-- Endpoint for user profile
-- Endpoints for managing WFH periods
-- Endpoint for Admins/Team Leads to correct work locations
-- Endpoints for overrides and special day management
-- Headcount endpoints with filtering by team and location
-- User registration endpoint (for Admin only)
+- Auth endpoints (login, logout).
+- Meal participation endpoints (individual and bulk) generalized for shared access by Admins and Team Leads.
+- Endpoint to list all teams.
+- Endpoint for user profile.
+- Endpoints for managing WFH periods and Event Meals.
+- Endpoint for Admins/Team Leads to correct work locations.
+- Endpoints for overrides and special day management.
+- Headcount endpoints with filtering by team, location, and date.
+- User registration endpoint (for Admin only).
+- WFH Usage calculation endpoints (monthly aggregation).
+- Dashboard summary endpoint.
+- Audit Logging service to capture actor, target, and change details on every update.
 
 **Data:**
-- User accounts with roles and team assignments
-- Daily participation records
-- Work location records (Office/WFH) by date
-- Team definitions
-- Special day definitions (Holidays, Closed)
-- WFH Period definitions (Date ranges)
+- User accounts with roles and team assignments.
+- Daily participation records.
+- Work location records (Office/WFH) by date.
+- Team definitions.
+- Special day definitions (Holidays, Closed).
+- WFH Period definitions (Date ranges).
+- Event Meal definitions (Ad-hoc meals).
+- Audit Log records (Immutable history of changes).
 
 ### What We're Not Doing (Yet)
 
-- Password reset
-- Email features
-- Variable Cutoff windows
-- Reporting/exports beyond the daily announcement draft
-- Guest management
+- Password reset.
+- Email features.
+- Variable Cutoff windows.
+- Reporting/exports beyond the daily announcement draft.
+- Guest management.
+- Hard limits on WFH usage.
 
 ---
 
