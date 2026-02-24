@@ -48,7 +48,6 @@ export function Layout() {
   const canViewHeadcount = isAdmin || isLogistics || isTeamLead;
   const allNavItems = [
     ...baseNavItems,
-    ...(canViewHeadcount ? [headcountNavItem] : []),
     ...(canViewHeadcount ? [opsDashboardNavItem] : []),
     ...(isAdmin || isTeamLead ? adminNavItems : []),
     ...(isAdmin ? [{ path: '/admin/management', label: 'WFH & Special Days', icon: '📅' }] : []),

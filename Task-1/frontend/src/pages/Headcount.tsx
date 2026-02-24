@@ -177,7 +177,7 @@ export function Headcount() {
         {(isAdmin || isLogistics) && (
           <button
             onClick={() => { setAnnouncementOpen(true); setCopied(false); }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -345,35 +345,35 @@ export function Headcount() {
               <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
                 <table className="min-w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-indigo-600 to-indigo-800">
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-300 uppercase tracking-wider">
+                    <tr className="bg-sky-100 border-b border-sky-200">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-sky-800 uppercase tracking-wider">
                         Team
                       </th>
                       {/* Show meal type columns based on selection */}
                       {(selectedMeal as string) === 'All' ? (
                         ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'].map(mealType => (
-                          <th key={mealType} className="px-6 py-4 text-center text-sm font-semibold text-indigo-300 uppercase tracking-wider">
+                          <th key={mealType} className="px-6 py-4 text-center text-sm font-semibold text-sky-800 uppercase tracking-wider">
                             {mealType}
                           </th>
                         ))
                       ) : (
-                        <th className="px-6 py-4 text-center text-sm font-semibold text-indigo-300 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-center text-sm font-semibold text-sky-800 uppercase tracking-wider">
                           {selectedMeal}
                         </th>
                       )}
                       {/* Total column - only shown when 'All' is selected */}
                       {(selectedMeal as string) === 'All' && (
-                        <th className="px-6 py-4 text-center text-sm font-semibold text-indigo-300 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-center text-sm font-semibold text-sky-800 uppercase tracking-wider">
                           Total
                         </th>
                       )}
-                      <th className="px-6 py-4 text-center text-sm font-semibold text-indigo-300 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-sky-800 uppercase tracking-wider">
                         Out
                       </th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold text-indigo-300 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-sky-800 uppercase tracking-wider">
                         Office
                       </th>
-                      <th className="px-6 py-4 text-center text-sm font-semibold text-indigo-300 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-sky-800 uppercase tracking-wider">
                         WFH
                       </th>
                     </tr>
@@ -403,14 +403,14 @@ export function Headcount() {
                       return (
                         <tr
                           key={team}
-                          className={`transition-colors duration-100 hover:bg-indigo-50/50 ${
+                          className={`transition-colors duration-100 hover:bg-orange-50/40 ${
                             index % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'
                           }`}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 ring-2 ring-indigo-50">
-                                <span className="text-sm font-bold text-indigo-700">
+                              <div className="h-10 w-10 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0 ring-2 ring-sky-50">
+                                <span className="text-sm font-bold text-sky-700">
                                   {(team || 'U').charAt(0).toUpperCase()}
                                 </span>
                               </div>
@@ -442,7 +442,7 @@ export function Headcount() {
                           {/* Total column - only shown when 'All' is selected */}
                           {(selectedMeal as string) === 'All' && (
                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <span className="text-base font-bold text-indigo-700">{totalIn}</span>
+                              <span className="text-base font-bold text-gray-700">{totalIn}</span>
                             </td>
                           )}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -482,9 +482,9 @@ export function Headcount() {
                       });
                        
                       return (
-                        <tr className="bg-indigo-100 border-t-2 border-indigo-300">
+                        <tr className="bg-sky-50 border-t-2 border-sky-200">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm font-bold text-indigo-600 uppercase tracking-widest">
+                            <span className="text-sm font-bold text-sky-800 uppercase tracking-widest">
                               All Teams
                             </span>
                           </td>
@@ -503,7 +503,7 @@ export function Headcount() {
                           {/* Total column - only shown when 'All' is selected */}
                           {(selectedMeal as string) === 'All' && (
                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <span className="text-base font-bold text-indigo-700">{totalIn}</span>
+                              <span className="text-base font-bold text-gray-700">{totalIn}</span>
                             </td>
                           )}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -560,7 +560,7 @@ export function Headcount() {
                     setTimeout(() => setCopied(false), 2000);
                   });
                 }}
-                className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
               >
                 {copied ? 'Copied!' : 'Copy to Clipboard'}
               </button>
