@@ -78,6 +78,7 @@ def create_default_participation(user_id: int, date: str) -> MealRecord:
 class ParticipationUpdate(BaseModel):
     meals: Dict[str, bool]
     date: str = None
+    target_user_id: Optional[int] = None
 
 
 def get_tomorrows_date() -> str:
@@ -131,7 +132,34 @@ async def update_participation(
 
     target_date = update_data.date if update_data.date else get_tomorrows_date()
 
-    is_privileged = current_user.role in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]
+    is_privileged = current_user.role in [UserRole.ADMIN.value, UserRole.LOGISTICS.value, UserRole.TEAM_LEAD.value]
+
+    # Resolve the user whose record will be updated
+    if update_data.target_user_id and update_data.target_user_id != current_user.id:
+        if not is_privileged:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to update another user's meal preferences"
+            )
+        # Verify target user exists and is approved
+        all_users = storage.read_users()
+        target_user = next(
+            (u for u in all_users if u.get("id") == update_data.target_user_id),
+            None
+        )
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target user not found"
+            )
+        if target_user.get("status") != UserStatus.APPROVED.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Target user account is not approved"
+            )
+        effective_user_id = update_data.target_user_id
+    else:
+        effective_user_id = current_user.id
 
     # Enforce scheduling window for non-privileged users
     if not is_privileged and not is_within_schedule_window(target_date):
@@ -140,7 +168,7 @@ async def update_participation(
             detail=f"You can only update meal preferences within {get_schedule_forward_days()} days from today"
         )
 
-    # Block updates on special days (not for Admin/Logistics)
+    # Block updates on special days (not for Admin/Logistics/TeamLead)
     if not is_privileged:
         special_days = storage.read_special_days()
         for sd in special_days:
@@ -151,7 +179,7 @@ async def update_participation(
                     detail=f"Cannot update meal preferences for a {sd_type} day"
                 )
 
-    # Cutoff only applies to Employees
+    # Cutoff only applies to Employees updating their own record
     if current_user.role == UserRole.EMPLOYEE.value:
         if is_cutoff_passed(target_date):
             raise HTTPException(
@@ -163,12 +191,12 @@ async def update_participation(
 
     record_index = None
     for i, record in enumerate(participation_data):
-        if record.get("user_id") == current_user.id and record.get("date") == target_date:
+        if record.get("user_id") == effective_user_id and record.get("date") == target_date:
             record_index = i
             break
 
     if record_index is None:
-        new_record = create_default_participation(current_user.id, target_date)
+        new_record = create_default_participation(effective_user_id, target_date)
         new_record_dict = new_record.model_dump()
         participation_data.append(new_record_dict)
         record_index = len(participation_data) - 1
@@ -188,7 +216,7 @@ async def update_participation(
     # Audit log
     log_audit(
         actor_user_id=current_user.id,
-        target_user_id=current_user.id,
+        target_user_id=effective_user_id,
         action_type="meal_update",
         new_value=json.dumps(update_data.meals),
         date=target_date,
