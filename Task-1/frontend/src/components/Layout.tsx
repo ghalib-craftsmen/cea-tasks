@@ -49,7 +49,7 @@ export function Layout() {
   const allNavItems = [
     ...baseNavItems,
     ...(canViewHeadcount ? [opsDashboardNavItem] : []),
-    ...(isAdmin || isTeamLead ? adminNavItems : []),
+    ...(isAdmin ? adminNavItems : []),
     ...(isAdmin ? [{ path: '/admin/management', label: 'WFH & Special Days', icon: '📅' }] : []),
     ...(isLogistics ? logisticsNavItems : []),
   ];

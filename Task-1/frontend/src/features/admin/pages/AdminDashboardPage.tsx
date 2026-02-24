@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../hooks/useToast';
@@ -35,9 +35,9 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
     OptionalDinner: false,
   });
 
-  if (user && JSON.stringify(localMeals) !== JSON.stringify(user.meals)) {
-    setLocalMeals(user.meals);
-  }
+  useEffect(() => {
+    if (user) setLocalMeals(user.meals);
+  }, [user]);
 
   const handleToggleMeal = (mealType: MealType) => {
     setLocalMeals((prev) => ({ ...prev, [mealType]: !prev[mealType] }));

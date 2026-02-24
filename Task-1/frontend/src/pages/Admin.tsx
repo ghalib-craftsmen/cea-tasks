@@ -5,7 +5,6 @@ import { toast } from 'react-hot-toast';
 import type { UserRole, AdminUser, AppSettings } from '../types';
 import { getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser, getSettings, updateSettings } from '../features/admin/api';
 import { getTeams, getCurrentUser } from '../features/users/api';
-import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 
 const roleOptions: { value: UserRole; label: string }[] = [
   { value: 'Employee', label: 'Employee' },
@@ -26,7 +25,7 @@ export function Admin() {
   const isAdmin = currentUser?.role === 'Admin';
   const isTeamLead = currentUser?.role === 'TeamLead';
 
-  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'participation' | 'settings'>('participation');
+  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'settings'>('pending');
   const [approveModalUser, setApproveModalUser] = useState<{ id: number; name: string; username: string } | null>(null);
   const [approveRole, setApproveRole] = useState<UserRole>('Employee');
   const [approveTeamId, setApproveTeamId] = useState<number | undefined>(undefined);
@@ -201,7 +200,6 @@ export function Admin() {
   const allTabs = [
     { id: 'pending' as const, label: 'Pending', badge: pendingCount, adminOnly: true },
     { id: 'users' as const, label: 'Users', badge: 0, adminOnly: true },
-    { id: 'participation' as const, label: 'Participation', badge: 0, adminOnly: false },
     { id: 'settings' as const, label: 'Settings', badge: 0, adminOnly: true },
   ];
   const tabs = allTabs.filter((t) => !t.adminOnly || isAdmin);
@@ -394,11 +392,6 @@ export function Admin() {
                 </div>
               )}
             </div>
-          )}
-
-          {/* ───── Participation Tab ───── */}
-          {activeTab === 'participation' && (
-            <AdminDashboardPage />
           )}
 
           {/* ───── Settings Tab ───── */}
