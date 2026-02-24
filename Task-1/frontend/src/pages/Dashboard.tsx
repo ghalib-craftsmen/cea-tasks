@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -23,7 +24,7 @@ function MealSelectionPills({ mealData }: { mealData: { date: string; meals: Rec
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-900">Tomorrow's Meal Plan</h2>
+        <h2 className="text-sm font-semibold text-gray-900">My Meal for Tomorrow</h2>
         <span className="text-xs text-gray-400">{mealData.date}</span>
       </div>
       <div className="p-5">
@@ -61,6 +62,9 @@ export function Dashboard() {
     return d.toISOString().split('T')[0];
   })();
 
+  const [selectedDate, setSelectedDate] = useState(tomorrow);
+  const [selectedPieMealType, setSelectedPieMealType] = useState<string>('Lunch');
+
   const tomorrowDisplay = new Date(tomorrow + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   });
@@ -81,8 +85,8 @@ export function Dashboard() {
   const isTeamLead = currentUser?.role === 'TeamLead';
 
   const { data: headcountData, isLoading: headcountLoading } = useQuery({
-    queryKey: ['headcount', isTeamLead ? currentUser?.team_id : undefined],
-    queryFn: () => getHeadcountSummary(isTeamLead && currentUser?.team_id ? currentUser.team_id : undefined),
+    queryKey: ['headcount', isTeamLead ? currentUser?.team_id : undefined, selectedDate],
+    queryFn: () => getHeadcountSummary(isTeamLead && currentUser?.team_id ? currentUser.team_id : undefined, selectedDate),
     enabled: canViewHeadcount,
   });
 
@@ -101,6 +105,7 @@ export function Dashboard() {
   const selectedMealsCount = mealData ? Object.values(mealData.meals).filter(Boolean).length : 0;
   const totalMealsCount = mealData ? Object.keys(mealData.meals).length : 0;
   const totalEmployees = headcountData?.total_employees || 0;
+  const totalMealsAllEmployees = headcountData?.meal_counts?.reduce((sum, mc) => sum + mc.opted_in, 0) ?? 0;
   const optedInPercentage = headcountData?.meal_counts?.[0]?.opted_in_percentage || 0;
   const isWFH = locationData?.location === 'WFH';
 
@@ -117,10 +122,12 @@ export function Dashboard() {
   })) || [];
 
   const firstMeal = headcountData?.meal_counts?.[0];
-  const pieChartData = firstMeal
+  const activePieMeal =
+    headcountData?.meal_counts?.find((mc) => mc.meal_type === selectedPieMealType) ?? firstMeal;
+  const pieChartData = activePieMeal
     ? [
-        { name: 'Opted In', value: firstMeal.opted_in },
-        { name: 'Opted Out', value: firstMeal.opted_out },
+        { name: 'Opted In', value: activePieMeal.opted_in },
+        { name: 'Opted Out', value: activePieMeal.opted_out },
       ]
     : [];
 
@@ -128,20 +135,42 @@ export function Dashboard() {
   if (isAdminOrLogistics) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-2 text-gray-600">
-            Welcome back, {currentUser?.name || currentUser?.username}! Here's an overview of your meal planning.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="mt-2 text-gray-600">
+              Welcome back, {currentUser?.name || currentUser?.username}! Here's an overview of your meal planning.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="admin-date-picker" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+              Viewing date:
+            </label>
+            <input
+              id="admin-date-picker"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            />
+            {selectedDate !== tomorrow && (
+              <button
+                onClick={() => setSelectedDate(tomorrow)}
+                className="px-3 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+              >
+                Reset to tomorrow
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Today's Meals</p>
+                <p className="text-sm font-medium text-gray-500">Total Meals</p>
                 <p className="mt-2 text-3xl font-bold text-gray-900">
-                  {mealsLoading ? '...' : selectedMealsCount}
+                  {headcountLoading ? '...' : totalMealsAllEmployees}
                 </p>
               </div>
               <div className="text-4xl">🍽️</div>
@@ -177,7 +206,7 @@ export function Dashboard() {
               <div>
                 <p className="text-sm font-medium text-gray-500">Date</p>
                 <p className="mt-2 text-lg font-bold text-gray-900">
-                  {mealData?.date || new Date().toISOString().split('T')[0]}
+                  {selectedDate}
                 </p>
               </div>
               <div className="text-4xl">📅</div>
@@ -206,9 +235,26 @@ export function Dashboard() {
               </div>
 
               <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  {firstMeal?.meal_type || 'Lunch'} Breakdown
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {activePieMeal?.meal_type || 'Meal'} Breakdown
+                  </h2>
+                  <div className="flex flex-wrap gap-1">
+                    {headcountData.meal_counts.map((mc) => (
+                      <button
+                        key={mc.meal_type}
+                        onClick={() => setSelectedPieMealType(mc.meal_type)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          (activePieMeal?.meal_type === mc.meal_type)
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {MEAL_ICONS[mc.meal_type] ?? '🍴'} {mc.meal_type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -460,9 +506,26 @@ export function Dashboard() {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                {firstMeal?.meal_type || 'Lunch'} Breakdown
-              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-sm font-semibold text-gray-900">
+                  {activePieMeal?.meal_type || 'Meal'} Breakdown
+                </h2>
+                <div className="flex flex-wrap gap-1">
+                  {headcountData.meal_counts.map((mc) => (
+                    <button
+                      key={mc.meal_type}
+                      onClick={() => setSelectedPieMealType(mc.meal_type)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        (activePieMeal?.meal_type === mc.meal_type)
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {MEAL_ICONS[mc.meal_type] ?? '🍴'} {mc.meal_type}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
