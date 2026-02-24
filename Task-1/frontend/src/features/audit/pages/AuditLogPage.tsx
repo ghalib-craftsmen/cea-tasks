@@ -26,7 +26,6 @@ function tryParseValue(raw: string): string {
   try {
     const obj = JSON.parse(raw);
     if (typeof obj === 'object' && obj !== null) {
-      // meal map: show opted-in meals only
       const opted = Object.entries(obj)
         .filter(([, v]) => v === true)
         .map(([k]) => k);
@@ -47,13 +46,18 @@ export function AuditLogPage() {
 
   const [filterDate, setFilterDate] = useState('');
   const [filterAction, setFilterAction] = useState('');
+  const [filterUserId, setFilterUserId] = useState('');
+
+  const parsedUserId = filterUserId.trim() !== '' ? parseInt(filterUserId.trim(), 10) : undefined;
+  const validUserId = parsedUserId !== undefined && !isNaN(parsedUserId) ? parsedUserId : undefined;
 
   const { data: logs = [], isLoading, refetch } = useQuery({
-    queryKey: ['audit-logs', filterDate, filterAction],
+    queryKey: ['audit-logs', filterDate, filterAction, validUserId],
     queryFn: () =>
       getAuditLogs({
         date: filterDate || undefined,
         action_type: filterAction || undefined,
+        target_user_id: validUserId,
         limit: 200,
       }),
     enabled: isAuthenticated && isAuthorized,
@@ -61,6 +65,8 @@ export function AuditLogPage() {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (!isAuthorized) return <Navigate to="/dashboard" replace />;
+
+  const hasActiveFilters = filterDate || filterAction || filterUserId;
 
   return (
     <div className="space-y-6">
@@ -74,6 +80,7 @@ export function AuditLogPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+        {/* Date filter */}
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-700">Date:</label>
           <input
@@ -89,6 +96,7 @@ export function AuditLogPage() {
           )}
         </div>
 
+        {/* Action filter */}
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-700">Action:</label>
           <select
@@ -102,6 +110,34 @@ export function AuditLogPage() {
             ))}
           </select>
         </div>
+
+        {/* User ID filter */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">User ID:</label>
+          <input
+            type="number"
+            min={1}
+            placeholder="e.g. 3"
+            value={filterUserId}
+            onChange={(e) => setFilterUserId(e.target.value)}
+            className="w-24 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {filterUserId && (
+            <button onClick={() => setFilterUserId('')} className="text-xs text-gray-400 hover:text-gray-600 underline">
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Clear all */}
+        {hasActiveFilters && (
+          <button
+            onClick={() => { setFilterDate(''); setFilterAction(''); setFilterUserId(''); }}
+            className="text-xs text-red-400 hover:text-red-600 underline"
+          >
+            Clear all
+          </button>
+        )}
 
         <button
           onClick={() => refetch()}
@@ -126,7 +162,9 @@ export function AuditLogPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <p className="text-sm font-medium">No audit records found</p>
-            <p className="text-xs mt-1">Changes to meals and locations will appear here.</p>
+            <p className="text-xs mt-1">
+              {hasActiveFilters ? 'Try removing some filters.' : 'Changes to meals and locations will appear here.'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -167,8 +205,13 @@ export function AuditLogPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                        {log.target_name ?? `#${log.target_user_id}`}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-700">
+                            {log.target_name ?? `#${log.target_user_id}`}
+                          </span>
+                          <span className="text-xs text-gray-400">ID: {log.target_user_id}</span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {log.date ?? '—'}
