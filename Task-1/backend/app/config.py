@@ -21,3 +21,6 @@ CORS_ALLOW_HEADERS = ["*"]
 
 UVICORN_HOST = "127.0.0.1"
 UVICORN_PORT = 8000
+
+# Scheduling: how many days ahead employees can plan meals/locations
+SCHEDULE_FORWARD_DAYS = 14
