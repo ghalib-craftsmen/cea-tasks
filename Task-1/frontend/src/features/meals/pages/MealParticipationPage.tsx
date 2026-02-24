@@ -40,7 +40,7 @@ export function MealParticipationPage() {
   // Fetch today's meal participation using TanStack Query
   const { data: mealData, isLoading, error, refetch } = useQuery<MealRecord>({
     queryKey: ['meals', 'today'],
-    queryFn: getTodaysParticipation,
+    queryFn: () => getTodaysParticipation(),
     enabled: isAuthenticated,
   });
 
@@ -187,7 +187,8 @@ export function MealParticipationPage() {
                   {...field}
                   id="date"
                   type="date"
-                  max={new Date().toISOString().split('T')[0]}
+                  min={new Date().toISOString().split('T')[0]}
+                  max={(() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0]; })()}
                   className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               )}
@@ -196,9 +197,7 @@ export function MealParticipationPage() {
               <p className="mt-1 text-sm text-red-600">{errors.date.message}</p>
             )}
             <p className="mt-1 text-sm text-gray-500">
-              {watch('date') === new Date().toISOString().split('T')[0]
-                ? "Today's meal participation"
-                : 'Historical meal participation (view only)'}
+              You can plan up to 14 days ahead.
             </p>
           </div>
 

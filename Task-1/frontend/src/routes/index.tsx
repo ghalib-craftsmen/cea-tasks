@@ -13,6 +13,8 @@ const UserManagementPage = lazy(() => import('../features/admin/pages/UserManage
 const HeadcountSummaryPage = lazy(() => import('../features/headcount/pages/HeadcountSummaryPage').then(m => ({ default: m.HeadcountSummaryPage })));
 const EmployeeLocationPage = lazy(() => import('../features/locations/pages').then(m => ({ default: m.EmployeeLocationPage })));
 const AdminManagementPage = lazy(() => import('../features/locations/pages').then(m => ({ default: m.AdminManagementPage })));
+const EventManagementPage = lazy(() => import('../features/meals/pages/EventManagementPage').then(m => ({ default: m.EventManagementPage })));
+const AuditLogPage = lazy(() => import('../features/audit/pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
 const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Meals = lazy(() => import('../pages/Meals').then(m => ({ default: m.Meals })));
 const Admin = lazy(() => import('../pages/Admin').then(m => ({ default: m.Admin })));
@@ -177,6 +179,26 @@ const routes: RouteObject[] = [
               <EmployeeLocationPage />
             </Suspense>
           </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/events',
+        element: (
+          <AdminOrLogisticsRoute>
+            <Suspense fallback={<Loading />}>
+              <EventManagementPage />
+            </Suspense>
+          </AdminOrLogisticsRoute>
+        ),
+      },
+      {
+        path: 'admin/audit-logs',
+        element: (
+          <AdminOrTeamLeadRoute>
+            <Suspense fallback={<Loading />}>
+              <AuditLogPage />
+            </Suspense>
+          </AdminOrTeamLeadRoute>
         ),
       },
     ],

@@ -8,8 +8,10 @@ import type {
   AppSettings,
 } from '../../types';
 
-export async function getAllParticipation(teamId?: number): Promise<UserParticipation[]> {
-  const params = teamId ? { team_id: teamId } : {};
+export async function getAllParticipation(teamId?: number, date?: string): Promise<UserParticipation[]> {
+  const params: Record<string, string | number> = {};
+  if (teamId) params.team_id = teamId;
+  if (date) params.date = date;
   const response = await api.get<UserParticipation[]>('/participation', { params });
   return response.data;
 }

@@ -255,3 +255,30 @@ export interface HeadcountAggregationResponse {
   date: string;
   data: HeadcountAggregationRow[];
 }
+
+export interface EventMealCreate {
+  date: string;
+  title: string;
+  description?: string | null;
+}
+
+export interface EventMealResponse {
+  id: number;
+  date: string;
+  title: string;
+  description?: string | null;
+  created_by: number;
+}
+
+
+export interface AuditLogResponse {
+  id: number;
+  timestamp: string;
+  actor_user_id: number;
+  actor_name?: string | null;
+  target_user_id: number;
+  target_name?: string | null;
+  action_type: string;
+  new_value: string;
+  date?: string | null;
+}
