@@ -195,11 +195,11 @@ const routes: RouteObject[] = [
       {
         path: 'admin/audit-logs',
         element: (
-          <AdminOrTeamLeadRoute>
+          <HeadcountRoute>
             <Suspense fallback={<Loading />}>
               <AuditLogPage />
             </Suspense>
-          </AdminOrTeamLeadRoute>
+          </HeadcountRoute>
         ),
       },
       {

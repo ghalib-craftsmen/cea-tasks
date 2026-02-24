@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
+import { getCurrentUser } from '../../users/api';
 import { getAuditLogs } from '../api';
+import { Spinner } from '../../../components/ui/Spinner';
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   meal_update:     { label: 'Meal Update',     color: 'bg-blue-100 text-blue-800' },
@@ -39,10 +41,18 @@ function tryParseValue(raw: string): string {
 }
 
 export function AuditLogPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
+
+  const { data: currentUser, isLoading: userLoading } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    enabled: isAuthenticated,
+  });
 
   const isAuthorized =
-    user?.role === 'Admin' || user?.role === 'Logistics' || user?.role === 'TeamLead';
+    currentUser?.role === 'Admin' ||
+    currentUser?.role === 'Logistics' ||
+    currentUser?.role === 'TeamLead';
 
   const [filterDate, setFilterDate] = useState('');
   const [filterAction, setFilterAction] = useState('');
@@ -51,7 +61,7 @@ export function AuditLogPage() {
   const parsedUserId = filterUserId.trim() !== '' ? parseInt(filterUserId.trim(), 10) : undefined;
   const validUserId = parsedUserId !== undefined && !isNaN(parsedUserId) ? parsedUserId : undefined;
 
-  const { data: logs = [], isLoading, refetch } = useQuery({
+  const { data: logs = [], isLoading: logsLoading, refetch } = useQuery({
     queryKey: ['audit-logs', filterDate, filterAction, validUserId],
     queryFn: () =>
       getAuditLogs({
@@ -64,7 +74,13 @@ export function AuditLogPage() {
   });
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // Wait for user role to load before deciding access
+  if (userLoading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
+
   if (!isAuthorized) return <Navigate to="/dashboard" replace />;
+
+  const isLoading = logsLoading;
 
   const hasActiveFilters = filterDate || filterAction || filterUserId;
 
