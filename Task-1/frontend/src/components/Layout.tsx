@@ -18,6 +18,7 @@ const baseNavItems: NavItem[] = [
 ];
 
 const headcountNavItem: NavItem = { path: '/headcount', label: 'Headcount', icon: '👥' };
+const opsDashboardNavItem: NavItem = { path: '/ops-dashboard', label: 'Ops Dashboard', icon: '🖥️' };
 
 const adminNavItems: NavItem[] = [
   { path: '/admin', label: 'Admin', icon: '⚙️' },
@@ -47,6 +48,7 @@ export function Layout() {
   const allNavItems = [
     ...baseNavItems,
     ...(canViewHeadcount ? [headcountNavItem] : []),
+    ...(canViewHeadcount ? [opsDashboardNavItem] : []),
     ...(isAdmin || isTeamLead ? adminNavItems : []),
     ...(isAdmin ? [{ path: '/admin/management', label: 'WFH & Special Days', icon: '📅' }] : []),
     ...(isLogistics ? logisticsNavItems : []),

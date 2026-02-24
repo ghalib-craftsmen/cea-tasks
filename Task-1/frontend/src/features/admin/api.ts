@@ -6,13 +6,30 @@ import type {
   ApproveUserRequest,
   AdminUser,
   AppSettings,
+  WFHSummaryItem,
+  DashboardSummary,
 } from '../../types';
 
-export async function getAllParticipation(teamId?: number, date?: string): Promise<UserParticipation[]> {
+export async function getAllParticipation(
+  teamId?: number,
+  date?: string,
+  filter?: 'over_limit',
+): Promise<UserParticipation[]> {
   const params: Record<string, string | number> = {};
   if (teamId) params.team_id = teamId;
   if (date) params.date = date;
+  if (filter) params.filter = filter;
   const response = await api.get<UserParticipation[]>('/participation', { params });
+  return response.data;
+}
+
+export async function getWFHSummary(): Promise<WFHSummaryItem[]> {
+  const response = await api.get<WFHSummaryItem[]>('/wfh-summary');
+  return response.data;
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const response = await api.get<DashboardSummary>('/dashboard/summary');
   return response.data;
 }
 

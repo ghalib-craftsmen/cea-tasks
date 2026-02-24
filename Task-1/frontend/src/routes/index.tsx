@@ -15,6 +15,7 @@ const EmployeeLocationPage = lazy(() => import('../features/locations/pages').th
 const AdminManagementPage = lazy(() => import('../features/locations/pages').then(m => ({ default: m.AdminManagementPage })));
 const EventManagementPage = lazy(() => import('../features/meals/pages/EventManagementPage').then(m => ({ default: m.EventManagementPage })));
 const AuditLogPage = lazy(() => import('../features/audit/pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
+const OperationalDashboardPage = lazy(() => import('../features/dashboard/pages/OperationalDashboardPage').then(m => ({ default: m.OperationalDashboardPage })));
 const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Meals = lazy(() => import('../pages/Meals').then(m => ({ default: m.Meals })));
 const Admin = lazy(() => import('../pages/Admin').then(m => ({ default: m.Admin })));
@@ -199,6 +200,16 @@ const routes: RouteObject[] = [
               <AuditLogPage />
             </Suspense>
           </AdminOrTeamLeadRoute>
+        ),
+      },
+      {
+        path: 'ops-dashboard',
+        element: (
+          <HeadcountRoute>
+            <Suspense fallback={<Loading />}>
+              <OperationalDashboardPage />
+            </Suspense>
+          </HeadcountRoute>
         ),
       },
     ],
