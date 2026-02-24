@@ -37,6 +37,13 @@ async def update_settings(
         settings["cutoff_hour"] = update_data.cutoff_hour
     if update_data.cutoff_minute is not None:
         settings["cutoff_minute"] = update_data.cutoff_minute
+    if update_data.schedule_forward_days is not None:
+        if update_data.schedule_forward_days < 1 or update_data.schedule_forward_days > 90:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="schedule_forward_days must be between 1 and 90"
+            )
+        settings["schedule_forward_days"] = update_data.schedule_forward_days
 
     storage.write_settings(settings)
     return AppSettings(**settings)

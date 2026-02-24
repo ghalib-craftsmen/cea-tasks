@@ -9,8 +9,6 @@ import type { MealType } from '../types';
 import { getTodaysParticipation, updateParticipation, getEventMeals } from '../features/meals/api';
 import { toDateKey } from '../utils/formatDate';
 
-const SCHEDULE_FORWARD_DAYS = 14;
-
 const mealTypes: { type: MealType; label: string; icon: string }[] = [
   { type: 'Lunch', label: 'Lunch', icon: '🍱' },
   { type: 'Snacks', label: 'Snacks', icon: '🍪' },
@@ -19,9 +17,9 @@ const mealTypes: { type: MealType; label: string; icon: string }[] = [
   { type: 'OptionalDinner', label: 'Optional Dinner', icon: '🍽️' },
 ];
 
-function getMaxDate(): string {
+function getMaxDate(days: number): string {
   const d = new Date();
-  d.setDate(d.getDate() + SCHEDULE_FORWARD_DAYS);
+  d.setDate(d.getDate() + days);
   return toDateKey(d);
 }
 
@@ -55,6 +53,7 @@ export function Meals() {
 
   const cutoffHour = settingsData?.cutoff_hour ?? 21;
   const cutoffMinute = settingsData?.cutoff_minute ?? 0;
+  const scheduleForwardDays = settingsData?.schedule_forward_days ?? 14;
 
   // Check if cutoff has passed for tomorrow
   const now = new Date();
@@ -188,7 +187,7 @@ export function Meals() {
             type="date"
             value={selectedDate}
             min={toDateKey(new Date())}
-            max={getMaxDate()}
+            max={getMaxDate(scheduleForwardDays)}
             onChange={(e) => {
               setSelectedDate(e.target.value);
               setIsEditing(false);
@@ -196,7 +195,7 @@ export function Meals() {
             className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <p className="mt-1 text-sm text-gray-500">
-            You can plan up to {SCHEDULE_FORWARD_DAYS} days ahead.
+            You can plan up to {scheduleForwardDays} days ahead.
           </p>
         </div>
 

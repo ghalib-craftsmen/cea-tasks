@@ -7,7 +7,6 @@ from pydantic import BaseModel
 from app.auth import get_current_user
 from app.db import JSONStorage
 from app.models import User, UserRole, UserStatus, UserResponse, Team, MealType, MealRecord, WorkLocationType
-from app.config import SCHEDULE_FORWARD_DAYS
 from app.audit_service import log_audit
 
 
@@ -24,11 +23,15 @@ def get_tomorrows_date() -> str:
     return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
+def get_schedule_forward_days() -> int:
+    return storage.read_settings().get("schedule_forward_days", 14)
+
+
 def is_within_schedule_window(target_date: str) -> bool:
-    """Return True if target_date is within today + SCHEDULE_FORWARD_DAYS."""
+    """Return True if target_date is within today + schedule_forward_days (from settings)."""
     today = datetime.now().date()
     target = datetime.strptime(target_date, "%Y-%m-%d").date()
-    max_date = today + timedelta(days=SCHEDULE_FORWARD_DAYS)
+    max_date = today + timedelta(days=get_schedule_forward_days())
     return today <= target <= max_date
 
 
@@ -208,7 +211,7 @@ async def update_user_participation(
         if not is_within_schedule_window(target_date):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"You can only update meal preferences within {SCHEDULE_FORWARD_DAYS} days from today"
+                detail=f"You can only update meal preferences within {get_schedule_forward_days()} days from today"
             )
 
     users_data = storage.read_users()
@@ -299,7 +302,7 @@ async def bulk_update_participation(
         if not is_within_schedule_window(update_data.date):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"You can only update meal preferences within {SCHEDULE_FORWARD_DAYS} days from today"
+                detail=f"You can only update meal preferences within {get_schedule_forward_days()} days from today"
             )
 
     opted_in = update_data.action == "opt_in"

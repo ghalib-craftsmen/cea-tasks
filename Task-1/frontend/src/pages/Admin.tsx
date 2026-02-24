@@ -78,9 +78,11 @@ export function Admin() {
 
   const [cutoffHourOverride, setCutoffHourOverride] = useState<number | null>(null);
   const [cutoffMinuteOverride, setCutoffMinuteOverride] = useState<number | null>(null);
+  const [scheduleForwardDaysOverride, setScheduleForwardDaysOverride] = useState<number | null>(null);
 
   const cutoffHour = cutoffHourOverride ?? settingsData?.cutoff_hour ?? 21;
   const cutoffMinute = cutoffMinuteOverride ?? settingsData?.cutoff_minute ?? 0;
+  const scheduleForwardDays = scheduleForwardDaysOverride ?? settingsData?.schedule_forward_days ?? 14;
 
   // Group participation users by team
   const teamGroups = useMemo(() => {
@@ -129,6 +131,7 @@ export function Admin() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       setCutoffHourOverride(null);
       setCutoffMinuteOverride(null);
+      setScheduleForwardDaysOverride(null);
       toast.success('Settings updated successfully!');
     },
     onError: (error: unknown) => {
@@ -138,7 +141,11 @@ export function Admin() {
   });
 
   const handleSaveSettings = () => {
-    updateSettingsMutation.mutate({ cutoff_hour: cutoffHour, cutoff_minute: cutoffMinute });
+    updateSettingsMutation.mutate({
+      cutoff_hour: cutoffHour,
+      cutoff_minute: cutoffMinute,
+      schedule_forward_days: scheduleForwardDays,
+    });
   };
 
   // Update user participation
@@ -758,6 +765,34 @@ export function Admin() {
                   {settingsData && (
                     <p className="mt-2 text-xs text-gray-400">
                       Current: {settingsData.cutoff_hour === 0 ? '12' : settingsData.cutoff_hour > 12 ? settingsData.cutoff_hour - 12 : settingsData.cutoff_hour}:{String(settingsData.cutoff_minute).padStart(2, '0')} {settingsData.cutoff_hour >= 12 ? 'PM' : 'AM'}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    Scheduling Window
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    How many days ahead employees can set their meal and location preferences (1–90 days).
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={scheduleForwardDays}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (v >= 1 && v <= 90) setScheduleForwardDaysOverride(v);
+                      }}
+                      className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <span className="text-sm text-gray-500">days</span>
+                  </div>
+                  {settingsData && (
+                    <p className="mt-2 text-xs text-gray-400">
+                      Current: {settingsData.schedule_forward_days ?? 14} days
                     </p>
                   )}
                 </div>

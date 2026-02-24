@@ -21,7 +21,6 @@ from app.models import (
     SpecialDayType,
     SpecialDayCheck,
 )
-from app.config import SCHEDULE_FORWARD_DAYS
 from app.audit_service import log_audit
 
 
@@ -77,11 +76,15 @@ def is_office_closed(date: str) -> bool:
     return False
 
 
+def get_schedule_forward_days() -> int:
+    return storage.read_settings().get("schedule_forward_days", 14)
+
+
 def is_within_schedule_window(target_date: str) -> bool:
-    """Return True if target_date is within today + SCHEDULE_FORWARD_DAYS."""
+    """Return True if target_date is within today + schedule_forward_days (from settings)."""
     today = datetime.now().date()
     target = datetime.strptime(target_date, "%Y-%m-%d").date()
-    max_date = today + timedelta(days=SCHEDULE_FORWARD_DAYS)
+    max_date = today + timedelta(days=get_schedule_forward_days())
     return today <= target <= max_date
 
 
@@ -122,7 +125,7 @@ async def update_my_location(
     if not is_within_schedule_window(request.date):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You can only update location within {SCHEDULE_FORWARD_DAYS} days from today"
+            detail=f"You can only update location within {get_schedule_forward_days()} days from today"
         )
 
     if is_office_closed(request.date):
@@ -187,7 +190,7 @@ async def update_user_location(
         if not is_within_schedule_window(request.date):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"You can only update location within {SCHEDULE_FORWARD_DAYS} days from today"
+                detail=f"You can only update location within {get_schedule_forward_days()} days from today"
             )
 
     if is_office_closed(request.date):

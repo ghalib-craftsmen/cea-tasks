@@ -237,6 +237,7 @@ export interface SpecialDayCheck {
 export interface AppSettings {
   cutoff_hour: number;
   cutoff_minute: number;
+  schedule_forward_days: number;
 }
 
 export interface HeadcountAggregationRow {
@@ -245,10 +246,10 @@ export interface HeadcountAggregationRow {
   meal: string;
   total_in: number;
   total_out: number;
-  office_count: number;   // total employees in office for this date (location-level)
-  wfh_count: number;      // total employees WFH for this date (location-level)
-  office_in: number;      // opted-in employees who are in office for this meal
-  wfh_in: number;         // opted-in employees who are WFH for this meal
+  office_count: number;   
+  wfh_count: number;      
+  office_in: number;      
+  wfh_in: number;        
 }
 
 export interface HeadcountAggregationResponse {
