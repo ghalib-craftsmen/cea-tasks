@@ -11,7 +11,7 @@ from app.auth import (
 )
 from app.db import JSONStorage
 from app.models import User, RegisterRequest, SelfRegisterRequest, UserResponse, UserRole, UserStatus
-from app.routers import meals, admin, headcount, users, locations, settings
+from app.routers import meals, admin, headcount, users, locations, settings, event_meals, audit_logs
 from app.config import (
     API_TITLE,
     API_DESCRIPTION,
@@ -51,6 +51,8 @@ app.include_router(headcount.router)
 app.include_router(users.router)
 app.include_router(locations.router)
 app.include_router(settings.router)
+app.include_router(event_meals.router)
+app.include_router(audit_logs.router)
 
 
 @app.get("/")

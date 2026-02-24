@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -6,6 +7,8 @@ from pydantic import BaseModel
 from app.auth import get_current_user
 from app.db import JSONStorage
 from app.models import User, UserRole, UserStatus, UserResponse, Team, MealType, MealRecord, WorkLocationType
+from app.config import SCHEDULE_FORWARD_DAYS
+from app.audit_service import log_audit
 
 
 router = APIRouter(prefix="/api", tags=["users"])
@@ -19,6 +22,14 @@ def get_todays_date() -> str:
 
 def get_tomorrows_date() -> str:
     return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def is_within_schedule_window(target_date: str) -> bool:
+    """Return True if target_date is within today + SCHEDULE_FORWARD_DAYS."""
+    today = datetime.now().date()
+    target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    max_date = today + timedelta(days=SCHEDULE_FORWARD_DAYS)
+    return today <= target <= max_date
 
 
 def create_default_participation(user_id: int, date: str) -> MealRecord:
@@ -37,20 +48,17 @@ def create_default_participation(user_id: int, date: str) -> MealRecord:
 
 def get_user_location(user_id: int, date: str, work_locations: List[Dict], wfh_periods: List[Dict]) -> WorkLocationType:
     """Get user's location for a specific date."""
-    # Check for explicit record
     for location in work_locations:
         if location.get("user_id") == user_id and location.get("date") == date:
             return WorkLocationType(location.get("location", "Office"))
-    
-    # Check WFH periods
+
     target_date = datetime.strptime(date, "%Y-%m-%d")
     for period in wfh_periods:
         start_date = datetime.strptime(period["start_date"], "%Y-%m-%d")
         end_date = datetime.strptime(period["end_date"], "%Y-%m-%d")
         if start_date <= target_date <= end_date:
             return WorkLocationType.WFH
-    
-    # Default to Office
+
     return WorkLocationType.OFFICE
 
 
@@ -72,6 +80,7 @@ class UserParticipation(BaseModel):
 class ParticipationUpdateRequest(BaseModel):
     target_user_id: int
     meals: Dict[str, bool]
+    date: Optional[str] = None
 
 
 class BulkParticipationRequest(BaseModel):
@@ -132,46 +141,46 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 @router.get("/participation", response_model=List[UserParticipation])
 async def get_all_participation(
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (defaults to tomorrow)"),
     team_id: Optional[int] = Query(None, description="Filter by team ID (Admin only)"),
     current_user: User = Depends(require_admin_or_teamlead_or_logistics)):
-    """Get participation list. Scoped: TeamLead sees own team only, Admin sees all (optional ?team_id= filter)."""
-    today = get_tomorrows_date()
-    
+    """Get participation list for a date. Scoped: TeamLead sees own team only, Admin sees all."""
+    target_date = date if date else get_tomorrows_date()
+
     users_data = storage.read_users()
     participation_data = storage.read_participation()
     work_locations_data = storage.read_work_locations()
     wfh_periods_data = storage.read_wfh_periods()
-    
+
     participation_lookup: Dict[int, Dict] = {}
     for record in participation_data:
-        if record.get("date") == today:
+        if record.get("date") == target_date:
             participation_lookup[record.get("user_id")] = record
-    
+
     result = []
-    
+
     for user_dict in users_data:
         user = User(**user_dict)
-        
+
         if user.status != UserStatus.APPROVED.value:
             continue
-        
+
         if current_user.role == UserRole.TEAM_LEAD.value:
             if user.team_id != current_user.team_id:
                 continue
         elif current_user.role == UserRole.ADMIN.value and team_id is not None:
             if user.team_id != team_id:
                 continue
-        
+
         participation_record = participation_lookup.get(user.id)
         if participation_record:
             meals = participation_record.get("meals", {})
         else:
-            default_record = create_default_participation(user.id, today)
+            default_record = create_default_participation(user.id, target_date)
             meals = default_record.meals
-        
-        # Get user location
-        location = get_user_location(user.id, today, work_locations_data, wfh_periods_data)
-        
+
+        location = get_user_location(user.id, target_date, work_locations_data, wfh_periods_data)
+
         result.append(UserParticipation(
             user_id=user.id,
             username=user.username,
@@ -179,11 +188,11 @@ async def get_all_participation(
             email=user.email,
             role=user.role,
             team_id=user.team_id,
-            date=today,
+            date=target_date,
             meals=meals,
             location=location
         ))
-    
+
     return result
 
 
@@ -191,8 +200,16 @@ async def get_all_participation(
 async def update_user_participation(
     update_data: ParticipationUpdateRequest,
     current_user: User = Depends(require_admin_or_teamlead)):
-    """Update someone's meals. Scoped: Admin can update anyone, TeamLead only their team. Logistics cannot update."""
-    today = get_tomorrows_date()
+    """Update someone's meals. Admin can update anyone, TeamLead only their team."""
+    target_date = update_data.date if update_data.date else get_tomorrows_date()
+
+    # Enforce scheduling window for TeamLead (Admin bypasses)
+    if current_user.role == UserRole.TEAM_LEAD.value:
+        if not is_within_schedule_window(target_date):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"You can only update meal preferences within {SCHEDULE_FORWARD_DAYS} days from today"
+            )
 
     users_data = storage.read_users()
     participation_data = storage.read_participation()
@@ -211,7 +228,6 @@ async def update_user_participation(
 
     target_user = User(**target_user_dict)
 
-    # TeamLead can only update users in their team
     if current_user.role == UserRole.TEAM_LEAD.value:
         if target_user.team_id != current_user.team_id:
             raise HTTPException(
@@ -229,12 +245,12 @@ async def update_user_participation(
 
     record_index = None
     for i, record in enumerate(participation_data):
-        if record.get("user_id") == update_data.target_user_id and record.get("date") == today:
+        if record.get("user_id") == update_data.target_user_id and record.get("date") == target_date:
             record_index = i
             break
 
     if record_index is None:
-        new_record = create_default_participation(update_data.target_user_id, today)
+        new_record = create_default_participation(update_data.target_user_id, target_date)
         new_record_dict = new_record.model_dump()
         participation_data.append(new_record_dict)
         record_index = len(participation_data) - 1
@@ -242,6 +258,15 @@ async def update_user_participation(
     participation_data[record_index]["meals"].update(update_data.meals)
 
     storage.write_participation(participation_data)
+
+    # Audit log
+    log_audit(
+        actor_user_id=current_user.id,
+        target_user_id=update_data.target_user_id,
+        action_type="meal_update",
+        new_value=json.dumps(update_data.meals),
+        date=target_date,
+    )
 
     updated_record = participation_data[record_index]
 
@@ -252,7 +277,7 @@ async def update_user_participation(
         email=target_user.email,
         role=target_user.role,
         team_id=target_user.team_id,
-        date=today,
+        date=target_date,
         meals=updated_record["meals"]
     )
 
@@ -269,19 +294,25 @@ async def bulk_update_participation(
             detail="action must be 'opt_in' or 'opt_out'"
         )
 
+    # Enforce scheduling window for TeamLead
+    if current_user.role == UserRole.TEAM_LEAD.value:
+        if not is_within_schedule_window(update_data.date):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"You can only update meal preferences within {SCHEDULE_FORWARD_DAYS} days from today"
+            )
+
     opted_in = update_data.action == "opt_in"
     all_meals = {mt.value: opted_in for mt in MealType}
 
     users_data = storage.read_users()
     participation_data = storage.read_participation()
 
-    # Build a lookup of approved users by id
     user_lookup: Dict[int, dict] = {
         u.get("id"): u for u in users_data
         if u.get("status") == UserStatus.APPROVED.value
     }
 
-    # Validate all requested user_ids exist and are in scope
     for uid in update_data.user_ids:
         user_dict = user_lookup.get(uid)
         if user_dict is None:
@@ -296,7 +327,6 @@ async def bulk_update_participation(
                     detail="One or more users are outside your team scope"
                 )
 
-    # Upsert participation records
     for uid in update_data.user_ids:
         record_index = None
         for i, record in enumerate(participation_data):
@@ -309,6 +339,15 @@ async def bulk_update_participation(
             participation_data.append(new_record)
         else:
             participation_data[record_index]["meals"].update(all_meals)
+
+        # Audit log per user
+        log_audit(
+            actor_user_id=current_user.id,
+            target_user_id=uid,
+            action_type=update_data.action,
+            new_value=json.dumps(all_meals),
+            date=update_data.date,
+        )
 
     storage.write_participation(participation_data)
     return {"updated": len(update_data.user_ids), "action": update_data.action}
@@ -346,13 +385,11 @@ async def get_teams(current_user: User = Depends(require_admin_or_teamlead_or_lo
     participation_data = storage.read_participation()
     today = get_todays_date()
 
-    # Build participation lookup for today
     participation_lookup: Dict[int, Dict] = {}
     for record in participation_data:
         if record.get("date") == today:
             participation_lookup[record.get("user_id")] = record
 
-    # Group approved users by team_id
     users_by_team: Dict[int, List[dict]] = {}
     for u in users_data:
         if u.get("status") != UserStatus.APPROVED.value:
@@ -368,14 +405,12 @@ async def get_teams(current_user: User = Depends(require_admin_or_teamlead_or_lo
         team_id = team_dict["id"]
         team_members = users_by_team.get(team_id, [])
 
-        # Find lead name
         lead_name = None
         for m in team_members:
             if m.get("id") == team_dict.get("leadId"):
                 lead_name = m.get("name")
                 break
 
-        # Determine if we should include meal status for this team
         include_meals = is_admin_or_logistics or (
             current_user.role == UserRole.TEAM_LEAD.value and current_user.team_id == team_id
         )
