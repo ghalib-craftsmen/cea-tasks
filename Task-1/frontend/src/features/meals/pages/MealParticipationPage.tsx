@@ -7,6 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../hooks/useToast';
 import { getTodaysParticipation, updateParticipation } from '../api';
 import { checkSpecialDay } from '../../locations/api';
+import { getSettings } from '../../admin/api';
 import { mealParticipationSchema, type MealParticipationFormData, defaultMealParticipationValues } from '../../../schemas/formSchemas';
 import type { MealType, ParticipationUpdate, MealRecord } from '../../../types';
 import { Spinner } from '../../../components/ui/Spinner';
@@ -36,6 +37,14 @@ export function MealParticipationPage() {
   // Calculate selected meals count
   const selectedCount = Object.values(watchedMeals).filter(Boolean).length;
   const totalCount = mealTypes.length;
+
+  // Fetch settings to get configurable scheduling window
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    enabled: isAuthenticated,
+  });
+  const scheduleForwardDays = settingsData?.schedule_forward_days ?? 14;
 
   // Fetch today's meal participation using TanStack Query
   const { data: mealData, isLoading, error, refetch } = useQuery<MealRecord>({
@@ -188,7 +197,7 @@ export function MealParticipationPage() {
                   id="date"
                   type="date"
                   min={new Date().toISOString().split('T')[0]}
-                  max={(() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0]; })()}
+                  max={(() => { const d = new Date(); d.setDate(d.getDate() + scheduleForwardDays); return d.toISOString().split('T')[0]; })()}
                   className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               )}

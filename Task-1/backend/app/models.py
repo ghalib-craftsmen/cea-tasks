@@ -249,13 +249,14 @@ class SpecialDayCheck(BaseModel):
 class AppSettings(BaseModel):
     cutoff_hour: int = 21
     cutoff_minute: int = 0
+    schedule_forward_days: int = 14
 
 
 class AppSettingsUpdate(BaseModel):
     cutoff_hour: Optional[int] = None
     cutoff_minute: Optional[int] = None
-
-
+    schedule_forward_days: Optional[int] = None
+    
 
 class EventMealCreate(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")

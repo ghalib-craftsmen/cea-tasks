@@ -157,12 +157,16 @@ class JSONStorage:
 
     def read_settings(self) -> dict:
         file_path = self._get_file_path("settings.json")
+        defaults = {"cutoff_hour": 21, "cutoff_minute": 0, "schedule_forward_days": 14}
         if not file_path.exists():
-            default_settings = {"cutoff_hour": 21, "cutoff_minute": 0}
-            self._write_atomic(file_path, default_settings)
-            return default_settings
+            self._write_atomic(file_path, defaults)
+            return defaults
         with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+        # Back-fill any keys added after initial file creation
+        for key, value in defaults.items():
+            data.setdefault(key, value)
+        return data
 
     def write_settings(self, settings: dict) -> None:
         file_path = self._get_file_path("settings.json")
