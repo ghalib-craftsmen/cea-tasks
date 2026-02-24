@@ -5,7 +5,7 @@
 **Project:** Meal Headcount Planner (MHP)  
 **Iteration:** 3 — Scheduling + Events + Operational Readiness  
 **Author:** Abdullah Al Ghalib  
-**Date:** April 15, 2026  
+**Date:** February 23, 2026  
 **Version:** 3.0  
 **Status:** Draft
 
