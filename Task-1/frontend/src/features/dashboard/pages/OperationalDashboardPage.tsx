@@ -1,9 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { getDashboardSummary } from '../../admin/api';
 import { getCurrentUser } from '../../users/api';
 import { Spinner } from '../../../components/ui/Spinner';
+
+const MEAL_TYPES = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'] as const;
+const MEAL_LABELS: Record<string, string> = {
+  Lunch: 'Lunch', Snacks: 'Snacks', Iftar: 'Iftar', EventDinner: 'Event Dinner', OptionalDinner: 'Optional Dinner',
+};
+const MEAL_ICONS: Record<string, string> = {
+  Lunch: '🍱', Snacks: '🍿', Iftar: '🌙', EventDinner: '🎉', OptionalDinner: '🍽️',
+};
 
 function StatCard({
   label,
@@ -55,6 +64,7 @@ function formatDate(dateStr: string) {
 
 export function OperationalDashboardPage() {
   const { isAuthenticated } = useAuth();
+  const [selectedMealType, setSelectedMealType] = useState<string>('Lunch');
 
   const { data: currentUser } = useQuery({
     queryKey: ['currentUser'],
@@ -113,30 +123,42 @@ export function OperationalDashboardPage() {
             Live overview · {formatDate(summary.today_date)}
           </p>
         </div>
-        <button
-          onClick={() => refetch()}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-gray-500">Meal:</span>
+          <select
+            value={selectedMealType}
+            onChange={(e) => setSelectedMealType(e.target.value)}
+            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {MEAL_TYPES.map((meal) => (
+              <option key={meal} value={meal}>{MEAL_ICONS[meal]} {MEAL_LABELS[meal]}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* KPI Widgets */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           label="Today's Headcount"
-          value={summary.today_headcount}
-          sub={`of ${summary.total_employees} employees · Lunch`}
-          icon="🍱"
+          value={summary.today_meal_counts?.[selectedMealType] ?? summary.today_headcount}
+          sub={`of ${summary.total_employees} employees · ${MEAL_LABELS[selectedMealType]}`}
+          icon={MEAL_ICONS[selectedMealType]}
           accent="green"
         />
         <StatCard
           label="Tomorrow's Forecast"
-          value={summary.tomorrow_forecast}
-          sub={`${formatDate(summary.tomorrow_date)} · Lunch`}
+          value={summary.tomorrow_meal_counts?.[selectedMealType] ?? summary.tomorrow_forecast}
+          sub={`${formatDate(summary.tomorrow_date)} · ${MEAL_LABELS[selectedMealType]}`}
           icon="📅"
           accent="blue"
         />

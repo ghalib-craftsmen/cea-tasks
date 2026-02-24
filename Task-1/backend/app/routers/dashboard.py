@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
@@ -24,8 +24,10 @@ class EventMealSummary(BaseModel):
 class DashboardSummary(BaseModel):
     today_date: str
     tomorrow_date: str
-    today_headcount: int        
-    tomorrow_forecast: int      
+    today_headcount: int        # Lunch count (kept for backward compat)
+    tomorrow_forecast: int      # Lunch count (kept for backward compat)
+    today_meal_counts: Dict[str, int]
+    tomorrow_meal_counts: Dict[str, int]
     total_employees: int
     upcoming_events: List[EventMealSummary]
     wfh_over_limit_count: int
@@ -43,8 +45,8 @@ async def require_admin_or_logistics(
     return current_user
 
 
-def _count_lunch_opted_in(date: str, approved_user_ids: List[int], participation_data: List[dict]) -> int:
-    """Count approved employees opted-in to Lunch on the given date."""
+def _count_meal_opted_in(date: str, meal_type: str, approved_user_ids: List[int], participation_data: List[dict]) -> int:
+    """Count approved employees opted-in to the given meal type on the given date."""
     lookup = {
         r["user_id"]: r
         for r in participation_data
@@ -53,13 +55,18 @@ def _count_lunch_opted_in(date: str, approved_user_ids: List[int], participation
     count = 0
     for uid in approved_user_ids:
         record = lookup.get(uid)
-        if record:
-            opted_in = record.get("meals", {}).get(MealType.LUNCH.value, False)
-        else:
-            opted_in = True  # default: opted in
+        opted_in = record.get("meals", {}).get(meal_type, False) if record else True  # default: opted in
         if opted_in:
             count += 1
     return count
+
+
+def _all_meal_counts(date: str, approved_user_ids: List[int], participation_data: List[dict]) -> Dict[str, int]:
+    """Return opted-in count for every meal type on the given date."""
+    return {
+        meal_type.value: _count_meal_opted_in(date, meal_type.value, approved_user_ids, participation_data)
+        for meal_type in MealType
+    }
 
 
 @router.get("/summary", response_model=DashboardSummary)
@@ -94,8 +101,10 @@ async def get_dashboard_summary(current_user: User = Depends(require_admin_or_lo
 
     approved_user_ids = [u["id"] for u in approved_users]
 
-    today_headcount = _count_lunch_opted_in(today, approved_user_ids, participation_data)
-    tomorrow_forecast = _count_lunch_opted_in(tomorrow, approved_user_ids, participation_data)
+    today_meal_counts = _all_meal_counts(today, approved_user_ids, participation_data)
+    tomorrow_meal_counts = _all_meal_counts(tomorrow, approved_user_ids, participation_data)
+    today_headcount = today_meal_counts.get(MealType.LUNCH.value, 0)
+    tomorrow_forecast = tomorrow_meal_counts.get(MealType.LUNCH.value, 0)
 
     # Upcoming event meals: today → +30 days, sorted by date
     upcoming_events = sorted(
@@ -124,6 +133,8 @@ async def get_dashboard_summary(current_user: User = Depends(require_admin_or_lo
         tomorrow_date=tomorrow,
         today_headcount=today_headcount,
         tomorrow_forecast=tomorrow_forecast,
+        today_meal_counts=today_meal_counts,
+        tomorrow_meal_counts=tomorrow_meal_counts,
         total_employees=len(approved_users),
         upcoming_events=upcoming_events,
         wfh_over_limit_count=wfh_over_limit_count,
