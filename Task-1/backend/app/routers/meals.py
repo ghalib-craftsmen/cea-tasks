@@ -1,10 +1,13 @@
+import json
 from datetime import datetime, timedelta
-from typing import Dict
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Dict, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from app.auth import get_current_user
 from app.db import JSONStorage
 from app.models import User, MealType, MealRecord, UserRole, UserStatus, SpecialDayType
+from app.config import SCHEDULE_FORWARD_DAYS
+from app.audit_service import log_audit
 
 
 router = APIRouter(prefix="/api/meals", tags=["meals"])
@@ -25,22 +28,18 @@ def get_cutoff_time() -> tuple[int, int]:
 def is_cutoff_passed(target_date: str) -> bool:
     """
     Check if cutoff time has passed for the target date.
-    Cutoff time is read from settings (default 9:00 PM).
-    - For today's meals: cutoff was yesterday (always passed).
-    - For tomorrow's meals: cutoff is today at the configured time.
-    - For past dates: always locked.
+    - Past dates and today: always locked.
+    - Tomorrow: locked after configured cutoff time.
+    - Further future: open.
     """
     now = datetime.now()
     target = datetime.strptime(target_date, "%Y-%m-%d").date()
     today = now.date()
     tomorrow = today + timedelta(days=1)
 
-    # Past dates and today are always locked (cutoff already passed)
     if target <= today:
         return True
 
-    # Tomorrow's meals: cutoff is today at configured time
-    # Hour 0 (12 AM) means midnight = end of day, so cutoff never passes today
     if target == tomorrow:
         cutoff_hour, cutoff_minute = get_cutoff_time()
         if cutoff_hour == 0 and cutoff_minute == 0:
@@ -48,8 +47,15 @@ def is_cutoff_passed(target_date: str) -> bool:
         cutoff = now.replace(hour=cutoff_hour, minute=cutoff_minute, second=0, microsecond=0)
         return now >= cutoff
 
-    # Future dates beyond tomorrow are open
     return False
+
+
+def is_within_schedule_window(target_date: str) -> bool:
+    """Return True if target_date is within today + SCHEDULE_FORWARD_DAYS."""
+    today = datetime.now().date()
+    target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    max_date = today + timedelta(days=SCHEDULE_FORWARD_DAYS)
+    return today <= target <= max_date
 
 
 def create_default_participation(user_id: int, date: str) -> MealRecord:
@@ -76,16 +82,18 @@ def get_tomorrows_date() -> str:
 
 
 @router.get("/today", response_model=MealRecord)
-async def get_todays_participation(current_user: User = Depends(get_current_user)):
-    """Get meal participation. Employees see tomorrow's preferences; Admin/Logistics/TeamLead see today's."""
+async def get_todays_participation(
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (defaults to tomorrow)"),
+    current_user: User = Depends(get_current_user)
+):
+    """Get meal participation for a date. Defaults to tomorrow if no date provided."""
     if current_user.status != UserStatus.APPROVED.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Your account is not yet approved"
         )
 
-    # All roles set preferences for tomorrow
-    target_date = get_tomorrows_date()
+    target_date = date if date else get_tomorrows_date()
 
     participation_data = storage.read_participation()
 
@@ -118,16 +126,18 @@ async def update_participation(
             detail="Your account is not yet approved"
         )
 
-    # All roles default to tomorrow
-    if update_data.date:
-        target_date = update_data.date
-    else:
-        target_date = get_tomorrows_date()
+    target_date = update_data.date if update_data.date else get_tomorrows_date()
 
-    # Admin and Logistics bypass all restrictions
     is_privileged = current_user.role in [UserRole.ADMIN.value, UserRole.LOGISTICS.value]
 
-    # Block updates on special days (Closed, Holiday, Celebration) — not for Admin/Logistics
+    # Enforce scheduling window for non-privileged users
+    if not is_privileged and not is_within_schedule_window(target_date):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You can only update meal preferences within {SCHEDULE_FORWARD_DAYS} days from today"
+        )
+
+    # Block updates on special days (not for Admin/Logistics)
     if not is_privileged:
         special_days = storage.read_special_days()
         for sd in special_days:
@@ -143,23 +153,23 @@ async def update_participation(
         if is_cutoff_passed(target_date):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Cutoff time has passed ({get_cutoff_time()[0]}:{get_cutoff_time()[1]:02d}). You can no longer update tomorrow's meal preferences."
+                detail=f"Cutoff time has passed ({get_cutoff_time()[0]}:{get_cutoff_time()[1]:02d}). You can no longer update meal preferences for this date."
             )
-    
+
     participation_data = storage.read_participation()
-    
+
     record_index = None
     for i, record in enumerate(participation_data):
         if record.get("user_id") == current_user.id and record.get("date") == target_date:
             record_index = i
             break
-    
+
     if record_index is None:
         new_record = create_default_participation(current_user.id, target_date)
         new_record_dict = new_record.model_dump()
         participation_data.append(new_record_dict)
         record_index = len(participation_data) - 1
-    
+
     valid_meal_types = {mt.value for mt in MealType}
     for meal_type in update_data.meals.keys():
         if meal_type not in valid_meal_types:
@@ -167,9 +177,18 @@ async def update_participation(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid meal type: {meal_type}. Valid types are: {', '.join(valid_meal_types)}"
             )
-    
+
     participation_data[record_index]["meals"].update(update_data.meals)
-    
+
     storage.write_participation(participation_data)
-    
+
+    # Audit log
+    log_audit(
+        actor_user_id=current_user.id,
+        target_user_id=current_user.id,
+        action_type="meal_update",
+        new_value=json.dumps(update_data.meals),
+        date=target_date,
+    )
+
     return MealRecord(**participation_data[record_index])
