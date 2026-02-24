@@ -1,21 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import type { MealType, UserRole, AdminUser, AppSettings, WorkLocationType } from '../types';
-import { getAllParticipation, updateUserParticipation, bulkUpdateParticipation, getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser, getSettings, updateSettings } from '../features/admin/api';
+import type { UserRole, AdminUser, AppSettings } from '../types';
+import { getPendingUsers, approveUser, rejectUser, getAllUsers, deleteUser, updateUser, getSettings, updateSettings } from '../features/admin/api';
 import { getTeams, getCurrentUser } from '../features/users/api';
-import { updateUserLocation } from '../features/locations/api';
-
-const mealTypes: MealType[] = ['Lunch', 'Snacks', 'Iftar', 'EventDinner', 'OptionalDinner'];
-
-const mealLabels: Record<MealType, string> = {
-  Lunch: 'Lunch',
-  Snacks: 'Snacks',
-  Iftar: 'Iftar',
-  EventDinner: 'Dinner',
-  OptionalDinner: 'Opt. Dinner',
-};
+import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 
 const roleOptions: { value: UserRole; label: string }[] = [
   { value: 'Employee', label: 'Employee' },
@@ -43,15 +33,6 @@ export function Admin() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editRole, setEditRole] = useState<string>('');
   const [editTeamId, setEditTeamId] = useState<number | undefined>(undefined);
-  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set(['all']));
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
-
-  // Fetch all user participation data
-  const { data: participationUsers, isLoading: participationLoading } = useQuery({
-    queryKey: ['admin', 'participation'],
-    queryFn: () => getAllParticipation(),
-  });
-
   // Fetch all users (admin management)
   const { data: allUsers, isLoading: usersLoading } = useQuery({
     queryKey: ['admin', 'users'],
@@ -84,46 +65,6 @@ export function Admin() {
   const cutoffMinute = cutoffMinuteOverride ?? settingsData?.cutoff_minute ?? 0;
   const scheduleForwardDays = scheduleForwardDaysOverride ?? settingsData?.schedule_forward_days ?? 14;
 
-  // Group participation users by team
-  const teamGroups = useMemo(() => {
-    if (!participationUsers) return [];
-
-    const teamMap = new Map<string, { teamId: number | null; teamName: string; leadName: string | null; users: typeof participationUsers }>();
-
-    for (const user of participationUsers) {
-      const key = user.team_id != null ? String(user.team_id) : 'unassigned';
-      if (!teamMap.has(key)) {
-        const team = teams?.find((t) => t.id === user.team_id);
-        teamMap.set(key, {
-          teamId: user.team_id ?? null,
-          teamName: team?.name || (user.team_id != null ? `Team ${user.team_id}` : 'Unassigned'),
-          leadName: team?.lead_name || null,
-          users: [],
-        });
-      }
-      teamMap.get(key)!.users.push(user);
-    }
-
-    // Sort: named teams first (alphabetically), unassigned last
-    return Array.from(teamMap.values()).sort((a, b) => {
-      if (a.teamId === null) return 1;
-      if (b.teamId === null) return -1;
-      return a.teamName.localeCompare(b.teamName);
-    });
-  }, [participationUsers, teams]);
-
-  const toggleTeamExpand = (key: string) => {
-    setExpandedTeams((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  };
-
   // Update settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: (data: Partial<AppSettings>) => updateSettings(data),
@@ -147,59 +88,6 @@ export function Admin() {
       schedule_forward_days: scheduleForwardDays,
     });
   };
-
-  // Update user participation
-  const updateMutation = useMutation({
-    mutationFn: ({ targetUserId, meals }: { targetUserId: number; meals: Record<string, boolean> }) =>
-      updateUserParticipation({ target_user_id: targetUserId, meals }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
-      queryClient.invalidateQueries({ queryKey: ['headcount'] });
-      toast.success('Participation updated!');
-    },
-    onError: () => {
-      toast.error('Failed to update participation.');
-    },
-  });
-
-  // Bulk update participation mutation
-  const bulkMutation = useMutation({
-    mutationFn: (action: 'opt_in' | 'opt_out') => {
-      const today = new Date();
-      today.setDate(today.getDate() + 1);
-      const date = today.toISOString().split('T')[0];
-      return bulkUpdateParticipation({ user_ids: Array.from(selectedUserIds), date, action });
-    },
-    onSuccess: (_, action) => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
-      queryClient.invalidateQueries({ queryKey: ['headcount'] });
-      toast.success(`Bulk ${action === 'opt_in' ? 'opt-in' : 'opt-out'} applied to ${selectedUserIds.size} user(s).`);
-      setSelectedUserIds(new Set());
-    },
-    onError: (error: unknown) => {
-      const err = error as { response?: { data?: { detail?: string } } };
-      toast.error(err?.response?.data?.detail || 'Bulk update failed.');
-    },
-  });
-
-  // Update work location mutation
-  const locationMutation = useMutation({
-    mutationFn: ({ userId, location }: { userId: number; location: WorkLocationType }) => {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const date = tomorrow.toISOString().split('T')[0];
-      return updateUserLocation({ user_id: userId, date, location });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'participation'] });
-      queryClient.invalidateQueries({ queryKey: ['headcount'] });
-      toast.success('Location updated!');
-    },
-    onError: (error: unknown) => {
-      const err = error as { response?: { data?: { detail?: string } } };
-      toast.error(err?.response?.data?.detail || 'Failed to update location.');
-    },
-  });
 
   // Approve user mutation
   const approveMutation = useMutation({
@@ -264,13 +152,6 @@ export function Admin() {
       toast.error(err?.response?.data?.detail || 'Failed to update user.');
     },
   });
-
-  const handleMealToggle = (userId: number, mealType: MealType, currentValue: boolean) => {
-    const user = participationUsers?.find((u) => u.user_id === userId);
-    if (!user) return;
-    const updatedMeals = { ...(user.meals || {}), [mealType]: !currentValue };
-    updateMutation.mutate({ targetUserId: userId, meals: updatedMeals });
-  };
 
   const handleApproveSubmit = () => {
     if (!approveModalUser) return;
@@ -515,213 +396,9 @@ export function Admin() {
             </div>
           )}
 
-          {/* ───── Participation Tab (grouped by team) ───── */}
+          {/* ───── Participation Tab ───── */}
           {activeTab === 'participation' && (
-            <div className="space-y-4">
-              {/* Summary stats */}
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Meal Participation</h2>
-                <div className="flex items-center gap-4">
-                  <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{participationUsers?.length || 0} users</span>
-                  <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{teamGroups.length} teams</span>
-                </div>
-              </div>
-
-              {participationLoading ? (
-                <div className="flex items-center justify-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-                </div>
-              ) : teamGroups.length === 0 ? (
-                <div className="text-center py-16 text-gray-400">
-                  <p className="text-sm font-medium">No participation data</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {teamGroups.map((group) => {
-                    const key = group.teamId != null ? String(group.teamId) : 'unassigned';
-                    const isExpanded = expandedTeams.has(key);
-                    const groupUserIds = group.users.map((u) => u.user_id);
-                    const allGroupSelected = groupUserIds.length > 0 && groupUserIds.every((id) => selectedUserIds.has(id));
-                    const someGroupSelected = groupUserIds.some((id) => selectedUserIds.has(id));
-
-                    return (
-                      <div key={key} className="rounded-lg border border-gray-200 overflow-hidden">
-                        {/* Team header */}
-                        <button
-                          onClick={() => toggleTeamExpand(key)}
-                          className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-                        >
-                          <div className="flex items-center gap-3">
-                            <svg
-                              className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                            <span className="text-sm font-semibold text-gray-900">{group.teamName}</span>
-                            <span className="text-xs text-gray-400">{group.users.length} members</span>
-                          </div>
-                          {group.leadName && (
-                            <span className="text-xs text-blue-600 font-medium">Lead: {group.leadName}</span>
-                          )}
-                        </button>
-
-                        {/* Team members table */}
-                        {isExpanded && (
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-100">
-                              <thead>
-                                <tr className="bg-white">
-                                  <th className="px-3 py-2 w-8">
-                                    <input
-                                      type="checkbox"
-                                      checked={allGroupSelected}
-                                      ref={(el) => { if (el) el.indeterminate = !allGroupSelected && someGroupSelected; }}
-                                      onChange={(e) => {
-                                        setSelectedUserIds((prev) => {
-                                          const next = new Set(prev);
-                                          if (e.target.checked) {
-                                            groupUserIds.forEach((id) => next.add(id));
-                                          } else {
-                                            groupUserIds.forEach((id) => next.delete(id));
-                                          }
-                                          return next;
-                                        });
-                                      }}
-                                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                      title="Select all in team"
-                                    />
-                                  </th>
-                                  <th className="px-5 py-2 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Member</th>
-                                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Role</th>
-                                  {mealTypes.map((mt) => (
-                                    <th key={mt} className="px-2 py-2 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                      {mealLabels[mt]}
-                                    </th>
-                                  ))}
-                                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Location</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-50">
-                                {group.users.map((user) => {
-                                  const isSelected = selectedUserIds.has(user.user_id);
-                                  return (
-                                    <tr
-                                      key={user.user_id}
-                                      className={`transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-blue-50/30'}`}
-                                    >
-                                      <td className="px-3 py-2.5 w-8">
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={(e) => {
-                                            setSelectedUserIds((prev) => {
-                                              const next = new Set(prev);
-                                              if (e.target.checked) next.add(user.user_id);
-                                              else next.delete(user.user_id);
-                                              return next;
-                                            });
-                                          }}
-                                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                        />
-                                      </td>
-                                      <td className="px-5 py-2.5 whitespace-nowrap">
-                                        <div className="flex items-center gap-2.5">
-                                          <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                            <span className="text-xs font-semibold text-blue-700">{user.name.charAt(0)}</span>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                                            <p className="text-xs text-gray-400">@{user.username}</p>
-                                          </div>
-                                        </div>
-                                      </td>
-                                      <td className="px-3 py-2.5 whitespace-nowrap">
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getRoleBadgeClass(user.role)}`}>
-                                          {user.role}
-                                        </span>
-                                      </td>
-                                      {mealTypes.map((mealType) => {
-                                        const mealValue = user.meals?.[mealType] ?? false;
-                                        return (
-                                          <td key={mealType} className="px-2 py-2.5 text-center">
-                                            <button
-                                              onClick={() => handleMealToggle(user.user_id, mealType, mealValue)}
-                                              disabled={updateMutation.isPending}
-                                              className={`
-                                                w-7 h-7 rounded-md border text-xs font-bold transition-all
-                                                ${mealValue
-                                                  ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200'
-                                                  : 'bg-red-50 border-red-200 text-red-400 hover:bg-red-100'
-                                                }
-                                                ${updateMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                                              `}
-                                              title={`${mealLabels[mealType]}: ${mealValue ? 'Opted In' : 'Opted Out'}`}
-                                            >
-                                              {mealValue ? '✓' : '✗'}
-                                            </button>
-                                          </td>
-                                        );
-                                      })}
-                                      <td className="px-3 py-2.5 text-center">
-                                        <button
-                                          onClick={() => {
-                                            const next: WorkLocationType = user.location === 'WFH' ? 'Office' : 'WFH';
-                                            locationMutation.mutate({ userId: user.user_id, location: next });
-                                          }}
-                                          disabled={locationMutation.isPending}
-                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border transition-all ${
-                                            user.location === 'WFH'
-                                              ? 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'
-                                              : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-                                          } ${locationMutation.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                          title="Click to toggle location"
-                                        >
-                                          {user.location === 'WFH' ? '🏠 WFH' : '🏢 Office'}
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Floating bulk action bar */}
-              {selectedUserIds.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-gray-900 text-white rounded-xl shadow-2xl">
-                  <span className="text-sm font-medium">{selectedUserIds.size} selected</span>
-                  <div className="w-px h-4 bg-gray-600" />
-                  <button
-                    onClick={() => bulkMutation.mutate('opt_in')}
-                    disabled={bulkMutation.isPending}
-                    className="px-4 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-500 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    Opt In (All Meals)
-                  </button>
-                  <button
-                    onClick={() => bulkMutation.mutate('opt_out')}
-                    disabled={bulkMutation.isPending}
-                    className="px-4 py-1.5 text-sm font-medium bg-red-600 hover:bg-red-500 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    Opt Out (All Meals)
-                  </button>
-                  <button
-                    onClick={() => setSelectedUserIds(new Set())}
-                    className="ml-1 text-gray-400 hover:text-white transition-colors"
-                    title="Clear selection"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
+            <AdminDashboardPage />
           )}
 
           {/* ───── Settings Tab ───── */}
