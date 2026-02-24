@@ -73,7 +73,7 @@ export function Dashboard() {
 
   const { data: mealData, isLoading: mealsLoading } = useQuery({
     queryKey: ['meals', 'today'],
-    queryFn: getTodaysParticipation,
+    queryFn: () => getTodaysParticipation(),
   });
 
   const canViewHeadcount = currentUser?.role === 'Admin' || currentUser?.role === 'Logistics' || currentUser?.role === 'TeamLead';
