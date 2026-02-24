@@ -284,6 +284,24 @@ export interface AuditLogResponse {
   date?: string | null;
 }
 
+export interface RSVPUserDetail {
+  user_id: number;
+  name: string;
+  team_id?: number | null;
+}
+
+export interface EventRSVPStats {
+  event_id: number;
+  title: string;
+  date: string;
+  accepted: RSVPUserDetail[];
+  declined: RSVPUserDetail[];
+  pending: RSVPUserDetail[];
+  accepted_count: number;
+  declined_count: number;
+  pending_count: number;
+}
+
 export interface WFHSummaryItem {
   user_id: number;
   name: string;

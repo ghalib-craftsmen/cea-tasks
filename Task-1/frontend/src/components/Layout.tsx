@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { LogoutButton } from '../features/auth/components/LogoutButton';
 import { getCurrentUser } from '../features/users/api';
+import { EventMealNotification } from './EventMealNotification';
 
 interface NavItem {
   path: string;
@@ -195,6 +196,9 @@ export function Layout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Event meal RSVP notification — shown to Employee / TeamLead only */}
+      <EventMealNotification />
     </div>
   );
 }

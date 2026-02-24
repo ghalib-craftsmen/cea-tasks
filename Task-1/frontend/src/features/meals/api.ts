@@ -4,6 +4,7 @@ import type {
   ParticipationUpdate,
   EventMealCreate,
   EventMealResponse,
+  EventRSVPStats,
 } from '../../types';
 
 export async function getTodaysParticipation(date?: string): Promise<MealRecord> {
@@ -36,4 +37,23 @@ export async function createEventMeal(data: EventMealCreate): Promise<EventMealR
 
 export async function deleteEventMeal(id: number): Promise<void> {
   await api.delete(`/event-meals/${id}`);
+}
+
+// RSVP
+
+export async function getPendingRSVPs(): Promise<EventMealResponse[]> {
+  const response = await api.get<EventMealResponse[]>('/event-meals/pending-rsvp');
+  return response.data;
+}
+
+export async function submitRSVP(
+  eventId: number,
+  response: 'accepted' | 'declined',
+): Promise<void> {
+  await api.post(`/event-meals/${eventId}/rsvp`, { response });
+}
+
+export async function getEventRSVPStats(eventId: number): Promise<EventRSVPStats> {
+  const response = await api.get<EventRSVPStats>(`/event-meals/${eventId}/rsvp-stats`);
+  return response.data;
 }

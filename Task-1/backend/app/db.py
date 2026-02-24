@@ -184,3 +184,9 @@ class JSONStorage:
 
     def write_audit_logs(self, audit_logs: List[Any]) -> None:
         self.write("audit_logs.json", audit_logs)
+
+    def read_event_meal_rsvps(self) -> List[Any]:
+        return self.read("event_meal_rsvps.json")
+
+    def write_event_meal_rsvps(self, rsvps: List[Any]) -> None:
+        self.write("event_meal_rsvps.json", rsvps)
