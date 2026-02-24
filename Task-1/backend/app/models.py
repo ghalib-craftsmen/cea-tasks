@@ -254,3 +254,39 @@ class AppSettings(BaseModel):
 class AppSettingsUpdate(BaseModel):
     cutoff_hour: Optional[int] = None
     cutoff_minute: Optional[int] = None
+
+
+
+class EventMealCreate(BaseModel):
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "date": "2026-03-01",
+                "title": "Ramadan Iftar Gathering",
+                "description": "Special Iftar dinner for all staff",
+            }
+        }
+
+
+class EventMealResponse(BaseModel):
+    id: int
+    date: str
+    title: str
+    description: Optional[str] = None
+    created_by: int
+
+
+class AuditLogResponse(BaseModel):
+    id: int
+    timestamp: str
+    actor_user_id: int
+    actor_name: Optional[str] = None
+    target_user_id: int
+    target_name: Optional[str] = None
+    action_type: str
+    new_value: str
+    date: Optional[str] = None

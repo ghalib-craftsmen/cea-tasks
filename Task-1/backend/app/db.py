@@ -168,3 +168,15 @@ class JSONStorage:
         file_path = self._get_file_path("settings.json")
         with self._lock:
             self._write_atomic(file_path, settings)
+
+    def read_event_meals(self) -> List[Any]:
+        return self.read("event_meals.json")
+
+    def write_event_meals(self, event_meals: List[Any]) -> None:
+        self.write("event_meals.json", event_meals)
+
+    def read_audit_logs(self) -> List[Any]:
+        return self.read("audit_logs.json")
+
+    def write_audit_logs(self, audit_logs: List[Any]) -> None:
+        self.write("audit_logs.json", audit_logs)
