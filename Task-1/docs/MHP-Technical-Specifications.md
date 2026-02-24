@@ -5,8 +5,8 @@
 **Project:** Meal Headcount Planner (MHP)  
 **Iteration:** 3 — Scheduling + Events + Operational Readiness  
 **Author:** Abdullah Al Ghalib  
-**Date:** February 23, 2026  
-**Version:** 3.0  
+**Date:** February 24, 2026  
+**Version:** 3.1  
 **Status:** Draft
 
 **Links:**
@@ -172,9 +172,12 @@ The Excel spreadsheet we are using for meal headcount is painful. Someone has to
 - Admin/Logistics can delete special day entries.
 
 **Event Meals:**
-- Admin/Logistics can create "Event Meals" (e.g., Event Dinner) with Date, Meal Type, and Optional Note.
-- Employees can opt in/out specifically for event meals.
-- Event meals appear alongside standard meals for the specific date.
+- Admin/Logistics can create "Event Meals" (e.g., Town Hall Dinner) with Date, Title, and Optional Description.
+- Admin/Logistics can delete event meals; deletion also removes all associated RSVP records.
+- When an event meal is created, eligible employees (Employee, TeamLead) receive an in-app RSVP notification popup.
+- Employees/TeamLeads respond with "Accept" or "Decline"; responses can be changed at any time.
+- Notifications appear one at a time (queue-style) and re-check every 60 seconds / on page focus.
+- Admin/Logistics can view per-event RSVP statistics: accepted list, declined list, and pending (no response yet) list.
 
 **WFH Period Management:**
 - Admin/Logistics can declare a date range as "WFH for everyone" (sets default location).
@@ -204,12 +207,12 @@ The Excel spreadsheet we are using for meal headcount is painful. Someone has to
 
 ### Role Permissions
 
-| Role | View Own | Update Own | View Scope | Update Scope | Bulk Update | Manage Special Days | Manage Events | View Headcount | Correct Location | View Audit Logs | View WFH Compliance |
-|-------|-----------|------------|------------|--------------|-------------|---------------------|---------------|----------------|------------------|-----------------|----------------------|
-| Employee | Yes | Yes | No | No | No | No | No | No | No | No | Self Only |
-| Team Lead | Yes | Yes | Team Only | Team Only | Team Only | No | No | Team Only | Team Only | Team Only | Team Only |
-| Admin | Yes | Yes | All | All | All | Yes | Yes | All | All | All | All |
-| Logistics | No | No | All | No | No | Yes | Yes | All | No | All | All |
+| Role | View Own | Update Own | View Scope | Update Scope | Bulk Update | Manage Special Days | Manage Events | View Headcount | Correct Location | View Audit Logs | View WFH Compliance | RSVP to Events |
+|-------|-----------|------------|------------|--------------|-------------|---------------------|---------------|----------------|------------------|-----------------|----------------------|----------------|
+| Employee | Yes | Yes | No | No | No | No | No | No | No | No | Self Only | Yes |
+| Team Lead | Yes | Yes | Team Only | Team Only | Team Only | No | No | Team Only | Team Only | Team Only | Team Only | Yes |
+| Admin | Yes | Yes | All | All | All | Yes | Yes | All | All | All | All | No |
+| Logistics | No | No | All | No | No | Yes | Yes | All | No | All | All | No |
 
 ### Validation Rules
 
@@ -229,7 +232,7 @@ The Excel spreadsheet we are using for meal headcount is painful. Someone has to
 ### Definition of Done
 
 - [ ] All requirements implemented.
-- [ ] Registration API working.
+- [ ] Registration API working (self-register + admin-register).
 - [ ] Works on Chrome, Edge.
 - [ ] Error handling in place.
 - [ ] Code reviewed.
@@ -238,10 +241,14 @@ The Excel spreadsheet we are using for meal headcount is painful. Someone has to
 - [ ] Bulk actions atomic and scope-validated.
 - [ ] Headcount page auto-updates (polling works).
 - [ ] Team Lead API scope verified (cannot access other teams).
-- [ ] Future dates visible and editable within window.
+- [ ] Future dates visible and editable within configured window (`SCHEDULE_FORWARD_DAYS`).
 - [ ] Event Meals manageable and visible.
-- [ ] Audit logs recorded for changes.
-- [ ] WFH Over-limit indicators function correctly.
+- [ ] Event Meal RSVP notifications appear for Employee/TeamLead; Admin/Logistics see stats.
+- [ ] Audit logs recorded for all participation and location changes.
+- [ ] WFH over-limit indicators function correctly; filter toggle shows only over-limit employees.
+- [ ] Operational Dashboard loads correctly for Admin/Logistics/TeamLead.
+- [ ] Application settings (cutoff time, scheduling window) save and take effect immediately.
+- [ ] Special days check endpoint returns correct status for closed days.
 
 ---
 
@@ -294,42 +301,59 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 ### API Endpoints
 
 | Method | Endpoint | What It Does | Who Can Use |
-|---------|-----------|---------------|--------------|
-| **Authentication & User** | | | |
-| POST | `/api/auth/login` | Login | Everyone |
-| POST | `/api/auth/logout` | Logout | Logged-in users |
-| POST | `/api/auth/register` | Register new user | Admin |
-| GET | `/api/me` | Get current user profile | Logged-in users |
-| **Teams** | | | |
-| GET | `/api/teams` | Get list of all teams | Admin, Team Lead, Logistics |
+|---------|-----------|---------------|-------------|
+| **Authentication** | | | |
+| POST | `/api/auth/login` | Login with username + password; returns JWT | Everyone |
+| POST | `/api/auth/logout` | Invalidate current session | Logged-in users |
+| POST | `/api/auth/register` | Self-register (creates Pending account awaiting Admin approval) | Everyone |
+| POST | `/api/auth/admin-register` | Admin creates a user directly (immediately Approved) | Admin |
+| **User & Profile** | | | |
+| GET | `/api/me` | Get current user profile (name, email, role, team) | Logged-in users |
+| GET | `/api/teams` | Get list of all teams | Admin, TeamLead, Logistics |
+| **User Management** | | | |
+| GET | `/api/admin/pending-users` | List users awaiting approval | Admin |
+| GET | `/api/admin/users` | List all users | Admin |
+| PUT | `/api/admin/approve-user` | Approve pending user, assign role + team | Admin |
+| PUT | `/api/admin/reject-user` | Reject pending user | Admin |
+| PUT | `/api/admin/users/{user_id}` | Update a user's role or team assignment | Admin |
+| DELETE | `/api/admin/users/{user_id}` | Permanently delete a user | Admin |
 | **Meal Participation** | | | |
-| GET | `/api/meals?date=YYYY-MM-DD` | Get meals + status for specific date | Logged-in users |
-| PUT | `/api/meals/participation` | Update my meals (supports date) | Logged-in users |
-| GET | `/api/participation` | Get participation list. Scoped. | Team Lead, Admin, Logistics |
-| PUT | `/api/participation` | Update someone's meals. Scoped. | Admin, Team Lead |
-| POST | `/api/participation/bulk` | Bulk update participation. Scoped. | Admin, Team Lead |
+| GET | `/api/meals/today?date=YYYY-MM-DD` | Get meal participation for a date (defaults to tomorrow) | Logged-in users |
+| PUT | `/api/meals/participation` | Update my own meal choices for a date | Logged-in users |
+| GET | `/api/participation?date=YYYY-MM-DD&team_id=N&filter=over_limit` | Get participation list; scoped by role; supports WFH over-limit filter | TeamLead, Admin, Logistics |
+| PUT | `/api/participation` | Update someone's meals within scope | Admin, TeamLead |
+| POST | `/api/participation/bulk` | Bulk opt-in or opt-out for a list of users on a date | Admin, TeamLead |
 | **Event Meals** | | | |
-| GET | `/api/event-meals` | List event meals | Everyone |
-| POST | `/api/event-meals` | Create event meal | Admin, Logistics |
-| DELETE | `/api/event-meals/:id` | Remove event meal | Admin, Logistics |
+| GET | `/api/event-meals?date=YYYY-MM-DD` | List event meals; optional date filter | Logged-in users |
+| POST | `/api/event-meals` | Create an event meal (employees notified via polling) | Admin, Logistics |
+| DELETE | `/api/event-meals/{id}` | Delete event meal and all associated RSVPs | Admin, Logistics |
+| GET | `/api/event-meals/pending-rsvp` | Get future events the current user has not yet responded to | Employee, TeamLead |
+| POST | `/api/event-meals/{id}/rsvp` | Submit RSVP (`accepted` or `declined`); upserts on re-submit | Employee, TeamLead |
+| GET | `/api/event-meals/{id}/rsvp-stats` | Get accepted / declined / pending employee lists for an event | Admin, Logistics |
 | **Headcount & Reporting** | | | |
-| GET | `/api/headcount?date=YYYY-MM-DD` | Get aggregated totals. Scoped. | Admin, Logistics, Team Lead |
-| GET | `/api/dashboard/summary` | Get Today + Forecast + Alerts | Admin, Logistics |
-| GET | `/api/wfh-summary` | Get WFH usage stats (scoped) | Team Lead, Admin, Logistics |
+| GET | `/api/headcount?date=YYYY-MM-DD&team_id=N` | Headcount totals per meal type, scoped by role | Admin, Logistics, TeamLead |
+| GET | `/api/headcount/aggregation?date=YYYY-MM-DD` | Full headcount breakdown by team and meal type | Admin, Logistics, TeamLead |
+| GET | `/api/headcount/{meal_type}?date=YYYY-MM-DD` | Headcount for a specific meal type | Admin, Logistics, TeamLead |
+| GET | `/api/dashboard/summary` | Today's headcount, tomorrow's forecast, upcoming events, WFH over-limit count | Admin, Logistics, TeamLead |
+| GET | `/api/wfh-summary` | Per-employee WFH day count vs. monthly allowance; scoped by role | Admin, TeamLead, Logistics |
 | **Work Location** | | | |
-| GET | `/api/me/location` | Get my work location | Everyone |
-| PUT | `/api/me/location` | Set my work location | Everyone |
-| PUT | `/api/work-location` | Update work location for a specific user. Scoped. | Admin, Team Lead |
+| GET | `/api/me/location?date=YYYY-MM-DD` | Get my work location for a date | Logged-in users |
+| PUT | `/api/me/location` | Set my work location for a date | Logged-in users |
+| PUT | `/api/work-location` | Update work location for a specific user within scope | Admin, TeamLead |
 | **WFH Period Management** | | | |
-| GET | `/api/wfh-periods` | List all declared WFH periods | Admin, Logistics |
-| POST | `/api/wfh-periods` | Declare a new WFH period | Admin, Logistics |
-| DELETE | `/api/wfh-periods/:id` | Remove a WFH period | Admin, Logistics |
+| GET | `/api/wfh-periods` | List all declared company-wide WFH periods | Admin, Logistics |
+| POST | `/api/wfh-periods` | Declare a new WFH period (date range) | Admin, Logistics |
+| DELETE | `/api/wfh-periods/{id}` | Remove a WFH period | Admin, Logistics |
 | **Special Days Management** | | | |
-| GET | `/api/special-days` | Get special days list | Admin, Logistics |
-| POST | `/api/special-days` | Create special day entry | Admin, Logistics |
-| DELETE | `/api/special-days/:id` | Remove a special day entry | Admin, Logistics |
+| GET | `/api/special-days` | List all special days (holidays, closures, celebrations) | Logged-in users |
+| GET | `/api/special-days/check?date=YYYY-MM-DD` | Check if a specific date is a special day | Logged-in users |
+| POST | `/api/special-days` | Create a special day entry | Admin, Logistics |
+| DELETE | `/api/special-days/{id}` | Delete a special day entry | Admin, Logistics |
+| **Application Settings** | | | |
+| GET | `/api/settings` | Get app settings (cutoff time, scheduling window) | Logged-in users |
+| PUT | `/api/settings` | Update app settings (cutoff time, `SCHEDULE_FORWARD_DAYS`) | Admin, Logistics |
 | **Audit Logs** | | | |
-| GET | `/api/audit-logs` | View change history (filterable) | Admin, Logistics, Team Lead |
+| GET | `/api/audit-logs?action=X&user_id=N&from=YYYY-MM-DD&to=YYYY-MM-DD` | View change history with optional filters | Admin, Logistics, TeamLead |
 
 ---
 
@@ -373,12 +397,12 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 
 ### Access Control
 
-| Role | Login | Update Own | View All | Update All | Headcount | Register Users | Bulk Update | Manage Special Days | Correct Location | Manage Events | View Audit Logs |
-|-------|--------|------------|----------|------------|-----------|------------------|-------------|---------------------|------------------|----------------|------------------|
-| Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Team Lead | ✓ | ✓ | Team Only | Team Only | Team Only | ✗ | Team Only | ✗ | Team Only | ✗ | Team Only |
-| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ |
+| Role | Login | Update Own | View All | Update All | Headcount | Register Users | Bulk Update | Manage Special Days | Correct Location | Manage Events | View RSVP Stats | RSVP to Events | View Audit Logs | App Settings |
+|-------|--------|------------|----------|------------|-----------|------------------|-------------|---------------------|------------------|----------------|-----------------|----------------|-----------------|--------------|
+| Employee | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | Read Only |
+| Team Lead | ✓ | ✓ | Team Only | Team Only | Team Only | ✗ | Team Only | ✗ | Team Only | ✗ | ✗ | ✓ | Team Only | Read Only |
+| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | Read/Write |
+| Logistics | ✓ | ✗ | ✓ | ✗ | ✓ | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ | ✗ | ✓ | Read/Write |
 
 ### Secrets
 - Never commit passwords or secrets to code.
@@ -433,15 +457,28 @@ Frontend (React) talks to Backend (FastAPI) via REST API. Backend reads/writes J
 - [ ] Can filter list by Over-Limit.
 - [ ] Can view Audit Logs for changes.
 
+**Event Meals & RSVP:**
+- [ ] Admin/Logistics can create an event meal with title, date, and description.
+- [ ] After creation, Employee/TeamLead sees RSVP popup notification (within 60 s or on page focus).
+- [ ] Employee can Accept or Decline; response is saved correctly.
+- [ ] Employee can change response; upsert works correctly.
+- [ ] Admin/Logistics can view RSVP stats panel: accepted, declined, pending lists.
+- [ ] Deleting an event meal also removes all its RSVP records.
+
 **WFH & Special Days:**
 - [ ] Admin can create WFH period.
 - [ ] System defaults users to WFH during that period.
 - [ ] "Office Closed" prevents meal selection.
 - [ ] Announcement generation includes special notes.
 
+**Settings:**
+- [ ] Admin/Logistics can update meal cutoff time; change takes effect on next request.
+- [ ] Admin/Logistics can update `SCHEDULE_FORWARD_DAYS`; date picker reflects new window.
+
 **Audit:**
 - [ ] Opt-out action appears in Audit Log.
 - [ ] Admin override appears in Audit Log with correct "Actor".
+- [ ] Audit log `user_id` filter correctly narrows results to the specified user.
 
 ---
 
