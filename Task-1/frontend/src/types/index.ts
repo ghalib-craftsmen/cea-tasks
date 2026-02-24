@@ -323,6 +323,8 @@ export interface DashboardSummary {
   tomorrow_date: string;
   today_headcount: number;
   tomorrow_forecast: number;
+  today_meal_counts: Record<string, number>;
+  tomorrow_meal_counts: Record<string, number>;
   total_employees: number;
   upcoming_events: EventMealSummary[];
   wfh_over_limit_count: number;
