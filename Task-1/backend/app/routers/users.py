@@ -5,9 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 
 from app.auth import get_current_user
+from app.config import WFH_ALLOWANCE
 from app.db import JSONStorage
 from app.models import User, UserRole, UserStatus, UserResponse, Team, MealType, MealRecord, WorkLocationType
 from app.audit_service import log_audit
+from app.wfh_service import calculate_wfh_days_current_month
 
 
 router = APIRouter(prefix="/api", tags=["users"])
@@ -146,6 +148,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 async def get_all_participation(
     date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (defaults to tomorrow)"),
     team_id: Optional[int] = Query(None, description="Filter by team ID (Admin only)"),
+    filter: Optional[str] = Query(None, description="Optional filter. Use 'over_limit' to return only employees who exceeded the monthly WFH allowance."),
     current_user: User = Depends(require_admin_or_teamlead_or_logistics)):
     """Get participation list for a date. Scoped: TeamLead sees own team only, Admin sees all."""
     target_date = date if date else get_tomorrows_date()
@@ -160,6 +163,15 @@ async def get_all_participation(
         if record.get("date") == target_date:
             participation_lookup[record.get("user_id")] = record
 
+    # Pre-build WFH usage lookup once if needed (avoids re-scanning for every user)
+    wfh_days_cache: Optional[Dict[int, int]] = None
+    if filter == "over_limit":
+        wfh_days_cache = {}
+        for user_dict in users_data:
+            uid = user_dict.get("id")
+            if uid is not None:
+                wfh_days_cache[uid] = calculate_wfh_days_current_month(uid, work_locations_data)
+
     result = []
 
     for user_dict in users_data:
@@ -173,6 +185,10 @@ async def get_all_participation(
                 continue
         elif current_user.role == UserRole.ADMIN.value and team_id is not None:
             if user.team_id != team_id:
+                continue
+
+        if filter == "over_limit" and wfh_days_cache is not None:
+            if wfh_days_cache.get(user.id, 0) <= WFH_ALLOWANCE:
                 continue
 
         participation_record = participation_lookup.get(user.id)

@@ -24,3 +24,6 @@ UVICORN_PORT = 8000
 
 # Scheduling: how many days ahead employees can plan meals/locations
 SCHEDULE_FORWARD_DAYS = 14
+
+# WFH Policy: max WFH days allowed per employee per calendar month (soft limit)
+WFH_ALLOWANCE = int(os.getenv("WFH_ALLOWANCE", "5"))
