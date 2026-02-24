@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useToast } from '../../../hooks/useToast';
-import { getAllParticipation, updateUserParticipation } from '../api';
+import { getAllParticipation, updateUserParticipation, getWFHSummary } from '../api';
 import { getTeams, getCurrentUser } from '../../users/api';
-import type { UserParticipation, MealType, ParticipationUpdateRequest } from '../../../types';
+import type { UserParticipation, MealType, ParticipationUpdateRequest, WFHSummaryItem } from '../../../types';
 import { Table } from '../../../components/ui/Table';
 import { Modal } from '../../../components/ui/Modal';
 import { Spinner } from '../../../components/ui/Spinner';
@@ -40,16 +40,11 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
   }
 
   const handleToggleMeal = (mealType: MealType) => {
-    setLocalMeals((prev) => ({
-      ...prev,
-      [mealType]: !prev[mealType],
-    }));
+    setLocalMeals((prev) => ({ ...prev, [mealType]: !prev[mealType] }));
   };
 
   const handleSave = () => {
-    if (user) {
-      onSave(user.user_id, localMeals);
-    }
+    if (user) onSave(user.user_id, localMeals);
   };
 
   return (
@@ -59,24 +54,10 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
           <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="text-sm font-medium text-gray-500 mb-2">User Information</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Name:</span>
-                <span className="ml-2 font-medium text-gray-900">{user.name}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Email:</span>
-                <span className="ml-2 font-medium text-gray-900">{user.email}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Role:</span>
-                <span className="ml-2 font-medium text-gray-900">{user.role}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Team:</span>
-                <span className="ml-2 font-medium text-gray-900">
-                  {user.team_id ? `Team ${user.team_id}` : 'N/A'}
-                </span>
-              </div>
+              <div><span className="text-gray-600">Name:</span><span className="ml-2 font-medium text-gray-900">{user.name}</span></div>
+              <div><span className="text-gray-600">Email:</span><span className="ml-2 font-medium text-gray-900">{user.email}</span></div>
+              <div><span className="text-gray-600">Role:</span><span className="ml-2 font-medium text-gray-900">{user.role}</span></div>
+              <div><span className="text-gray-600">Team:</span><span className="ml-2 font-medium text-gray-900">{user.team_id ? `Team ${user.team_id}` : 'N/A'}</span></div>
             </div>
           </div>
 
@@ -91,14 +72,7 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
                     type="button"
                     onClick={() => handleToggleMeal(meal.type)}
                     disabled={isSaving}
-                    className={`
-                      relative p-4 rounded-lg border-2 transition-all duration-200 text-left
-                      ${isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                      }
-                      ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
-                    `}
+                    className={`relative p-4 rounded-lg border-2 transition-all duration-200 text-left ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'} ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
@@ -106,16 +80,8 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
                         <span className="font-medium text-gray-900">{meal.label}</span>
                       </div>
                       {isSelected && (
-                        <svg
-                          className="w-5 h-5 text-blue-600"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                            clipRule="evenodd"
-                          />
+                        <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
                       )}
                     </div>
@@ -126,26 +92,24 @@ function EditModal({ isOpen, onClose, user, onSave, isSaving }: EditModalProps) 
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
+            <button type="button" onClick={onClose} disabled={isSaving} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+            <button type="button" onClick={handleSave} disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{isSaving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </div>
       )}
     </Modal>
+  );
+}
+
+function WFHBadge({ item }: { item: WFHSummaryItem }) {
+  if (!item.is_over_limit) return null;
+  return (
+    <span
+      title={`WFH: ${item.days_used}/${item.allowance} days this month`}
+      className="inline-flex items-center gap-1 ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200"
+    >
+      ⚠️ {item.days_used}d WFH
+    </span>
   );
 }
 
@@ -156,29 +120,43 @@ export function AdminDashboardPage() {
   const [selectedUser, setSelectedUser] = useState<UserParticipation | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<number | undefined>(undefined);
+  const [showOverLimitOnly, setShowOverLimitOnly] = useState(false);
 
-  // Fetch current user from API (auth store has empty role)
   const { data: currentUser } = useQuery({
     queryKey: ['currentUser'],
     queryFn: getCurrentUser,
     enabled: isAuthenticated,
   });
 
-  // Fetch teams for Admin filter
   const { data: teams } = useQuery({
     queryKey: ['teams'],
     queryFn: getTeams,
     enabled: isAuthenticated && currentUser?.role === 'Admin',
   });
 
-  // Fetch all user participation data using TanStack Query
   const { data: participationData, isLoading, error } = useQuery({
-    queryKey: ['admin', 'participation', selectedTeamId],
-    queryFn: () => getAllParticipation(selectedTeamId),
+    queryKey: ['admin', 'participation', selectedTeamId, showOverLimitOnly ? 'over_limit' : undefined],
+    queryFn: () => getAllParticipation(selectedTeamId, undefined, showOverLimitOnly ? 'over_limit' : undefined),
     enabled: isAuthenticated,
   });
 
-  // Update user participation mutation
+  // WFH summary: used to decorate employee names with compliance badges
+  const { data: wfhSummary } = useQuery({
+    queryKey: ['wfh-summary'],
+    queryFn: getWFHSummary,
+    enabled: isAuthenticated && (currentUser?.role === 'Admin' || currentUser?.role === 'TeamLead' || currentUser?.role === 'Logistics'),
+  });
+
+  // Build lookup: user_id -> WFHSummaryItem
+  const wfhLookup: Record<number, WFHSummaryItem> = {};
+  if (wfhSummary) {
+    for (const item of wfhSummary) {
+      wfhLookup[item.user_id] = item;
+    }
+  }
+
+  const overLimitCount = wfhSummary?.filter((w) => w.is_over_limit).length ?? 0;
+
   const updateMutation = useMutation({
     mutationFn: (data: ParticipationUpdateRequest) => updateUserParticipation(data),
     onSuccess: () => {
@@ -194,14 +172,8 @@ export function AdminDashboardPage() {
 
   const canAccess = ['Admin', 'TeamLead', 'Logistics'].includes(currentUser?.role || '');
 
-  // Redirect unauthenticated users or unauthorized users
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (!canAccess) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!canAccess) return <Navigate to="/dashboard" replace />;
 
   const handleEditUser = (user: UserParticipation) => {
     setSelectedUser(user);
@@ -212,24 +184,26 @@ export function AdminDashboardPage() {
     updateMutation.mutate({ target_user_id: userId, meals });
   };
 
+  const renderName = (_value: unknown, row: Record<string, unknown>) => {
+    const uid = row.user_id as number;
+    const name = row.name as string;
+    const wfhItem = wfhLookup[uid];
+    return (
+      <div className="flex items-center flex-wrap gap-1">
+        <span className="font-medium text-gray-900">{name}</span>
+        {wfhItem && <WFHBadge item={wfhItem} />}
+      </div>
+    );
+  };
+
   const renderMeals = (_value: unknown, row: Record<string, unknown>) => {
     const meals = row.meals as Record<MealType, boolean>;
     const selectedMeals = mealTypes.filter((meal) => meals[meal.type]);
-
-    if (selectedMeals.length === 0) {
-      return <span className="text-gray-400 italic">No meals selected</span>;
-    }
-
+    if (selectedMeals.length === 0) return <span className="text-gray-400 italic">No meals selected</span>;
     return (
       <div className="flex flex-wrap gap-1">
         {selectedMeals.map((meal) => (
-          <span
-            key={meal.type}
-            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
-            title={meal.label}
-          >
-            {meal.icon}
-          </span>
+          <span key={meal.type} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800" title={meal.label}>{meal.icon}</span>
         ))}
       </div>
     );
@@ -243,98 +217,76 @@ export function AdminDashboardPage() {
       Logistics: 'bg-orange-100 text-orange-800',
       Employee: 'bg-gray-100 text-gray-800',
     };
-
-    return (
-      <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          roleColors[role] || 'bg-gray-100 text-gray-800'
-        }`}
-      >
-        {role}
-      </span>
-    );
+    return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[role] || 'bg-gray-100 text-gray-800'}`}>{role}</span>;
   };
 
-  const renderActions = (_value: unknown, row: Record<string, unknown>) => {
-    return (
-      <button
-        onClick={() => handleEditUser(row as unknown as UserParticipation)}
-        className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-      >
-        Edit
-      </button>
-    );
-  };
+  const renderActions = (_value: unknown, row: Record<string, unknown>) => (
+    <button onClick={() => handleEditUser(row as unknown as UserParticipation)} className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors">Edit</button>
+  );
 
   const columns = [
-    { key: 'name', header: 'Name', sortable: true },
+    { key: 'name', header: 'Name', sortable: true, render: renderName },
     { key: 'email', header: 'Email', sortable: true },
     { key: 'role', header: 'Role', sortable: true, render: renderRole },
-    {
-      key: 'team_id',
-      header: 'Team',
-      sortable: true,
-      render: (value: unknown) => (value ? `Team ${value}` : 'N/A'),
-    },
+    { key: 'team_id', header: 'Team', sortable: true, render: (value: unknown) => (value ? `Team ${value}` : 'N/A') },
     { key: 'meals', header: 'Meal Choices', render: renderMeals },
     { key: 'actions', header: 'Actions', render: renderActions },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">Failed to load participation data. Please try again later.</p>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
+  if (error) return <div className="bg-red-50 border border-red-200 rounded-lg p-4"><p className="text-red-800">Failed to load participation data. Please try again later.</p></div>;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Manage meal participation for all users. View and update user meal choices.
-        </p>
+        <p className="mt-2 text-gray-600">Manage meal participation for all users. View and update user meal choices.</p>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-4 justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">User Participation</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Showing {participationData?.length || 0} users
-              </p>
+              <p className="text-sm text-gray-500 mt-1">Showing {participationData?.length || 0} users</p>
             </div>
-            {/* Team Filter Dropdown for Admin */}
-            {currentUser?.role === 'Admin' && teams && teams.length > 0 && (
-              <div className="flex items-center space-x-2">
-                <label htmlFor="team-filter" className="text-sm font-medium text-gray-700">
-                  Filter by Team:
-                </label>
-                <select
-                  id="team-filter"
-                  value={selectedTeamId || ''}
-                  onChange={(e) => setSelectedTeamId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* WFH over-limit filter toggle */}
+              {overLimitCount > 0 && (
+                <button
+                  onClick={() => setShowOverLimitOnly((v) => !v)}
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                    showOverLimitOnly
+                      ? 'bg-amber-100 border-amber-300 text-amber-800'
+                      : 'bg-white border-gray-300 text-gray-700 hover:bg-amber-50 hover:border-amber-300'
+                  }`}
+                  title="Toggle to show only employees who exceeded the monthly WFH allowance"
                 >
-                  <option value="">All Teams</option>
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+                  <span>⚠️</span>
+                  {showOverLimitOnly ? 'Showing Over Limit Only' : `Show Over Limit Only`}
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-xs font-bold">{overLimitCount}</span>
+                </button>
+              )}
+
+              {/* Team filter — Admin only */}
+              {currentUser?.role === 'Admin' && teams && teams.length > 0 && (
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="team-filter" className="text-sm font-medium text-gray-700">Team:</label>
+                  <select
+                    id="team-filter"
+                    value={selectedTeamId || ''}
+                    onChange={(e) => setSelectedTeamId(e.target.value ? Number(e.target.value) : undefined)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+                  >
+                    <option value="">All Teams</option>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -350,10 +302,7 @@ export function AdminDashboardPage() {
 
       <EditModal
         isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedUser(null);
-        }}
+        onClose={() => { setIsEditModalOpen(false); setSelectedUser(null); }}
         user={selectedUser}
         onSave={handleSaveParticipation}
         isSaving={updateMutation.isPending}

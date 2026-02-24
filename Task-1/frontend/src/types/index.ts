@@ -283,3 +283,30 @@ export interface AuditLogResponse {
   new_value: string;
   date?: string | null;
 }
+
+export interface WFHSummaryItem {
+  user_id: number;
+  name: string;
+  team_id?: number | null;
+  days_used: number;
+  is_over_limit: boolean;
+  allowance: number;
+}
+
+export interface EventMealSummary {
+  id: number;
+  date: string;
+  title: string;
+  description?: string | null;
+}
+
+export interface DashboardSummary {
+  today_date: string;
+  tomorrow_date: string;
+  today_headcount: number;
+  tomorrow_forecast: number;
+  total_employees: number;
+  upcoming_events: EventMealSummary[];
+  wfh_over_limit_count: number;
+  wfh_allowance: number;
+}
