@@ -207,12 +207,6 @@ export function Calendar({
               {specialDay.note}
             </span>
           )}
-          {!isClosed && (location === 'Office' || (!location && !inWFHPeriod && !isPast && !isWeekend)) && location === 'Office' && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-100 rounded px-1.5 py-0.5 w-fit">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-              Office
-            </span>
-          )}
           {!isClosed && (location === 'WFH' || inWFHPeriod) && (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 bg-violet-100 rounded px-1.5 py-0.5 w-fit">
               <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
@@ -284,11 +278,9 @@ export function Calendar({
       {/* ── Legend ── */}
       <div className="px-5 py-3 border-t border-gray-100 flex flex-wrap gap-x-5 gap-y-2">
         {[
-          { dot: 'bg-blue-500', label: 'Office' },
           { dot: 'bg-violet-500', label: 'WFH' },
           { dot: 'bg-red-400', label: 'Closed' },
           { dot: 'bg-amber-400', label: 'Holiday / Special' },
-          // holidays placeholder: { dot: 'bg-rose-500', label: 'National Holiday' },
         ].map(({ dot, label }) => (
           <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className={`w-2 h-2 rounded-full ${dot}`} />

@@ -59,7 +59,11 @@ export function Layout() {
       {/* Mobile Header */}
       <header className="md:hidden bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
         <div className="px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            aria-label="Go to homepage"
+          >
             <div className="h-8 w-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-sm">
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 14h18v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1zm0-1a8 8 0 018-8 8 8 0 018 8H3zm8-6.5a1 1 0 01.5-.87 1 1 0 011 0 1 1 0 01.5.87v2a1 1 0 01-2 0v-2zM8.5 20h7l.5 1.5a.5.5 0 01-.47.5H8.47a.5.5 0 01-.47-.5L8.5 20z"/>
@@ -68,7 +72,7 @@ export function Layout() {
             <h1 className="text-xl font-bold tracking-tight">
               <span className="text-orange-600">Craft</span><span className="text-gray-900">Meal</span>
             </h1>
-          </div>
+          </button>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -120,7 +124,11 @@ export function Layout() {
       >
         {/* Desktop Logo */}
         <div className="hidden md:flex items-center justify-center h-20 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+            aria-label="Go to homepage"
+          >
             <div className="h-10 w-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-md">
               <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 14h18v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1zm0-1a8 8 0 018-8 8 8 0 018 8H3zm8-6.5a1 1 0 01.5-.87 1 1 0 011 0 1 1 0 01.5.87v2a1 1 0 01-2 0v-2zM8.5 20h7l.5 1.5a.5.5 0 01-.47.5H8.47a.5.5 0 01-.47-.5L8.5 20z"/>
@@ -129,7 +137,7 @@ export function Layout() {
             <h1 className="text-2xl font-bold tracking-tight">
               <span className="text-orange-600">Craft</span><span className="text-gray-900">Meal</span>
             </h1>
-          </div>
+          </button>
         </div>
 
         {/* Navigation */}
