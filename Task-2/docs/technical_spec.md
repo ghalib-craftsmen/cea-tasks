@@ -324,3 +324,48 @@ python-dotenv>=1.0.0
 | `pydantic-settings` | `BaseSettings` support for environment variable loading. |
 | `pynacl` | Ed25519 signature verification for Discord request authentication. |
 | `python-dotenv` | Loads `.env` file during local development (no-op in Lambda). |
+
+---
+
+## 6. Out of Scope for This Iteration
+
+The following are explicitly deferred and must not be implemented until a subsequent iteration:
+
+| Item | Reason for Deferral |
+| --- | --- |
+| Infrastructure as Code (IaC) | Terraform / CDK configuration requires a stable, tested application before provisioning. |
+| CI/CD pipeline | GitHub Actions deployment workflow depends on IaC being in place first. |
+| AWS Secrets Manager integration | Env vars managed manually for now; Secrets Manager adds operational complexity before the app is validated. |
+| DynamoDB table creation | Table will be provisioned manually or via IaC in a future iteration. |
+| Discord slash command registration | Commands will be registered manually via the Discord Developer Portal in this iteration. |
+| Automated tests | Unit and integration test scaffolding is deferred until the core service layer is stable. |
+| Web dashboard changes | Dashboard updates are tracked separately under the FE track of this sprint. |
+
+---
+
+## 7. Future Work
+
+Items identified during architecture design that are intentionally queued for later iterations:
+
+- **IaC (Terraform/CDK):** Define all AWS resources (API Gateway, Lambda, DynamoDB, IAM roles) as code for reproducible deployments.
+- **CI/CD (GitHub Actions):** Automate linting, testing, packaging, and Lambda deployment on merge to `main`.
+- **AWS Secrets Manager:** Migrate `DISCORD_BOT_TOKEN` and `DISCORD_PUBLIC_KEY` from environment variables to Secrets Manager with automatic rotation.
+- **DynamoDB Streams → async processing:** Trigger a secondary Lambda on record changes to push live updates to the web dashboard without polling.
+- **Lambda Provisioned Concurrency:** Eliminate cold starts for time-sensitive cut-off enforcement if usage patterns demand it.
+- **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics.
+- **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse.
+
+---
+
+## 8. References
+
+| Resource | URL |
+| --- | --- |
+| FastAPI Documentation | <https://fastapi.tiangolo.com/> |
+| Discord Interactions API | <https://discord.com/developers/docs/interactions/receiving-and-responding> |
+| Discord Security — Request Verification | <https://discord.com/developers/docs/interactions/receiving-and-responding#security-and-authorization> |
+| Mangum (ASGI → Lambda adapter) | <https://mangum.fastapiexpert.com/> |
+| AWS Lambda — Graviton2 | <https://aws.amazon.com/blogs/aws/aws-lambda-functions-powered-by-aws-graviton2/> |
+| DynamoDB Single-Table Design | <https://www.alexdebrie.com/posts/dynamodb-single-table/> |
+| PyNaCl Documentation | <https://pynacl.readthedocs.io/> |
+| Pydantic Settings | <https://docs.pydantic.dev/latest/concepts/pydantic_settings/> |
