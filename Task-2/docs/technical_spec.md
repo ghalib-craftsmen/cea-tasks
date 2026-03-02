@@ -303,17 +303,6 @@ The system does **not** require every employee to explicitly opt in — absence 
 
 ### 5.4 Dependencies (`requirements.txt`)
 
-```text
-fastapi>=0.111.0
-uvicorn[standard]>=0.29.0
-mangum>=0.17.0
-boto3>=1.34.0
-pydantic>=2.7.0
-pydantic-settings>=2.2.0
-pynacl>=1.5.0
-python-dotenv>=1.0.0
-```
-
 | Package | Purpose |
 | --- | --- |
 | `fastapi` | Web framework — routing, dependency injection, request parsing. |
@@ -324,6 +313,53 @@ python-dotenv>=1.0.0
 | `pydantic-settings` | `BaseSettings` support for environment variable loading. |
 | `pynacl` | Ed25519 signature verification for Discord request authentication. |
 | `python-dotenv` | Loads `.env` file during local development (no-op in Lambda). |
+
+---
+
+## 5.5 API Endpoints
+
+All endpoints are served under the Lambda function URL proxied through API Gateway.
+
+### Discord Endpoints
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord interaction events — slash commands, buttons, select menus. |
+| `GET` | `/health` | None | Lambda warm-up and load balancer health check. |
+
+### Discord Slash Commands
+
+Registered via the Discord Developer Portal. Each command maps to a handler inside `app/api/interactions.py`.
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/meal status [date]` | Employee | Show own meal opt-in and work location for a date (defaults to today). |
+| `/meal update` | Employee | Update own meal opt-in or work location for a date. |
+| `/meal optout <date>` | Employee | Opt out of an event meal for a specific date. |
+| `/meal summary <date>` | Team Lead | Show team headcount summary for a date. |
+| `/meal summary-all <date>` | Admin | Show org-wide headcount summary for a date. |
+| `/meal override <user> <date>` | Admin | Override any employee's meal record. |
+| `/meal cutoff set <date> <time>` | Admin | Set a custom cut-off time for a specific date. |
+| `/meal event set <date> <desc>` | Admin | Flag a date as an event meal day and broadcast announcement. |
+
+### Backend REST API Endpoints
+
+Consumed by the web dashboard frontend, served under `/api/v1`. All require `Authorization: Bearer <INTERNAL_API_KEY>` and are not exposed to Discord.
+
+| Method | Path | Permission | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/meals/{date}` | Admin / Team Lead | Get all meal records for a date. Supports `?team_id=` filter. |
+| `GET` | `/api/v1/meals/{date}/{user_id}` | Admin / Team Lead | Get a single user's meal record for a date. |
+| `PUT` | `/api/v1/meals/{date}/{user_id}` | Admin | Create or update a meal record for a user on a date. |
+| `DELETE` | `/api/v1/meals/{date}/{user_id}` | Admin | Delete a meal record (resets to implicit opt-in on event days). |
+| `GET` | `/api/v1/headcount/{date}` | Admin | Org-wide headcount summary for a date. |
+| `GET` | `/api/v1/headcount/{date}/teams/{team_id}` | Team Lead | Team-level headcount summary for a date. |
+| `GET` | `/api/v1/config/cutoff/{date}` | Admin | Get the cut-off time for a specific date. |
+| `PUT` | `/api/v1/config/cutoff/{date}` | Admin | Set or override the cut-off time for a specific date. |
+| `DELETE` | `/api/v1/config/cutoff/{date}` | Admin | Remove override — reverts to `DEFAULT_CUTOFF_TIME`. |
+| `GET` | `/api/v1/events/{date}` | Admin / Team Lead | Get event meal details for a date. Returns `404` if not an event day. |
+| `POST` | `/api/v1/events` | Admin | Create a new event meal day. |
+| `DELETE` | `/api/v1/events/{date}` | Admin | Remove event meal flag from a date. |
 
 ---
 
