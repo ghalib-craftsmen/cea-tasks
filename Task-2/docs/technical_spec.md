@@ -94,3 +94,70 @@ AWS Lambda (FastAPI via Mangum)
 - Get a single user's record for a date → `PK + SK` (direct lookup).
 - Get all records for a date → GSI on `SK` (date-based fan-out).
 - Get all records for a team on a date → GSI on `SK` filtered by team attribute.
+
+---
+
+## 3. Security Model
+
+### 3.1 Request Authentication — Discord Ed25519 Signature Validation
+
+Every request from Discord includes two headers that must be validated **before any business logic executes**:
+
+| Header | Description |
+| --- | --- |
+| `X-Signature-Ed25519` | Hex-encoded Ed25519 signature of the raw request body. |
+| `X-Signature-Timestamp` | Unix timestamp included in the signed message to prevent replay attacks. |
+
+**Validation algorithm:**
+
+1. Concatenate `timestamp + raw_body` as bytes.
+2. Verify the signature against Discord's public key using `pynacl` (`nacl.signing.VerifyKey`).
+3. If verification fails → return `HTTP 401` immediately, no further processing.
+4. If the timestamp is more than 5 minutes old → return `HTTP 401` (replay attack protection).
+
+This check runs as a FastAPI dependency, applied globally to all interaction endpoints.
+
+```python
+# Pseudocode — implementation detail, not production code
+def verify_discord_signature(
+    signature: str,  # from X-Signature-Ed25519
+    timestamp: str,  # from X-Signature-Timestamp
+    body: bytes,
+    public_key: str,  # DISCORD_PUBLIC_KEY env var
+) -> None:
+    message = timestamp.encode() + body
+    verify_key = VerifyKey(bytes.fromhex(public_key))
+    verify_key.verify(message, bytes.fromhex(signature))
+    # raises nacl.exceptions.BadSignatureError on failure
+```
+
+### 3.2 Authorization — Discord Role-Based Access Control
+
+Authorization is enforced at the command handler level based on the Discord roles present in the interaction payload (`member.roles`). No external role store is needed; Discord's role system is the source of truth.
+
+| Role | Permission Level | Allowed Actions |
+| --- | --- | --- |
+| `@everyone` (Employee) | Standard | Update own meal opt-in, update own work location, view own status. |
+| `@Team Lead` | Elevated | All employee actions + view team headcount summary for any date. |
+| `@Admin` / `@Logistics` | Full | All team lead actions + view org-wide summary, override any employee's record. |
+
+**Authorization flow:**
+
+1. Extract `member.roles` from the validated interaction payload.
+2. Match against configured role IDs (stored as environment variables, e.g., `ROLE_TEAM_LEAD_ID`, `ROLE_ADMIN_ID`).
+3. If the user's roles do not satisfy the required permission level for the invoked command → return an ephemeral error message (visible only to the user).
+
+### 3.3 Environment Variable Management
+
+Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSettings`), loading values from environment variables. No secrets are hardcoded.
+
+| Variable | Description |
+| --- | --- |
+| `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
+| `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
+| `DYNAMODB_TABLE_NAME` | DynamoDB table name (defaults to `mhp-meal-records`). |
+| `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
+| `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
+| `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
+
+> In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
