@@ -25,9 +25,11 @@ The Meal Headcount Planner (MHP) is an internal tool that helps kitchen/logistic
 This specification covers:
 
 - Proposed AWS serverless architecture (not yet deployed via IaC).
-- Security model for Discord webhook validation and role-based authorization.
+- Cost optimization decisions for each AWS service.
+- Security model for Discord webhook validation, user identity, and role-based authorization.
 - Feature logic for Dynamic Cut-off Time and Event Meal workflows.
-- Python project structure and dependency definitions.
+- Python project structure, module responsibilities, and dependency definitions.
+- API endpoint definitions for both Discord interactions and the backend REST API.
 
 ---
 
@@ -66,14 +68,17 @@ AWS Lambda (FastAPI via Mangum)
    - Reads from / writes to **DynamoDB**.
    - Returns a JSON response to Discord (or defers and sends a follow-up).
 
-### 2.2 Service Selection & Cost Rationale
+### 2.2 Service Selection & Cost Optimization
 
-| Service | Tier / Config | Rationale |
-| --- | --- | --- |
-| **API Gateway** | HTTP API | ~70% cheaper than REST API; sufficient for webhook proxy with no transformation needs. |
-| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 offers ~20% better price-performance vs x86. Cold starts are acceptable for low-frequency internal tooling. |
-| **DynamoDB** | On-Demand capacity | No provisioned capacity cost at rest; scales automatically with usage spikes (e.g., morning headcount updates). |
-| **CloudWatch Logs** | Default retention (7 days) | Sufficient for operational debugging without long-term storage cost. |
+All service choices minimize cost for low-to-medium usage internal tooling with no guaranteed baseline traffic.
+
+| Service | Tier / Config | Cost Decision | Impact |
+| --- | --- | --- | --- |
+| **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
+| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 architecture | ~20% lower compute cost vs x86 at identical memory/duration. Cold starts acceptable for low-frequency tooling. |
+| **AWS Lambda** | Single function | One function for all routes via FastAPI + Mangum | Eliminates overhead of managing and cold-starting multiple per-route functions. |
+| **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
+| **CloudWatch Logs** | 7-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
 ### 2.3 DynamoDB Data Model (Proposed)
 
@@ -159,8 +164,37 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
+| `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
+| `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Kuala_Lumpur`) (§4.1). |
+| `DEFAULT_CUTOFF_TIME` | Fallback cut-off time when no per-date override exists (default: `10:00`) (§4.1). |
+| `INTERNAL_API_KEY` | Bearer token required by the backend REST API endpoints consumed by the dashboard (§5.5). |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
+
+### 3.4 User Identity — Discord OAuth2
+
+Discord's Interactions API embeds verified user identity directly inside the signed interaction payload. No separate OAuth2 token exchange is required for slash command interactions — the user's identity is established as part of the same request that is already validated by Ed25519 signature verification (§3.1).
+
+**Identity fields available in every interaction payload:**
+
+| Field | Path in payload | Description |
+| --- | --- | --- |
+| `user_id` | `member.user.id` | Discord's unique, immutable snowflake ID for the user. Used as the primary key in DynamoDB (`USER#{user_id}`). |
+| `username` | `member.user.username` | Display name for bot responses. Not used for authorization decisions. |
+| `roles` | `member.roles` | List of Discord role IDs assigned to the user in the guild. Drives RBAC (§3.2). |
+| `guild_id` | `guild_id` | Confirms the interaction originates from the authorized guild. Requests from other guilds are rejected. |
+
+**Why no separate OAuth2 flow is needed:**
+
+Discord OAuth2 is required when a third-party app needs to act on behalf of a user outside of a guild interaction (e.g., access a user's DMs, read their profile). For slash command bots operating within a guild:
+
+- Discord authenticates the user when they invoke the command.
+- The signed payload (verified in §3.1) guarantees the identity fields have not been tampered with.
+- The `user_id` extracted from the payload is therefore trustworthy without any additional token exchange.
+
+**Guild authorization guard:**
+
+On every interaction, the handler verifies that `guild_id` matches the `AUTHORIZED_GUILD_ID` environment variable. Interactions from unauthorized guilds are rejected with `HTTP 401` before any business logic runs.
 
 ---
 
@@ -316,7 +350,7 @@ The system does **not** require every employee to explicitly opt in — absence 
 
 ---
 
-## 5.5 API Endpoints
+### 5.5 API Endpoints
 
 All endpoints are served under the Lambda function URL proxied through API Gateway.
 
