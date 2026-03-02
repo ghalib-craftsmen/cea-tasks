@@ -82,12 +82,16 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 
 ### 2.3 DynamoDB Data Model (Proposed)
 
+Three separate tables are used — one per entity type. This keeps queries simple and avoids advanced single-table patterns.
+
+---
+
 **Table: `mhp-meal-records`**
 
 | Attribute | Type | Role |
 | --- | --- | --- |
-| `PK` | `String` | Partition key — `USER#{discord_user_id}` |
-| `SK` | `String` | Sort key — `DATE#{YYYY-MM-DD}` |
+| `date` | `String` | Partition key — `YYYY-MM-DD` |
+| `user_id` | `String` | Sort key — Discord user snowflake ID |
 | `meal_opt_in` | `Boolean` | Whether the user is having a meal that day. |
 | `work_location` | `String` | `OFFICE` or `WFH`. |
 | `meal_type` | `String` | e.g., `STANDARD`, `VEGETARIAN`. |
@@ -96,9 +100,31 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 
 **Access patterns:**
 
-- Get a single user's record for a date → `PK + SK` (direct lookup).
-- Get all records for a date → GSI on `SK` (date-based fan-out).
-- Get all records for a team on a date → GSI on `SK` filtered by team attribute.
+- Get all records for a date → Query on `date` (partition key).
+- Get a single user's record for a date → Query on `date` + `user_id` (direct lookup, no GSI needed).
+
+---
+
+**Table: `mhp-cutoff-config`**
+
+| Attribute | Type | Role |
+| --- | --- | --- |
+| `date` | `String` | Partition key — `YYYY-MM-DD` |
+| `cutoff_time` | `String` | Cut-off time in `HH:MM` (24-hour) format. |
+
+**Access pattern:** Get cut-off time for a date → GetItem on `date`.
+
+---
+
+**Table: `mhp-events`**
+
+| Attribute | Type | Role |
+| --- | --- | --- |
+| `date` | `String` | Partition key — `YYYY-MM-DD` |
+| `description` | `String` | Event name or notes. |
+| `opt_out_deadline` | `String` | Cut-off time for opt-out in `HH:MM` format. |
+
+**Access pattern:** Check if a date is an event day → GetItem on `date`. Returns nothing if not an event day.
 
 ---
 
@@ -160,7 +186,9 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | --- | --- |
 | `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
 | `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
-| `DYNAMODB_TABLE_NAME` | DynamoDB table name (defaults to `mhp-meal-records`). |
+| `DYNAMODB_MEAL_TABLE` | Meal records table name (defaults to `mhp-meal-records`). |
+| `DYNAMODB_CUTOFF_TABLE` | Cut-off config table name (defaults to `mhp-cutoff-config`). |
+| `DYNAMODB_EVENTS_TABLE` | Event meal table name (defaults to `mhp-events`). |
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
@@ -227,13 +255,7 @@ if target_date > today:
 
 **Admin override:** Users with the `@Admin` / `@Logistics` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
 
-**Cut-off time storage:** The cut-off time for a given date is stored in a separate DynamoDB item:
-
-- `PK`: `CONFIG#CUTOFF`
-- `SK`: `DATE#{YYYY-MM-DD}`
-- `cutoff_time`: `HH:MM` string (24-hour format)
-
-If no record exists for a date, the system falls back to the `DEFAULT_CUTOFF_TIME` environment variable (default: `10:00`).
+**Cut-off time storage:** The cut-off time for a given date is stored in the `mhp-cutoff-config` table as a single item keyed by `date`. If no record exists for a date, the system falls back to the `DEFAULT_CUTOFF_TIME` environment variable (default: `10:00`).
 
 ---
 
@@ -244,11 +266,7 @@ An "Event Meal" is a special catering day (e.g., company anniversary, team lunch
 **Event day setup (Admin action):**
 
 1. Admin uses `/meal event set <date> <description>` to flag a date as an event meal day.
-2. The system writes an event record to DynamoDB:
-   - `PK`: `EVENT#<date>`
-   - `SK`: `META`
-   - `description`: event name/notes
-   - `opt_out_deadline`: cut-off time for that day (same rules as §4.1)
+2. The system writes an event record to the `mhp-events` table keyed by `date`, with `description` and `opt_out_deadline` fields (same cut-off rules as §4.1).
 3. The bot broadcasts a notification to the configured meal channel announcing the event and the opt-out deadline.
 
 **Employee opt-out flow:**
