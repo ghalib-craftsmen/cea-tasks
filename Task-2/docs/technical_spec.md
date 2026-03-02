@@ -161,3 +161,85 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
+
+---
+
+## 4. Feature Specification
+
+### 4.1 Dynamic Cut-off Time
+
+The cut-off time is the daily deadline after which no more meal changes are accepted for the next working day. It is "dynamic" because it can be configured per-day rather than being a fixed global value.
+
+**Default behaviour:**
+
+- The default cut-off is **10:00 AM** on the day of the meal (same-day changes allowed up to that point).
+- All times are evaluated in the **server's local timezone**, configurable via the `TIMEZONE` environment variable (default: `Asia/Kuala_Lumpur`).
+
+**Cut-off enforcement logic:**
+
+```text
+now = current datetime in configured timezone
+target_date = date the user is trying to update
+
+if target_date < today:
+    → reject: "Cannot update records for a past date."
+
+if target_date == today AND now.time() >= cut_off_time:
+    → reject: "Cut-off time has passed for today. Changes are no longer accepted."
+
+if target_date > today:
+    → allow: future dates are always open for updates.
+```
+
+**Admin override:** Users with the `@Admin` / `@Logistics` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
+
+**Cut-off time storage:** The cut-off time for a given date is stored in a separate DynamoDB item:
+
+- `PK`: `CONFIG#CUTOFF`
+- `SK`: `DATE#{YYYY-MM-DD}`
+- `cutoff_time`: `HH:MM` string (24-hour format)
+
+If no record exists for a date, the system falls back to the `DEFAULT_CUTOFF_TIME` environment variable (default: `10:00`).
+
+---
+
+### 4.2 Event Meal Workflow — Opt-in by Default, Manual Opt-out
+
+An "Event Meal" is a special catering day (e.g., company anniversary, team lunch). On event days, all employees are **opted in by default** — the kitchen prepares for full headcount unless someone explicitly opts out.
+
+**Event day setup (Admin action):**
+
+1. Admin uses `/meal event set <date> <description>` to flag a date as an event meal day.
+2. The system writes an event record to DynamoDB:
+   - `PK`: `EVENT#<date>`
+   - `SK`: `META`
+   - `description`: event name/notes
+   - `opt_out_deadline`: cut-off time for that day (same rules as §4.1)
+3. The bot broadcasts a notification to the configured meal channel announcing the event and the opt-out deadline.
+
+**Employee opt-out flow:**
+
+1. Employee uses `/meal optout <date>` or clicks the "Opt Out" button in the bot's announcement message.
+2. The system checks:
+   - Is the date flagged as an event day? If not → standard opt-in/out logic applies.
+   - Has the opt-out deadline passed? If yes → reject with an ephemeral message.
+3. If valid, the employee's `meal_opt_in` field is set to `false` for that date.
+4. Bot confirms with an ephemeral reply: _"You have opted out of the event meal on {date}."_
+
+**Headcount calculation on event days:**
+
+```text
+total_opted_out  = count of records where meal_opt_in == false for that date
+expected_count   = total_active_employees - total_opted_out
+```
+
+The system does **not** require every employee to explicitly opt in — absence of an opt-out record is treated as opt-in for event days only.
+
+**State transition summary:**
+
+| Scenario | Default State | Employee Action | Resulting State |
+| --- | --- | --- | --- |
+| Regular day | `meal_opt_in = true` | Opt out | `meal_opt_in = false` |
+| Regular day | `meal_opt_in = false` | Opt in | `meal_opt_in = true` |
+| Event meal day | Implicit opt-in (no record) | Opt out | `meal_opt_in = false` |
+| Event meal day | `meal_opt_in = false` | Re-opt in (before deadline) | Record deleted (returns to implicit opt-in) |
