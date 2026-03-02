@@ -243,3 +243,84 @@ The system does **not** require every employee to explicitly opt in — absence 
 | Regular day | `meal_opt_in = false` | Opt in | `meal_opt_in = true` |
 | Event meal day | Implicit opt-in (no record) | Opt out | `meal_opt_in = false` |
 | Event meal day | `meal_opt_in = false` | Re-opt in (before deadline) | Record deleted (returns to implicit opt-in) |
+
+---
+
+## 5. Python Project Structure
+
+### 5.1 Runtime
+
+- **Python version:** 3.11 (minimum). Required for optimal Lambda cold-start performance and full `tomllib` / `typing` support.
+- **Lambda runtime:** `python3.11` on `arm64` (Graviton2).
+
+### 5.2 Directory Layout
+
+```text
+/
+├── app/
+│   ├── __init__.py
+│   ├── main.py               # FastAPI app factory + Mangum handler entry point
+│   ├── config.py             # Pydantic Settings class (env var management)
+│   │
+│   ├── api/                  # FastAPI routers (HTTP layer only)
+│   │   ├── __init__.py
+│   │   ├── interactions.py   # POST /interactions — Discord webhook entry point
+│   │   └── health.py         # GET /health — Lambda warm-up / ALB health check
+│   │
+│   ├── services/             # Business logic and DynamoDB interactions
+│   │   ├── __init__.py
+│   │   ├── meal_service.py   # Meal opt-in/out, cut-off enforcement, event meals
+│   │   ├── headcount_service.py  # Headcount aggregation and summary generation
+│   │   └── discord_service.py    # Discord REST API calls (follow-up messages)
+│   │
+│   └── models/               # Pydantic models (request/response schemas)
+│       ├── __init__.py
+│       ├── discord_models.py # Discord interaction payload schemas
+│       └── meal_models.py    # Meal record, event, and cut-off config schemas
+│
+├── docs/
+│   ├── technical_spec.md     # This document
+│   └── iterations/
+│       └── task-iteration1.md
+│
+├── requirements.txt          # Production dependencies
+├── requirements-dev.txt      # Development/test dependencies
+└── .env.example              # Template for local environment variables
+```
+
+### 5.3 Module Responsibilities
+
+| Module | Responsibility |
+| --- | --- |
+| `app/main.py` | Creates the FastAPI app, registers routers, wraps with `Mangum` for Lambda. |
+| `app/config.py` | Defines `Settings(BaseSettings)` — single source of truth for all env vars. |
+| `app/api/interactions.py` | Receives raw Discord POST, runs signature verification dependency, dispatches to the correct command handler. |
+| `app/services/meal_service.py` | Implements cut-off time logic, opt-in/out writes, event meal state transitions. |
+| `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries; computes event day expected counts. |
+| `app/services/discord_service.py` | Sends deferred follow-up messages to Discord via REST after Lambda responds. |
+| `app/models/discord_models.py` | Typed Pydantic models for Discord interaction payloads, member objects, and options. |
+| `app/models/meal_models.py` | Typed Pydantic models for DynamoDB records: `MealRecord`, `EventRecord`, `CutoffConfig`. |
+
+### 5.4 Dependencies (`requirements.txt`)
+
+```text
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+mangum>=0.17.0
+boto3>=1.34.0
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+pynacl>=1.5.0
+python-dotenv>=1.0.0
+```
+
+| Package | Purpose |
+| --- | --- |
+| `fastapi` | Web framework — routing, dependency injection, request parsing. |
+| `uvicorn` | ASGI server for local development. Not used in Lambda. |
+| `mangum` | Wraps the FastAPI ASGI app to handle AWS Lambda + API Gateway proxy events. |
+| `boto3` | AWS SDK — DynamoDB client for all read/write operations. |
+| `pydantic` | Data validation and serialisation for request/response models. |
+| `pydantic-settings` | `BaseSettings` support for environment variable loading. |
+| `pynacl` | Ed25519 signature verification for Discord request authentication. |
+| `python-dotenv` | Loads `.env` file during local development (no-op in Lambda). |
