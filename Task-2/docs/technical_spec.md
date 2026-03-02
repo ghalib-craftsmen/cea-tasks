@@ -28,3 +28,69 @@ This specification covers:
 - Security model for Discord webhook validation and role-based authorization.
 - Feature logic for Dynamic Cut-off Time and Event Meal workflows.
 - Python project structure and dependency definitions.
+
+---
+
+## 2. Proposed AWS Architecture
+
+> **Note:** Infrastructure as Code (IaC) and CI/CD pipelines are out of scope for this iteration. This section documents the target architecture to guide future provisioning.
+
+### 2.1 Serverless Request Flow
+
+```text
+Discord User
+     │
+     │  Slash Command / Interaction
+     ▼
+Discord API
+     │
+     │  HTTP POST (signed webhook)
+     ▼
+API Gateway (HTTP API)
+     │
+     │  Proxy integration
+     ▼
+AWS Lambda (FastAPI via Mangum)
+     │
+     ├──► DynamoDB (read / write meal records)
+     │
+     └──► Discord API (send follow-up response)
+```
+
+1. A Discord user triggers a slash command or button interaction.
+2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
+3. API Gateway proxies the raw request (including signature headers) to a single **Lambda function**.
+4. The Lambda runs a **FastAPI** application adapted by **Mangum**, which:
+   - Validates the Ed25519 signature (reject immediately if invalid).
+   - Parses the interaction payload and routes it to the appropriate handler.
+   - Reads from / writes to **DynamoDB**.
+   - Returns a JSON response to Discord (or defers and sends a follow-up).
+
+### 2.2 Service Selection & Cost Rationale
+
+| Service | Tier / Config | Rationale |
+| --- | --- | --- |
+| **API Gateway** | HTTP API | ~70% cheaper than REST API; sufficient for webhook proxy with no transformation needs. |
+| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 offers ~20% better price-performance vs x86. Cold starts are acceptable for low-frequency internal tooling. |
+| **DynamoDB** | On-Demand capacity | No provisioned capacity cost at rest; scales automatically with usage spikes (e.g., morning headcount updates). |
+| **CloudWatch Logs** | Default retention (7 days) | Sufficient for operational debugging without long-term storage cost. |
+
+### 2.3 DynamoDB Data Model (Proposed)
+
+**Table: `mhp-meal-records`**
+
+| Attribute | Type | Role |
+| --- | --- | --- |
+| `PK` | `String` | Partition key — `USER#{discord_user_id}` |
+| `SK` | `String` | Sort key — `DATE#{YYYY-MM-DD}` |
+| `meal_opt_in` | `Boolean` | Whether the user is having a meal that day. |
+| `work_location` | `String` | `OFFICE` or `WFH`. |
+| `meal_type` | `String` | e.g., `STANDARD`, `VEGETARIAN`. |
+| `updated_at` | `String` | ISO 8601 timestamp of last change. |
+| `updated_by` | `String` | Discord user ID of who made the change (self or admin). |
+
+**Access patterns:**
+
+- Get a single user's record for a date → `PK + SK` (direct lookup).
+- Get all records for a date → GSI on `SK` (date-based fan-out).
+- Get all records for a team on a date → GSI on `SK` filtered by team attribute.
