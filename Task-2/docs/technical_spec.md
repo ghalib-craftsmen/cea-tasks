@@ -27,7 +27,7 @@ This specification covers:
 - Proposed AWS serverless architecture (not yet deployed via IaC).
 - Cost optimization decisions for each AWS service.
 - Security model for Discord webhook validation, user identity, and role-based authorization.
-- Feature logic for Dynamic Cut-off Time and Event Meal workflows.
+- Feature logic for cut-off time enforcement and Event Meal workflows.
 - Python project structure, module responsibilities, and dependency definitions.
 - API endpoint definitions for both Discord interactions and the backend REST API.
 
@@ -105,29 +105,6 @@ Three separate tables are used — one per entity type. This keeps queries simpl
 
 ---
 
-**Table: `mhp-cutoff-config`**
-
-| Attribute | Type | Role |
-| --- | --- | --- |
-| `date` | `String` | Partition key — `YYYY-MM-DD` |
-| `cutoff_time` | `String` | Cut-off time in `HH:MM` (24-hour) format. |
-
-**Access pattern:** Get cut-off time for a date → GetItem on `date`.
-
----
-
-**Table: `mhp-events`**
-
-| Attribute | Type | Role |
-| --- | --- | --- |
-| `date` | `String` | Partition key — `YYYY-MM-DD` |
-| `description` | `String` | Event name or notes. |
-| `opt_out_deadline` | `String` | Cut-off time for opt-out in `HH:MM` format. |
-
-**Access pattern:** Check if a date is an event day → GetItem on `date`. Returns nothing if not an event day.
-
----
-
 ## 3. Security Model
 
 ### 3.1 Request Authentication — Discord Ed25519 Signature Validation
@@ -187,14 +164,12 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
 | `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
 | `DYNAMODB_MEAL_TABLE` | Meal records table name (defaults to `mhp-meal-records`). |
-| `DYNAMODB_CUTOFF_TABLE` | Cut-off config table name (defaults to `mhp-cutoff-config`). |
-| `DYNAMODB_EVENTS_TABLE` | Event meal table name (defaults to `mhp-events`). |
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
 | `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
-| `DEFAULT_CUTOFF_TIME` | Fallback cut-off time when no per-date override exists (default: `00:00`, midnight before the meal date) (§4.1). |
+| `DEFAULT_CUTOFF_TIME` | Static cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
 | `INTERNAL_API_KEY` | Bearer token required by the backend REST API endpoints consumed by the dashboard (§5.5). |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
@@ -228,21 +203,18 @@ On every interaction, the handler verifies that `guild_id` matches the `AUTHORIZ
 
 ## 4. Feature Specification
 
-### 4.1 Dynamic Cut-off Time
+### 4.1 Cut-off Time
 
-The cut-off time is the daily deadline after which no more meal changes are accepted for the next working day. It is "dynamic" because it can be configured per-day rather than being a fixed global value.
+The cut-off time is the daily deadline after which no more meal changes are accepted for the next working day. It is a single static value applied uniformly to every working day, configured via the `DEFAULT_CUTOFF_TIME` environment variable (default: `00:00`, midnight before the meal date).
 
-**Default behaviour:**
-
-- The default cut-off is **12:00 AM (00:00) midnight before the meal date** — logistics needs the headcount estimate before early-morning.
-- All times are evaluated in the **server's local timezone**, configurable via the `TIMEZONE` environment variable (default: `Asia/Dhaka`).
+All times are evaluated in the **server's local timezone**, configurable via the `TIMEZONE` environment variable (default: `Asia/Dhaka`).
 
 **Cut-off enforcement logic:**
 
 ```text
 now = current datetime in configured timezone
 target_date = date the user is trying to update
-cutoff_datetime = (target_date - 1 day) at cut_off_time
+cutoff_datetime = (target_date - 1 day) at DEFAULT_CUTOFF_TIME
 
 if target_date <= today:
     → reject: "Cannot update records for today or a past date."
@@ -256,19 +228,24 @@ if now < cutoff_datetime:
 
 **Admin override:** Users with the `@Admin` / `@Logistics` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
 
-**Cut-off time storage:** The cut-off time for a given date is stored in the `mhp-cutoff-config` table as a single item keyed by `date` (the meal date). If no record exists for a date, the system falls back to the `DEFAULT_CUTOFF_TIME` environment variable (default: `00:00`).
-
 ---
 
 ### 4.2 Event Meal Workflow — Opt-in by Default, Manual Opt-out
 
 An "Event Meal" is a special catering day (e.g., company anniversary, team lunch). On event days, all employees are **opted in by default** — the kitchen prepares for full headcount unless someone explicitly opts out.
 
-**Event day setup (Admin action):**
+**Event day setup (static configuration):**
 
-1. Admin uses `/meal event set <date> <description>` to flag a date as an event meal day.
-2. The system writes an event record to the `mhp-events` table keyed by `date`, with `description` and `opt_out_deadline` fields (same cut-off rules as §4.1).
-3. The bot broadcasts a notification to the configured meal channel announcing the event and the opt-out deadline.
+Event days are defined in a static configuration file (`config/events.json`) bundled with the Lambda deployment package. Each entry specifies a date and description. The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1) — no separate per-event deadline is needed.
+
+```json
+[
+  { "date": "2026-03-15", "description": "Company anniversary lunch" },
+  { "date": "2026-06-01", "description": "Mid-year team lunch" }
+]
+```
+
+To add or modify event days, update `config/events.json` and redeploy the Lambda function. The bot can broadcast a one-time notification via a manual `/meal event announce <date>` command (Admin only), or the message can be posted manually.
 
 **Employee opt-out flow:**
 
@@ -295,7 +272,7 @@ The system does **not** require every employee to explicitly opt in — absence 
 | Regular day | `meal_opt_in = true` | Opt out | `meal_opt_in = false` |
 | Regular day | `meal_opt_in = false` | Opt in | `meal_opt_in = true` |
 | Event meal day | Implicit opt-in (no record) | Opt out | `meal_opt_in = false` |
-| Event meal day | `meal_opt_in = false` | Re-opt in (before deadline) | Record deleted (returns to implicit opt-in) |
+| Event meal day | `meal_opt_in = false` | Re-opt in (before deadline) | `meal_opt_in = true` |
 
 ---
 
@@ -326,6 +303,9 @@ The system does **not** require every employee to explicitly opt in — absence 
 │       ├── discord_models.py # Discord interaction payload schemas
 │       └── meal_models.py    # Meal record, event, and cut-off config schemas
 │
+├── config/
+│   └── events.json           # Static list of event meal dates and descriptions
+│
 ├── docs/
 │   ├── technical_spec.md     # This document
 │   └── iterations/
@@ -346,7 +326,7 @@ The system does **not** require every employee to explicitly opt in — absence 
 | `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries; computes event day expected counts. |
 | `app/services/discord_service.py` | Sends deferred follow-up messages to Discord via REST after Lambda responds. |
 | `app/models/discord_models.py` | Typed Pydantic models for Discord interaction payloads, member objects, and options. |
-| `app/models/meal_models.py` | Typed Pydantic models for DynamoDB records: `MealRecord`, `EventRecord`, `CutoffConfig`. |
+| `app/models/meal_models.py` | Typed Pydantic models for DynamoDB records: `MealRecord`. Also includes `EventConfig` for deserialising `config/events.json`. |
 
 ### 5.4 Dependencies (`requirements.txt`)
 
@@ -383,8 +363,7 @@ Registered via the Discord Developer Portal. Each command maps to a handler insi
 | `/meal summary <date>` | Team Lead | Show team headcount summary for a date. |
 | `/meal summary-all <date>` | Admin | Show org-wide headcount summary for a date. |
 | `/meal override <user> <date>` | Admin | Override any employee's meal record. |
-| `/meal cutoff set <date> <time>` | Admin | Set a custom cut-off time for a specific date. |
-| `/meal event set <date> <desc>` | Admin | Flag a date as an event meal day and broadcast announcement. |
+| `/meal event announce <date>` | Admin | Broadcast the event meal announcement for a pre-configured event day. |
 
 ### Backend REST API Endpoints
 
@@ -395,15 +374,8 @@ Consumed by the web dashboard frontend, served under `/api/v1`. All require `Aut
 | `GET` | `/api/v1/meals/{date}` | Admin / Team Lead | Get all meal records for a date. Supports `?team_id=` filter. |
 | `GET` | `/api/v1/meals/{date}/{user_id}` | Admin / Team Lead | Get a single user's meal record for a date. |
 | `PUT` | `/api/v1/meals/{date}/{user_id}` | Admin | Create or update a meal record for a user on a date. |
-| `DELETE` | `/api/v1/meals/{date}/{user_id}` | Admin | Delete a meal record (resets to implicit opt-in on event days). |
 | `GET` | `/api/v1/headcount/{date}` | Admin | Org-wide headcount summary for a date. |
 | `GET` | `/api/v1/headcount/{date}/teams/{team_id}` | Team Lead | Team-level headcount summary for a date. |
-| `GET` | `/api/v1/config/cutoff/{date}` | Admin | Get the cut-off time for a specific date. |
-| `PUT` | `/api/v1/config/cutoff/{date}` | Admin | Set or override the cut-off time for a specific date. |
-| `DELETE` | `/api/v1/config/cutoff/{date}` | Admin | Remove override — reverts to `DEFAULT_CUTOFF_TIME`. |
-| `GET` | `/api/v1/events/{date}` | Admin / Team Lead | Get event meal details for a date. Returns `404` if not an event day. |
-| `POST` | `/api/v1/events` | Admin | Create a new event meal day. |
-| `DELETE` | `/api/v1/events/{date}` | Admin | Remove event meal flag from a date. |
 
 ---
 
