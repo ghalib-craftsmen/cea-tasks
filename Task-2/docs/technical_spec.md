@@ -52,7 +52,7 @@ API Gateway (HTTP API)
      │
      │  Proxy integration
      ▼
-AWS Lambda (FastAPI via Mangum)
+AWS Lambda (plain handler)
      │
      ├──► DynamoDB (read / write meal records)
      │
@@ -62,9 +62,9 @@ AWS Lambda (FastAPI via Mangum)
 1. A Discord user triggers a slash command or button interaction.
 2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
 3. API Gateway proxies the raw request (including signature headers) to a single **Lambda function**.
-4. The Lambda runs a **FastAPI** application adapted by **Mangum**, which:
+4. The Lambda handler (`app/handler.py`) runs synchronously and:
    - Validates the Ed25519 signature (reject immediately if invalid).
-   - Parses the interaction payload and routes it to the appropriate handler.
+   - Parses the interaction payload and routes to the appropriate service function.
    - Reads from / writes to **DynamoDB**.
    - Returns a JSON response to Discord (or defers and sends a follow-up).
 
@@ -75,10 +75,10 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
 | **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 architecture | ~20% lower compute cost vs x86 at identical memory/duration. Cold starts acceptable for low-frequency tooling. |
-| **AWS Lambda** | Single function | One function for all routes via FastAPI + Mangum | Eliminates overhead of managing and cold-starting multiple per-route functions. |
+| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 architecture | ~20% lower compute cost vs x86 at identical memory/duration. Cold starts acceptable for low-frequency tooling. A scheduled EventBridge warm-up ping (see §7) can partially mitigate cold starts during the predictable evening submission window at negligible cost. |
+| **AWS Lambda** | Single function | One handler for all routes | Eliminates overhead of managing and cold-starting multiple per-route functions. A single `handler(event, context)` entry point dispatches to service functions by command name. |
 | **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
-| **CloudWatch Logs** | 7-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
+| **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
 ### 2.3 DynamoDB Data Model (Proposed)
 
@@ -146,7 +146,7 @@ Every request from Discord includes two headers that must be validated **before 
 3. If verification fails → return `HTTP 401` immediately, no further processing.
 4. If the timestamp is more than 5 minutes old → return `HTTP 401` (replay attack protection).
 
-This check runs as a FastAPI dependency, applied globally to all interaction endpoints.
+This check is called explicitly at the top of the Lambda handler before any routing or business logic executes.
 
 ```python
 # Pseudocode — implementation detail, not production code
@@ -193,8 +193,8 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
-| `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Kuala_Lumpur`) (§4.1). |
-| `DEFAULT_CUTOFF_TIME` | Fallback cut-off time when no per-date override exists (default: `10:00`) (§4.1). |
+| `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
+| `DEFAULT_CUTOFF_TIME` | Fallback cut-off time when no per-date override exists (default: `00:00`, midnight before the meal date) (§4.1). |
 | `INTERNAL_API_KEY` | Bearer token required by the backend REST API endpoints consumed by the dashboard (§5.5). |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
@@ -234,28 +234,29 @@ The cut-off time is the daily deadline after which no more meal changes are acce
 
 **Default behaviour:**
 
-- The default cut-off is **10:00 AM** on the day of the meal (same-day changes allowed up to that point).
-- All times are evaluated in the **server's local timezone**, configurable via the `TIMEZONE` environment variable (default: `Asia/Kuala_Lumpur`).
+- The default cut-off is **12:00 AM (00:00) midnight before the meal date** — logistics needs the headcount estimate before early-morning.
+- All times are evaluated in the **server's local timezone**, configurable via the `TIMEZONE` environment variable (default: `Asia/Dhaka`).
 
 **Cut-off enforcement logic:**
 
 ```text
 now = current datetime in configured timezone
 target_date = date the user is trying to update
+cutoff_datetime = (target_date - 1 day) at cut_off_time
 
-if target_date < today:
-    → reject: "Cannot update records for a past date."
+if target_date <= today:
+    → reject: "Cannot update records for today or a past date."
 
-if target_date == today AND now.time() >= cut_off_time:
-    → reject: "Cut-off time has passed for today. Changes are no longer accepted."
+if now >= cutoff_datetime:
+    → reject: "Cut-off time has passed for {target_date}. Changes are no longer accepted."
 
-if target_date > today:
-    → allow: future dates are always open for updates.
+if now < cutoff_datetime:
+    → allow: cut-off has not yet been reached.
 ```
 
 **Admin override:** Users with the `@Admin` / `@Logistics` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
 
-**Cut-off time storage:** The cut-off time for a given date is stored in the `mhp-cutoff-config` table as a single item keyed by `date`. If no record exists for a date, the system falls back to the `DEFAULT_CUTOFF_TIME` environment variable (default: `10:00`).
+**Cut-off time storage:** The cut-off time for a given date is stored in the `mhp-cutoff-config` table as a single item keyed by `date` (the meal date). If no record exists for a date, the system falls back to the `DEFAULT_CUTOFF_TIME` environment variable (default: `00:00`).
 
 ---
 
@@ -311,13 +312,8 @@ The system does **not** require every employee to explicitly opt in — absence 
 /
 ├── app/
 │   ├── __init__.py
-│   ├── main.py               # FastAPI app factory + Mangum handler entry point
+│   ├── handler.py            # Lambda entry point — signature verification + command routing
 │   ├── config.py             # Pydantic Settings class (env var management)
-│   │
-│   ├── api/                  # FastAPI routers (HTTP layer only)
-│   │   ├── __init__.py
-│   │   ├── interactions.py   # POST /interactions — Discord webhook entry point
-│   │   └── health.py         # GET /health — Lambda warm-up / ALB health check
 │   │
 │   ├── services/             # Business logic and DynamoDB interactions
 │   │   ├── __init__.py
@@ -344,9 +340,8 @@ The system does **not** require every employee to explicitly opt in — absence 
 
 | Module | Responsibility |
 | --- | --- |
-| `app/main.py` | Creates the FastAPI app, registers routers, wraps with `Mangum` for Lambda. |
+| `app/handler.py` | Lambda entry point (`handler(event, context)`). Verifies Ed25519 signature, parses the interaction payload, and dispatches to the correct service function by command name. Returns a JSON-serialisable dict to API Gateway. |
 | `app/config.py` | Defines `Settings(BaseSettings)` — single source of truth for all env vars. |
-| `app/api/interactions.py` | Receives raw Discord POST, runs signature verification dependency, dispatches to the correct command handler. |
 | `app/services/meal_service.py` | Implements cut-off time logic, opt-in/out writes, event meal state transitions. |
 | `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries; computes event day expected counts. |
 | `app/services/discord_service.py` | Sends deferred follow-up messages to Discord via REST after Lambda responds. |
@@ -357,9 +352,6 @@ The system does **not** require every employee to explicitly opt in — absence 
 
 | Package | Purpose |
 | --- | --- |
-| `fastapi` | Web framework — routing, dependency injection, request parsing. |
-| `uvicorn` | ASGI server for local development. Not used in Lambda. |
-| `mangum` | Wraps the FastAPI ASGI app to handle AWS Lambda + API Gateway proxy events. |
 | `boto3` | AWS SDK — DynamoDB client for all read/write operations. |
 | `pydantic` | Data validation and serialisation for request/response models. |
 | `pydantic-settings` | `BaseSettings` support for environment variable loading. |
@@ -377,11 +369,11 @@ All endpoints are served under the Lambda function URL proxied through API Gatew
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord interaction events — slash commands, buttons, select menus. |
-| `GET` | `/health` | None | Lambda warm-up and load balancer health check. |
+| `GET` | `/health` | None | Lambda warm-up and load balancer health check. Also the target for a scheduled EventBridge warm-up ping (see §7). |
 
 ### Discord Slash Commands
 
-Registered via the Discord Developer Portal. Each command maps to a handler inside `app/api/interactions.py`.
+Registered via the Discord Developer Portal. Each command maps to a handler inside `app/handler.py`.
 
 | Command | Permission | Description |
 | --- | --- | --- |
@@ -439,7 +431,8 @@ Items identified during architecture design that are intentionally queued for la
 - **CI/CD (GitHub Actions):** Automate linting, testing, packaging, and Lambda deployment on merge to `main`.
 - **AWS Secrets Manager:** Migrate `DISCORD_BOT_TOKEN` and `DISCORD_PUBLIC_KEY` from environment variables to Secrets Manager with automatic rotation.
 - **DynamoDB Streams → async processing:** Trigger a secondary Lambda on record changes to push live updates to the web dashboard without polling.
-- **Lambda Provisioned Concurrency:** Eliminate cold starts for time-sensitive cut-off enforcement if usage patterns demand it.
+- **Lambda warm-up via EventBridge (low-cost mitigation):** Schedule an EventBridge rule to `GET /health` every 5 minutes during the evening submission window (e.g., 19:00–23:59 local time, leading up to the 00:00 cut-off). This keeps the container warm before the peak usage period at negligible cost (~$0/month within free tier). Does not guarantee zero cold starts but eliminates them during the scheduled window. No code changes required — only an EventBridge rule and IAM permission to invoke the function URL.
+- **Lambda Provisioned Concurrency (full elimination):** Reserve a minimum number of pre-initialized execution environments. Eliminates cold starts entirely but incurs a fixed hourly cost; appropriate only if warm-up pings prove insufficient or if SLA requirements tighten.
 - **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics.
 - **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse.
 
@@ -449,10 +442,8 @@ Items identified during architecture design that are intentionally queued for la
 
 | Resource | URL |
 | --- | --- |
-| FastAPI Documentation | <https://fastapi.tiangolo.com/> |
 | Discord Interactions API | <https://discord.com/developers/docs/interactions/receiving-and-responding> |
 | Discord Security — Request Verification | <https://discord.com/developers/docs/interactions/receiving-and-responding#security-and-authorization> |
-| Mangum (ASGI → Lambda adapter) | <https://mangum.fastapiexpert.com/> |
 | AWS Lambda — Graviton2 | <https://aws.amazon.com/blogs/aws/aws-lambda-functions-powered-by-aws-graviton2/> |
 | DynamoDB Single-Table Design | <https://www.alexdebrie.com/posts/dynamodb-single-table/> |
 | PyNaCl Documentation | <https://pynacl.readthedocs.io/> |
