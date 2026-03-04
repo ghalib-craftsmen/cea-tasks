@@ -82,39 +82,26 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 
 ### 2.3 DynamoDB Data Model (Proposed)
 
-One table per entity type (multi-table design). Cut-off time and event day configuration are handled via static settings, so only one DynamoDB table is required.
+Multi-table design with a maximum of 2 GSIs. Detailed table schemas, key design, GSI projections, and write strategy will be documented later.
 
----
+**Tables:**
 
-**Table: `mhp-meal-records`**
-
-| Attribute | Type | Role |
+| Table | Primary access direction | GSIs |
 | --- | --- | --- |
-| `date` | `String` | Partition key — `YYYY-MM-DD` |
-| `user_id` | `String` | Sort key — Discord user snowflake ID |
-| `meal_opt_in` | `Boolean` | Whether the user is having a meal that day. |
-| `work_location` | `String` | `OFFICE` or `WFH`. |
-| `meal_type` | `String` | e.g., `STANDARD`, `VEGETARIAN`. |
-| `updated_at` | `String` | ISO 8601 timestamp of last change. |
-| `updated_by` | `String` | Discord user ID of who made the change (self or admin). |
-
-**GSIs:**
-
-| GSI | PK | SK | Purpose |
-| --- | --- | --- | --- |
-| `user_date_index` | `user_id` | `date` | Query all meal records for a user across dates (user history, `/meal status`). |
-| `location_date_index` | `work_location` | `date` | Query all OFFICE or WFH records for a date (location-based headcount). |
+| `mhp-meal-records` | Date-centric — daily headcount and location/dietary breakdowns | 2 (`location_date_index`, `meal_type_date_index`) |
+| `mhp-user-history` | User-centric — per-user meal history across dates | None |
 
 **Access patterns:**
 
-| Operation | Pattern | Notes |
+| Operation | Table | Notes |
 | --- | --- | --- |
-| Get all records for a date | Query on `date` (PK) | Org-wide headcount and dashboard listing. |
-| Get one user's record for a date | GetItem on `date` + `user_id` | Direct key lookup; no GSI needed. |
-| Get a user's records across dates | Query `user_date_index` on `user_id` | Drives `/meal status` history and dashboard user view. |
-| Get OFFICE or WFH headcount for a date | Query `location_date_index` on `work_location`, filter `date` | No client-side scan needed for location filtering. |
-| Count opt-ins / opt-outs for a date | Query on `date` (PK), filter client-side | Headcount totals; acceptable for small org sizes. |
-| Create or update a user's record | PutItem on `date` + `user_id` | Covers opt-in, opt-out, location update, and admin override. |
+| Get all records for a date | `mhp-meal-records` | Org-wide headcount and dashboard listing. |
+| Get one user's record for a date | `mhp-meal-records` | Direct key lookup; no GSI needed. |
+| Get a user's records across dates | `mhp-user-history` | Drives `/meal status` history; no GSI needed. |
+| Get OFFICE or WFH headcount for a date | `mhp-meal-records` | Via `location_date_index`. |
+| Get dietary headcount for a date | `mhp-meal-records` | Via `meal_type_date_index` (e.g., VEGETARIAN count). |
+| Count opt-ins / opt-outs for a date | `mhp-meal-records` | Query by date, filter client-side. |
+| Create or update a user's record | Both tables | `mhp-meal-records` is authoritative; `mhp-user-history` is a denormalized read replica. |
 
 ---
 
@@ -177,6 +164,7 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
 | `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
 | `DYNAMODB_MEAL_TABLE` | Meal records table name (defaults to `mhp-meal-records`). |
+| `DYNAMODB_USER_HISTORY_TABLE` | User history table name (defaults to `mhp-user-history`). Denormalized read replica of `DYNAMODB_MEAL_TABLE` for user-first queries. |
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
