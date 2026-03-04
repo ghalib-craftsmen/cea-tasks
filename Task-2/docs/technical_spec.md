@@ -82,7 +82,7 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 
 ### 2.3 DynamoDB Data Model (Proposed)
 
-Three separate tables are used — one per entity type. This keeps queries simple and avoids advanced single-table patterns.
+One table per entity type (multi-table design). Cut-off time and event day configuration are handled via static settings, so only one DynamoDB table is required.
 
 ---
 
@@ -98,10 +98,23 @@ Three separate tables are used — one per entity type. This keeps queries simpl
 | `updated_at` | `String` | ISO 8601 timestamp of last change. |
 | `updated_by` | `String` | Discord user ID of who made the change (self or admin). |
 
+**GSIs:**
+
+| GSI | PK | SK | Purpose |
+| --- | --- | --- | --- |
+| `user_date_index` | `user_id` | `date` | Query all meal records for a user across dates (user history, `/meal status`). |
+| `location_date_index` | `work_location` | `date` | Query all OFFICE or WFH records for a date (location-based headcount). |
+
 **Access patterns:**
 
-- Get all records for a date → Query on `date` (partition key).
-- Get a single user's record for a date → Query on `date` + `user_id` (direct lookup, no GSI needed).
+| Operation | Pattern | Notes |
+| --- | --- | --- |
+| Get all records for a date | Query on `date` (PK) | Org-wide headcount and dashboard listing. |
+| Get one user's record for a date | GetItem on `date` + `user_id` | Direct key lookup; no GSI needed. |
+| Get a user's records across dates | Query `user_date_index` on `user_id` | Drives `/meal status` history and dashboard user view. |
+| Get OFFICE or WFH headcount for a date | Query `location_date_index` on `work_location`, filter `date` | No client-side scan needed for location filtering. |
+| Count opt-ins / opt-outs for a date | Query on `date` (PK), filter client-side | Headcount totals; acceptable for small org sizes. |
+| Create or update a user's record | PutItem on `date` + `user_id` | Covers opt-in, opt-out, location update, and admin override. |
 
 ---
 
