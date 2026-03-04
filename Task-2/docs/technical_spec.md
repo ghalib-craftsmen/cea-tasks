@@ -75,7 +75,7 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
 | **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 architecture | ~20% lower compute cost vs x86 at identical memory/duration. Cold starts acceptable for low-frequency tooling. A scheduled EventBridge warm-up ping (see §7) can partially mitigate cold starts during the predictable evening submission window at negligible cost. |
+| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 + SnapStart | ~20% lower compute cost vs x86. **SnapStart** (enabled on the published version) eliminates cold starts by restoring a pre-initialized execution environment snapshot — no warm-up pings or provisioned concurrency needed. Requires Python 3.12 runtime. |
 | **AWS Lambda** | Single function | One handler for all routes | Eliminates overhead of managing and cold-starting multiple per-route functions. A single `handler(event, context)` entry point dispatches to service functions by command name. |
 | **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
@@ -280,8 +280,8 @@ The system does **not** require every employee to explicitly opt in — absence 
 
 ### 5.1 Runtime
 
-- **Python version:** 3.11 (minimum). Required for optimal Lambda cold-start performance and full `tomllib` / `typing` support.
-- **Lambda runtime:** `python3.11` on `arm64` (Graviton2).
+- **Python version:** 3.12 (minimum). Required for Lambda SnapStart support and includes performance improvements over 3.11.
+- **Lambda runtime:** `python3.12` on `arm64` (Graviton2) with **SnapStart** enabled on the published function version.
 
 ### 5.2 Directory Layout
 
@@ -349,7 +349,7 @@ All endpoints are served under the Lambda function URL proxied through API Gatew
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord interaction events — slash commands, buttons, select menus. |
-| `GET` | `/health` | None | Lambda warm-up and load balancer health check. Also the target for a scheduled EventBridge warm-up ping (see §7). |
+| `GET` | `/health` | None | Health check endpoint for monitoring and load balancer integration. |
 
 ### Discord Slash Commands
 
@@ -403,8 +403,7 @@ Items identified during architecture design that are intentionally queued for la
 - **CI/CD (GitHub Actions):** Automate linting, testing, packaging, and Lambda deployment on merge to `main`.
 - **AWS Secrets Manager:** Migrate `DISCORD_BOT_TOKEN` and `DISCORD_PUBLIC_KEY` from environment variables to Secrets Manager with automatic rotation.
 - **DynamoDB Streams → async processing:** Trigger a secondary Lambda on record changes to push live updates to the web dashboard without polling.
-- **Lambda warm-up via EventBridge (low-cost mitigation):** Schedule an EventBridge rule to `GET /health` every 5 minutes during the evening submission window (e.g., 19:00–23:59 local time, leading up to the 00:00 cut-off). This keeps the container warm before the peak usage period at negligible cost (~$0/month within free tier). Does not guarantee zero cold starts but eliminates them during the scheduled window. No code changes required — only an EventBridge rule and IAM permission to invoke the function URL.
-- **Lambda Provisioned Concurrency (full elimination):** Reserve a minimum number of pre-initialized execution environments. Eliminates cold starts entirely but incurs a fixed hourly cost; appropriate only if warm-up pings prove insufficient or if SLA requirements tighten.
+- **Lambda SnapStart:** Enable SnapStart on the published function version (Python 3.12 runtime). AWS takes a snapshot of the initialized execution environment after the first init and restores it on subsequent cold starts, reducing latency to near-warm levels. No scheduled pings, no provisioned concurrency, no additional cost beyond standard invocation pricing.
 - **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics.
 - **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse.
 
