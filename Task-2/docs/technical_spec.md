@@ -377,9 +377,7 @@ Registered via the Discord Developer Portal. Each command maps to a handler insi
 | `/meal summary-all <date>` | Admin | Show org-wide headcount summary for a date. |
 | `/meal override <user> <date>` | Admin | Override any employee's meal record. |
 | `/meal event announce <date>` | Admin | Broadcast the event meal announcement for a pre-configured event day. |
-| `/special-day set <date> <type> [note]` | Admin / Logistics | Mark a date as a special day (e.g., event meal, holiday) with an optional note. |
-| `/special-day remove <date>` | Admin / Logistics | Remove the special-day designation from a date. |
-| `/special-day view <date>` | Admin / Logistics | View the special-day configuration for a specific date. |
+| `/special-day view <date>` | Admin / Logistics | View the special-day configuration for a specific date (read-only; days are configured statically). |
 
 ### Backend REST API Endpoints
 
