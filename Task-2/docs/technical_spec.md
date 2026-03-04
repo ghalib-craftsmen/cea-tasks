@@ -1,7 +1,7 @@
 # Meal Headcount Planner — Discord Bot Integration
 
-**Version:** 1.0    
-**Date:** 2026-03-02    
+**Version:** 1.1    
+**Date:** 2026-03-04    
 **Status:** Draft    
 
 ---
@@ -403,7 +403,6 @@ The following are explicitly deferred and must not be implemented until a subseq
 | CI/CD pipeline | GitHub Actions deployment workflow depends on IaC being in place first. |
 | AWS Secrets Manager integration | Env vars managed manually for now; Secrets Manager adds operational complexity before the app is validated. |
 | DynamoDB table creation | Table will be provisioned manually or via IaC in a future iteration. |
-| Discord slash command registration | Commands will be registered manually via the Discord Developer Portal in this iteration. |
 | Automated tests | Unit and integration test scaffolding is deferred until the core service layer is stable. |
 | Web dashboard changes | Dashboard updates are tracked separately under the FE track of this sprint. |
 
