@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from app.config import settings
@@ -20,6 +21,12 @@ _meal_table = _dynamodb.Table(settings.dynamodb_meal_table)
 _history_table = _dynamodb.Table(settings.dynamodb_user_history_table)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
+_serializer = TypeSerializer()
+
+
+def _serialize(item: dict) -> dict:
+    """Convert a plain Python dict to DynamoDB wire format for use with transact_write_items."""
+    return {k: _serializer.serialize(v) for k, v in item.items()}
 
 
 def _load_events() -> list[EventConfig]:
@@ -69,13 +76,17 @@ def get_record(date: str, user_id: str) -> MealRecord | None:
 
 
 def upsert_record(record: MealRecord) -> None:
-    """Write-through: authoritative write to mhp-meal-records, replica write to mhp-user-history."""
+    """Write-through: atomic write to mhp-meal-records and mhp-user-history via TransactWriteItems."""
     record.updated_at = datetime.now(ZoneInfo(settings.timezone)).isoformat()
     try:
-        _meal_table.put_item(Item=record.to_dynamo())
-        _history_table.put_item(Item=record.to_user_history_dynamo())
+        _dynamodb.meta.client.transact_write_items(
+            TransactItems=[
+                {"Put": {"TableName": settings.dynamodb_meal_table, "Item": _serialize(record.to_dynamo())}},
+                {"Put": {"TableName": settings.dynamodb_user_history_table, "Item": _serialize(record.to_user_history_dynamo())}},
+            ]
+        )
     except ClientError as e:
-        logger.error("DynamoDB put_item failed for date=%s user_id=%s: %s", record.date, record.user_id, e)
+        logger.error("DynamoDB transact_write failed for date=%s user_id=%s: %s", record.date, record.user_id, e)
         raise
 
 
@@ -130,10 +141,14 @@ def update_location(
 
 def get_records_for_date(date: str) -> list[MealRecord]:
     """Query mhp-meal-records by date partition key."""
-    response = _meal_table.query(
-        KeyConditionExpression=Key("pk").eq(f"DATE#{date}")
-    )
-    return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
+    try:
+        response = _meal_table.query(
+            KeyConditionExpression=Key("pk").eq(f"DATE#{date}")
+        )
+        return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
+    except ClientError as e:
+        logger.error("DynamoDB query failed for date=%s: %s", date, e)
+        raise
 
 
 def get_user_history(user_id: str) -> list[MealRecord]:
