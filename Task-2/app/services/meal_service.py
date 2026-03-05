@@ -22,6 +22,7 @@ _history_table = _dynamodb.Table(settings.dynamodb_user_history_table)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
+_WFH_MONTHLY_LIMIT = 5
 
 
 def _serialize(item: dict) -> dict:
@@ -163,6 +164,20 @@ def update_meal_type(
     record.updated_by = updated_by
     upsert_record(record)
     return f"Meal type set to **{meal_type}** for {date}."
+
+
+def count_wfh_days_this_month(user_id: str, month_prefix: str) -> int:
+    """Count WFH records for a user in a given calendar month (YYYY-MM)."""
+    try:
+        response = _history_table.query(
+            KeyConditionExpression=(
+                Key("pk").eq(f"USER#{user_id}") & Key("sk").begins_with(f"DATE#{month_prefix}")
+            )
+        )
+        return sum(1 for item in response.get("Items", []) if item.get("work_location") == "WFH")
+    except ClientError as e:
+        logger.error("DynamoDB query failed for WFH count user_id=%s month=%s: %s", user_id, month_prefix, e)
+        raise
 
 
 def get_records_for_date(date: str) -> list[MealRecord]:
