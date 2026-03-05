@@ -16,7 +16,8 @@ from app.models.meal_models import EventConfig, MealRecord
 logger = logging.getLogger(__name__)
 
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
-_table = _dynamodb.Table(settings.dynamodb_meal_table)
+_meal_table = _dynamodb.Table(settings.dynamodb_meal_table)
+_history_table = _dynamodb.Table(settings.dynamodb_user_history_table)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 
@@ -57,7 +58,9 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
 
 def get_record(date: str, user_id: str) -> MealRecord | None:
     try:
-        response = _table.get_item(Key={"date": date, "user_id": user_id})
+        response = _meal_table.get_item(
+            Key={"pk": f"DATE#{date}", "sk": f"USER#{user_id}"}
+        )
         item = response.get("Item")
         return MealRecord.from_dynamo(item) if item else None
     except ClientError as e:
@@ -66,9 +69,11 @@ def get_record(date: str, user_id: str) -> MealRecord | None:
 
 
 def upsert_record(record: MealRecord) -> None:
+    """Write-through: authoritative write to mhp-meal-records, replica write to mhp-user-history."""
     record.updated_at = datetime.now(ZoneInfo(settings.timezone)).isoformat()
     try:
-        _table.put_item(Item=record.to_dynamo())
+        _meal_table.put_item(Item=record.to_dynamo())
+        _history_table.put_item(Item=record.to_user_history_dynamo())
     except ClientError as e:
         logger.error("DynamoDB put_item failed for date=%s user_id=%s: %s", record.date, record.user_id, e)
         raise
@@ -124,5 +129,20 @@ def update_location(
 
 
 def get_records_for_date(date: str) -> list[MealRecord]:
-    response = _table.query(KeyConditionExpression=Key("date").eq(date))
+    """Query mhp-meal-records by date partition key."""
+    response = _meal_table.query(
+        KeyConditionExpression=Key("pk").eq(f"DATE#{date}")
+    )
     return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
+
+
+def get_user_history(user_id: str) -> list[MealRecord]:
+    """Query mhp-user-history for all records belonging to a user."""
+    try:
+        response = _history_table.query(
+            KeyConditionExpression=Key("pk").eq(f"USER#{user_id}")
+        )
+        return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
+    except ClientError as e:
+        logger.error("DynamoDB query failed for user_id=%s: %s", user_id, e)
+        raise
