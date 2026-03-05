@@ -82,25 +82,25 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 
 ### 2.3 DynamoDB Data Model (Proposed)
 
-Multi-table design with a maximum of 2 GSIs. Detailed table schemas, key design, GSI projections, and write strategy will be documented later.
+Multi-table design with no GSIs. All aggregation queries retrieve the full record set for a date and filter client-side — a sufficient strategy given the bounded per-day record count of an internal tool.
 
 **Tables:**
 
-| Table | Primary access direction | GSIs |
-| --- | --- | --- |
-| `mhp-meal-records` | Date-centric — daily headcount and location/dietary breakdowns | 2 (`location_date_index`, `meal_type_date_index`) |
-| `mhp-user-history` | User-centric — per-user meal history across dates | None |
+| Table | PK | SK | GSIs |
+| --- | --- | --- | --- |
+| `mhp-meal-records` | `DATE#{date}` | `USER#{user_id}` | None |
+| `mhp-user-history` | `USER#{user_id}` | `DATE#{date}` | None |
 
 **Access patterns:**
 
-| Operation | Table | Notes |
+| Operation | Table | Key strategy |
 | --- | --- | --- |
-| Get all records for a date | `mhp-meal-records` | Org-wide headcount and dashboard listing. |
-| Get one user's record for a date | `mhp-meal-records` | Direct key lookup; no GSI needed. |
-| Get a user's records across dates | `mhp-user-history` | Drives `/meal status` history; no GSI needed. |
-| Get OFFICE or WFH headcount for a date | `mhp-meal-records` | Via `location_date_index`. |
-| Get dietary headcount for a date | `mhp-meal-records` | Via `meal_type_date_index` (e.g., VEGETARIAN count). |
-| Count opt-ins / opt-outs for a date | `mhp-meal-records` | Query by date, filter client-side. |
+| Get all records for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` — base table. |
+| Get one user's record for a date | `mhp-meal-records` | `GetItem(PK=DATE#{date}, SK=USER#{user_id})` — direct key lookup. |
+| Get a user's records across dates | `mhp-user-history` | `Query(PK=USER#{user_id})` — base table. |
+| Get OFFICE or WFH headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `work_location`. |
+| Get dietary headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_type`. |
+| Count opt-ins / opt-outs for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_opt_in`. |
 | Create or update a user's record | Both tables | `mhp-meal-records` is authoritative; `mhp-user-history` is a denormalized read replica. |
 
 ---
