@@ -53,9 +53,12 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
         return f"Cannot update records for today or a past date."
 
     cutoff_hour, cutoff_minute = map(int, settings.default_cutoff_time.split(":"))
+    cutoff_date = target - timedelta(days=1)
     cutoff_dt = datetime(
-        target.year, target.month, target.day, cutoff_hour, cutoff_minute, tzinfo=tz
-    ) - timedelta(days=1)
+        cutoff_date.year, cutoff_date.month, cutoff_date.day,
+        cutoff_hour, cutoff_minute,
+        tzinfo=tz,
+    )
 
     if now >= cutoff_dt:
         return f"Cut-off time has passed for {target_date}. Changes are no longer accepted."
