@@ -142,6 +142,28 @@ def update_location(
     return f"Work location set to **{location}** for {date}."
 
 
+def update_meal_type(
+    date: str,
+    user_id: str,
+    meal_type: str,
+    updated_by: str,
+    bypass_cutoff: bool = False,
+) -> str:
+    meal_type = meal_type.upper()
+    if meal_type not in {"STANDARD", "VEGETARIAN"}:
+        return "Invalid meal type. Use `STANDARD` or `VEGETARIAN`."
+
+    err = check_cutoff(date, bypass=bypass_cutoff)
+    if err:
+        return err
+
+    record = get_record(date, user_id) or MealRecord(date=date, user_id=user_id)
+    record.meal_type = meal_type
+    record.updated_by = updated_by
+    upsert_record(record)
+    return f"Meal type set to **{meal_type}** for {date}."
+
+
 def get_records_for_date(date: str) -> list[MealRecord]:
     """Query mhp-meal-records by date partition key."""
     try:
