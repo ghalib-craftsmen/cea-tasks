@@ -35,6 +35,12 @@ def send_followup(interaction_token: str, content: str, ephemeral: bool = True) 
     except urllib.error.HTTPError as e:
         logger.error("Failed to send follow-up: %s %s", e.code, e.reason)
         raise
+    except urllib.error.URLError as e:
+        logger.error("Network error sending follow-up: %s", e.reason)
+        raise
+    except Exception as e:
+        logger.error("Unexpected error sending follow-up: %s", e)
+        raise
 
 
 def send_channel_message(channel_id: str, content: str) -> None:
@@ -55,4 +61,10 @@ def send_channel_message(channel_id: str, content: str) -> None:
             logger.info("Channel message sent: status=%s", resp.status)
     except urllib.error.HTTPError as e:
         logger.error("Failed to send channel message: %s %s", e.code, e.reason)
+        raise
+    except urllib.error.URLError as e:
+        logger.error("Network error sending channel message: %s", e.reason)
+        raise
+    except Exception as e:
+        logger.error("Unexpected error sending channel message: %s", e)
         raise

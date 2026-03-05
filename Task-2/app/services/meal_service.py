@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 
 from app.config import settings
 from app.models.meal_models import EventConfig, MealRecord
@@ -55,14 +56,22 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
 
 
 def get_record(date: str, user_id: str) -> MealRecord | None:
-    response = _table.get_item(Key={"date": date, "user_id": user_id})
-    item = response.get("Item")
-    return MealRecord.from_dynamo(item) if item else None
+    try:
+        response = _table.get_item(Key={"date": date, "user_id": user_id})
+        item = response.get("Item")
+        return MealRecord.from_dynamo(item) if item else None
+    except ClientError as e:
+        logger.error("DynamoDB get_item failed for date=%s user_id=%s: %s", date, user_id, e)
+        raise
 
 
 def upsert_record(record: MealRecord) -> None:
     record.updated_at = datetime.now(ZoneInfo(settings.timezone)).isoformat()
-    _table.put_item(Item=record.to_dynamo())
+    try:
+        _table.put_item(Item=record.to_dynamo())
+    except ClientError as e:
+        logger.error("DynamoDB put_item failed for date=%s user_id=%s: %s", record.date, record.user_id, e)
+        raise
 
 
 def opt_in(date: str, user_id: str, updated_by: str, bypass_cutoff: bool = False) -> str:
