@@ -103,6 +103,7 @@ Both tables use `pk` as the partition key attribute name and `sk` as the sort ke
 | Get OFFICE or WFH headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `work_location`. |
 | Get dietary headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_type`. |
 | Count opt-ins / opt-outs for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_opt_in`. |
+| Count a user's WFH days in a calendar month | `mhp-user-history` | `Query(PK=USER#{user_id}, SK begins_with DATE#{YYYY-MM})` + client-side filter on `work_location == "WFH"`. |
 | Create or update a user's record | Both tables | `mhp-meal-records` is authoritative; `mhp-user-history` is a denormalized read replica. |
 
 ---
@@ -276,6 +277,44 @@ The system does **not** require every employee to explicitly opt in — absence 
 | Regular day | `meal_opt_in = false` | Opt in | `meal_opt_in = true` |
 | Event meal day | Implicit opt-in (no record) | Opt out | `meal_opt_in = false` |
 | Event meal day | `meal_opt_in = false` | Re-opt in (before deadline) | `meal_opt_in = true` |
+
+---
+
+### 4.3 WFH Monthly Soft Limit
+
+Employees who set their work location to `WFH` are subject to a soft limit of **5 WFH days per calendar month**. Exceeding this limit does **not** block the update — a warning is appended to the ephemeral confirmation instead.
+
+**Enforcement logic:**
+
+```text
+After a successful WFH location update:
+
+month_prefix = YYYY-MM derived from the target_date
+wfh_count    = count of records in mhp-user-history where
+               PK = USER#{user_id}
+               AND SK begins_with DATE#{month_prefix}
+               AND work_location == "WFH"   (client-side filter)
+
+if wfh_count >= WFH_MONTHLY_LIMIT (5):
+    → append ephemeral warning to the confirmation message
+    → update is NOT blocked
+```
+
+The count includes the record just written, so the warning fires as soon as the fifth (or later) WFH day is saved.
+
+**Warning message (ephemeral, appended to update confirmation):**
+
+> ⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: 5). Please coordinate with your team lead.
+
+**Scope and exclusions:**
+
+- Applied only when `/meal update` sets `location=WFH`.
+- Not applied to Admin overrides (`/meal override`).
+- The limit is a constant (`5`) defined in `meal_service.py`; no environment variable is required.
+
+**DynamoDB query used for the count:**
+
+The `mhp-user-history` table (`pk=USER#{user_id}`, `sk=DATE#{date}`) is queried with a `begins_with` range key condition to scope results to the target calendar month without a GSI. Client-side filtering then isolates `work_location == "WFH"` records.
 
 ---
 
