@@ -140,7 +140,13 @@ def update_location(
     record.work_location = location
     record.updated_by = updated_by
     upsert_record(record)
-    return f"Work location set to **{location}** for {date}."
+
+    msg = f"Work location set to **{location}** for {date}."
+    if location == "WFH" and not bypass_cutoff:
+        wfh_count = count_wfh_days_this_month(user_id, date[:7])
+        if wfh_count >= _WFH_MONTHLY_LIMIT:
+            msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {_WFH_MONTHLY_LIMIT}). Please coordinate with your team lead."
+    return msg
 
 
 def update_meal_type(
