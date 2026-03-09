@@ -25,7 +25,24 @@ class MealRecord(BaseModel):
         )
 
     def to_dynamo(self) -> dict:
+        """Item for mhp-meal-records: pk=DATE#{date}, sk=USER#{user_id}."""
         return {
+            "pk": f"DATE#{self.date}",
+            "sk": f"USER#{self.user_id}",
+            "date": self.date,
+            "user_id": self.user_id,
+            "meal_opt_in": self.meal_opt_in,
+            "work_location": self.work_location,
+            "meal_type": self.meal_type,
+            "updated_at": self.updated_at,
+            "updated_by": self.updated_by,
+        }
+
+    def to_user_history_dynamo(self) -> dict:
+        """Item for mhp-user-history: pk=USER#{user_id}, sk=DATE#{date}."""
+        return {
+            "pk": f"USER#{self.user_id}",
+            "sk": f"DATE#{self.date}",
             "date": self.date,
             "user_id": self.user_id,
             "meal_opt_in": self.meal_opt_in,

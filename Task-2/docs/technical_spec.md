@@ -86,7 +86,9 @@ Multi-table design with no GSIs. All aggregation queries retrieve the full recor
 
 **Tables:**
 
-| Table | PK | SK | GSIs |
+Both tables use `pk` as the partition key attribute name and `sk` as the sort key attribute name.
+
+| Table | `pk` value | `sk` value | GSIs |
 | --- | --- | --- | --- |
 | `mhp-meal-records` | `DATE#{date}` | `USER#{user_id}` | None |
 | `mhp-user-history` | `USER#{user_id}` | `DATE#{date}` | None |
