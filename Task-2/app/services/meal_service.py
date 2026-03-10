@@ -149,9 +149,10 @@ def update_meal_type(
     updated_by: str,
     bypass_cutoff: bool = False,
 ) -> str:
-    meal_type = meal_type.upper()
-    if meal_type not in {"STANDARD", "VEGETARIAN"}:
-        return "Invalid meal type. Use `STANDARD` or `VEGETARIAN`."
+    VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
+    meal_type = meal_type.upper().replace(" ", "_")
+    if meal_type not in VALID_MEAL_TYPES:
+        return f"Invalid meal type. Choose from: {', '.join(sorted(VALID_MEAL_TYPES))}."
 
     err = check_cutoff(date, bypass=bypass_cutoff)
     if err:
