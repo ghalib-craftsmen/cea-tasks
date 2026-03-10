@@ -53,9 +53,12 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
         return f"Cannot update records for today or a past date."
 
     cutoff_hour, cutoff_minute = map(int, settings.default_cutoff_time.split(":"))
+    cutoff_date = target - timedelta(days=1)
     cutoff_dt = datetime(
-        target.year, target.month, target.day, cutoff_hour, cutoff_minute, tzinfo=tz
-    ) - timedelta(days=1)
+        cutoff_date.year, cutoff_date.month, cutoff_date.day,
+        cutoff_hour, cutoff_minute,
+        tzinfo=tz,
+    )
 
     if now >= cutoff_dt:
         return f"Cut-off time has passed for {target_date}. Changes are no longer accepted."
@@ -137,6 +140,29 @@ def update_location(
     record.updated_by = updated_by
     upsert_record(record)
     return f"Work location set to **{location}** for {date}."
+
+
+def update_meal_type(
+    date: str,
+    user_id: str,
+    meal_type: str,
+    updated_by: str,
+    bypass_cutoff: bool = False,
+) -> str:
+    VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
+    meal_type = meal_type.upper().replace(" ", "_")
+    if meal_type not in VALID_MEAL_TYPES:
+        return f"Invalid meal type. Choose from: {', '.join(sorted(VALID_MEAL_TYPES))}."
+
+    err = check_cutoff(date, bypass=bypass_cutoff)
+    if err:
+        return err
+
+    record = get_record(date, user_id) or MealRecord(date=date, user_id=user_id)
+    record.meal_type = meal_type
+    record.updated_by = updated_by
+    upsert_record(record)
+    return f"Meal type set to **{meal_type}** for {date}."
 
 
 def get_records_for_date(date: str) -> list[MealRecord]:

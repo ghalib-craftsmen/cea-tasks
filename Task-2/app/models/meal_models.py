@@ -8,7 +8,7 @@ class MealRecord(BaseModel):
     user_id: str                    # Discord snowflake — sort key
     meal_opt_in: bool = True
     work_location: str = "OFFICE"   # OFFICE | WFH
-    meal_type: str = "STANDARD"     # STANDARD | VEGETARIAN
+    meal_type: str = "LUNCH"        # LUNCH | SNACKS | IFTAR | EVENT_DINNER | OPTIONAL_DINNER
     updated_at: str = ""
     updated_by: str = ""
 
@@ -19,7 +19,7 @@ class MealRecord(BaseModel):
             user_id=item["user_id"],
             meal_opt_in=item.get("meal_opt_in", True),
             work_location=item.get("work_location", "OFFICE"),
-            meal_type=item.get("meal_type", "STANDARD"),
+            meal_type=item.get("meal_type", "LUNCH"),
             updated_at=item.get("updated_at", ""),
             updated_by=item.get("updated_by", ""),
         )

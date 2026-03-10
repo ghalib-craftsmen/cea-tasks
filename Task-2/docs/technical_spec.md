@@ -361,7 +361,7 @@ Registered via the Discord Developer Portal. Each command maps to a handler insi
 | Command | Permission | Description |
 | --- | --- | --- |
 | `/meal status [date]` | Employee | Show own meal opt-in and work location for a date (defaults to today). |
-| `/meal update` | Employee | Update own meal opt-in or work location for a date. |
+| `/meal update` | Employee | Update own meal opt-in, work location, or meal type for a date. |
 | `/meal optout <date>` | Employee | Opt out of an event meal for a specific date. |
 | `/meal summary <date>` | Team Lead | Show team headcount summary for a date. |
 | `/meal summary-all <date>` | Admin | Show org-wide headcount summary for a date. |
