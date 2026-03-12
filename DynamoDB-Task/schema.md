@@ -69,3 +69,40 @@
 - **`TEAM#<teamId>`** — The `TEAM#` prefix namespaces team items in the single table, same convention as User.
 - **`METADATA`** — Same constant SK convention, indicating the team's core record.
 - **`GSI1PK = TEAMS`** — Groups all team items under one GSI1 partition, allowing a single `Query` to fetch all teams. Same overloaded GSI1 pattern used by User.
+
+---
+
+## Meal Participation
+
+### Access Patterns
+
+1. Get all participation records for a date (headcount — all users, one date)
+2. Get a specific user's meals for a date (users can view/opt out here)
+3. Get a specific meal record (user + date + mealType)
+4. Get a user's participation history across dates (reporting)
+5. Upsert participation record
+
+### DB Schema
+
+#### Meal Participation Item
+
+| PK            | SK                          | GSI1PK          | GSI1SK                      | Attributes              |
+| ------------- | --------------------------- | --------------- | --------------------------- | ----------------------- |
+| `MEAL#<date>` | `USER#<userId>#<mealType>` | `USER#<userId>` | `MEAL#<date>#<mealType>`    | `status`, `updatedAt`, … |
+
+### How Each Access Pattern Is Served
+
+| # | Pattern                                | Operation                                                                                  |
+|---|----------------------------------------|--------------------------------------------------------------------------------------------|
+| 1 | All participation records for a date   | `Query` — PK = `MEAL#<date>`                                                              |
+| 2 | A specific user's meals for a date     | `Query` — PK = `MEAL#<date>`, SK `begins_with` `USER#<userId>`                            |
+| 3 | A specific meal record                 | `GetItem` — PK = `MEAL#<date>`, SK = `USER#<userId>#<mealType>`                           |
+| 4 | A user's participation history         | `Query GSI1` — GSI1PK = `USER#<userId>`, GSI1SK `begins_with` `MEAL#`                     |
+| 5 | Upsert participation record            | `PutItem` — PK = `MEAL#<date>`, SK = `USER#<userId>#<mealType>`                           |
+
+### Explanation
+
+- **`MEAL#<date>`** — Partitions meal records by date. This makes date-based headcount queries (pattern #1) a single partition `Query`.
+- **`USER#<userId>#<mealType>`** — A composite SK that encodes both user and meal type. Using `begins_with USER#<userId>` retrieves all meal types for a user on that date (pattern #2). The full SK gives an exact record (pattern #3).
+- **`GSI1PK = USER#<userId>`** — The overloaded GSI1 is reused here to provide a user-centric view. Querying GSI1 with `begins_with MEAL#` returns all meal records for a user across all dates (pattern #4, for reporting).
+- **`GSI1SK = MEAL#<date>#<mealType>`** — Date comes first in the GSI1 sort key so history results are sorted chronologically.
