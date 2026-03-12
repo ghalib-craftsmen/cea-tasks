@@ -1,6 +1,24 @@
 # DynamoDB Single-Table Schema
 
-## Table Name: `MHP_Table`
+## Table: `MHP_Table`
+
+### Key Design
+
+| Attribute | Type   | Description        |
+| --------- | ------ | ------------------ |
+| PK        | String | Partition key      |
+| SK        | String | Sort key           |
+| GSI1PK    | String | GSI1 partition key |
+| GSI1SK    | String | GSI1 sort key      |
+
+### Conventions
+
+- Keys are prefixed to namespace entities (e.g., `USER#<userId>`, `MEAL#<date>`)
+- `METADATA` as SK marks an entity's core record
+- Dates follow `YYYY-MM-DD` format
+- `#` separates prefix from value and joins composite keys (e.g., `USER#<userId>#<mealType>`)
+
+---
 
 ## User
 
@@ -12,13 +30,13 @@
 
 ### DB Schema
 
-#### User Item
+**User Item**
 
 | PK              | SK         | GSI1PK  | GSI1SK          | Attributes                                           |
 | --------------- | ---------- | ------- | --------------- | ---------------------------------------------------- |
 | `USER#<userId>` | `METADATA` | `USERS` | `USER#<userId>` | `name`, `discordId`, `username`, `teamId`, `role`, … |
 
-#### Identity Mapping Item
+**Identity Mapping Item**
 
 | PK                     | SK                     | Attributes |
 | ---------------------- | ---------------------- | ---------- |
@@ -26,19 +44,17 @@
 
 ### How Each Access Pattern Is Served
 
-| # | Pattern                       | Operation                                                                                                      |
-|---|-------------------------------|----------------------------------------------------------------------------------------------------------------|
-| 1 | Get user by userId            | `GetItem` — PK = `USER#<userId>`, SK = `METADATA`                                                             |
-| 2 | Get user by external identity | `GetItem` — PK = `EXTID#<type>#<value>`, SK = `EXTID#<type>#<value>` → returns `userId`, then fetch User item  |
-| 3 | Get all users                 | `Query GSI1` — GSI1PK = `USERS`                                                                               |
+| # | Pattern                       | Operation                                                                             |
+|---|-------------------------------|---------------------------------------------------------------------------------------|
+| 1 | Get user by userId            | `GetItem` — PK = `USER#<userId>`, SK = `METADATA`                                    |
+| 2 | Get user by external identity | `GetItem` on `EXTID#<type>#<value>` → get `userId` → then `GetItem` on the User item |
+| 3 | Get all users                 | `Query GSI1` — GSI1PK = `USERS`                                                      |
 
 ### Explanation
 
-- **`USER#<userId>`** — The `USER#` prefix namespaces user items so they don't collide with other entity types in the single table.
-- **`METADATA`** — A constant sort key indicating this is the entity's core record (as opposed to related child items).
-- **Identity Mapping Items** — Separate items for reverse lookups. For example, a user with `discordId = "abc123"` gets an extra item with PK/SK = `EXTID#discord#abc123`. This avoids needing a GSI for identity lookups — a simple two-step read (`GetItem` for the mapping → `GetItem` for the user) handles it.
-  - When a user is created, one identity-mapping item is written per external identity (e.g., one for `discord`, one for `username`).
-- **`GSI1PK = USERS`** — All user items share the same GSI1 partition key `USERS`, which allows a single `Query` on GSI1 to return every user. `GSI1SK = USER#<userId>` provides sort order and uniqueness within that partition.
+- Identity mapping items handle reverse lookups without a GSI. A user with `discordId = "abc123"` gets an item at PK/SK = `EXTID#discord#abc123` that stores the `userId`. Two reads: one to resolve the identity, one to fetch the user.
+- One mapping item is created per external identity (discord, username, etc.).
+- GSI1PK = `USERS` puts all users in one GSI partition so `Query` returns them all.
 
 ---
 
@@ -51,24 +67,22 @@
 
 ### DB Schema
 
-#### Team Item
+**Team Item**
 
-| PK              | SK         | GSI1PK  | GSI1SK          | Attributes          |
-| --------------- | ---------- | ------- | --------------- | ------------------- |
-| `TEAM#<teamId>` | `METADATA` | `TEAMS` | `TEAM#<teamId>` | `teamName`, …       |
+| PK              | SK         | GSI1PK  | GSI1SK          | Attributes    |
+| --------------- | ---------- | ------- | --------------- | ------------- |
+| `TEAM#<teamId>` | `METADATA` | `TEAMS` | `TEAM#<teamId>` | `teamName`, … |
 
 ### How Each Access Pattern Is Served
 
-| # | Pattern          | Operation                                                  |
-|---|------------------|------------------------------------------------------------|
-| 1 | Get team by teamId | `GetItem` — PK = `TEAM#<teamId>`, SK = `METADATA`       |
-| 2 | Get all teams      | `Query GSI1` — GSI1PK = `TEAMS`                         |
+| # | Pattern            | Operation                                          |
+|---|--------------------|----------------------------------------------------|
+| 1 | Get team by teamId | `GetItem` — PK = `TEAM#<teamId>`, SK = `METADATA` |
+| 2 | Get all teams      | `Query GSI1` — GSI1PK = `TEAMS`                   |
 
 ### Explanation
 
-- **`TEAM#<teamId>`** — The `TEAM#` prefix namespaces team items in the single table, same convention as User.
-- **`METADATA`** — Same constant SK convention, indicating the team's core record.
-- **`GSI1PK = TEAMS`** — Groups all team items under one GSI1 partition, allowing a single `Query` to fetch all teams. Same overloaded GSI1 pattern used by User.
+- Same pattern as User. GSI1PK = `TEAMS` groups all teams for a collection query.
 
 ---
 
@@ -84,28 +98,27 @@
 
 ### DB Schema
 
-#### Meal Participation Item
+**Meal Participation Item**
 
-| PK            | SK                          | GSI1PK          | GSI1SK                      | Attributes              |
-| ------------- | --------------------------- | --------------- | --------------------------- | ----------------------- |
-| `MEAL#<date>` | `USER#<userId>#<mealType>` | `USER#<userId>` | `MEAL#<date>#<mealType>`    | `status`, `updatedAt`, … |
+| PK            | SK                         | GSI1PK          | GSI1SK                   | Attributes               |
+| ------------- | -------------------------- | --------------- | ------------------------ | ------------------------ |
+| `MEAL#<date>` | `USER#<userId>#<mealType>` | `USER#<userId>` | `MEAL#<date>#<mealType>` | `status`, `updatedAt`, … |
 
 ### How Each Access Pattern Is Served
 
-| # | Pattern                                | Operation                                                                                  |
-|---|----------------------------------------|--------------------------------------------------------------------------------------------|
-| 1 | All participation records for a date   | `Query` — PK = `MEAL#<date>`                                                              |
-| 2 | A specific user's meals for a date     | `Query` — PK = `MEAL#<date>`, SK `begins_with` `USER#<userId>`                            |
-| 3 | A specific meal record                 | `GetItem` — PK = `MEAL#<date>`, SK = `USER#<userId>#<mealType>`                           |
-| 4 | A user's participation history         | `Query GSI1` — GSI1PK = `USER#<userId>`, GSI1SK `begins_with` `MEAL#`                     |
-| 5 | Upsert participation record            | `PutItem` — PK = `MEAL#<date>`, SK = `USER#<userId>#<mealType>`                           |
+| # | Pattern                              | Operation                                                              |
+|---|--------------------------------------|------------------------------------------------------------------------|
+| 1 | All participation records for a date | `Query` — PK = `MEAL#<date>`                                          |
+| 2 | User's meals for a date              | `Query` — PK = `MEAL#<date>`, SK `begins_with` `USER#<userId>`        |
+| 3 | Specific meal record                 | `GetItem` — PK = `MEAL#<date>`, SK = `USER#<userId>#<mealType>`       |
+| 4 | User's participation history         | `Query GSI1` — GSI1PK = `USER#<userId>`, GSI1SK `begins_with` `MEAL#` |
+| 5 | Upsert participation record          | `PutItem` — PK = `MEAL#<date>`, SK = `USER#<userId>#<mealType>`       |
 
 ### Explanation
 
-- **`MEAL#<date>`** — Partitions meal records by date. This makes date-based headcount queries (pattern #1) a single partition `Query`.
-- **`USER#<userId>#<mealType>`** — A composite SK that encodes both user and meal type. Using `begins_with USER#<userId>` retrieves all meal types for a user on that date (pattern #2). The full SK gives an exact record (pattern #3).
-- **`GSI1PK = USER#<userId>`** — The overloaded GSI1 is reused here to provide a user-centric view. Querying GSI1 with `begins_with MEAL#` returns all meal records for a user across all dates (pattern #4, for reporting).
-- **`GSI1SK = MEAL#<date>#<mealType>`** — Date comes first in the GSI1 sort key so history results are sorted chronologically.
+- PK partitions by date, so fetching all records for a date is a single partition query.
+- SK is a composite of userId and mealType. `begins_with USER#<userId>` gets all meal types for that user on a given date; the full SK targets one specific record.
+- GSI1 flips the access — PK becomes the user, SK becomes `MEAL#<date>#<mealType>`. This lets us pull a user's full history sorted by date.
 
 ---
 
@@ -120,27 +133,25 @@
 
 ### DB Schema
 
-#### Work Location Item
+**Work Location Item**
 
-| PK           | SK              | GSI1PK          | GSI1SK         | Attributes                   |
-| ------------ | --------------- | --------------- | -------------- | ---------------------------- |
-| `LOC#<date>` | `USER#<userId>` | `USER#<userId>` | `LOC#<date>`   | `location`, `updatedAt`, …   |
+| PK           | SK              | GSI1PK          | GSI1SK       | Attributes                 |
+| ------------ | --------------- | --------------- | ------------ | -------------------------- |
+| `LOC#<date>` | `USER#<userId>` | `USER#<userId>` | `LOC#<date>` | `location`, `updatedAt`, … |
 
 ### How Each Access Pattern Is Served
 
-| # | Pattern                              | Operation                                                                        |
-|---|--------------------------------------|----------------------------------------------------------------------------------|
-| 1 | All location records for a date      | `Query` — PK = `LOC#<date>`                                                     |
-| 2 | A specific user's location for a date | `GetItem` — PK = `LOC#<date>`, SK = `USER#<userId>`                            |
-| 3 | A user's location records for a month | `Query GSI1` — GSI1PK = `USER#<userId>`, GSI1SK `begins_with` `LOC#<YYYY-MM>`  |
-| 4 | Upsert location record               | `PutItem` — PK = `LOC#<date>`, SK = `USER#<userId>`                             |
+| # | Pattern                         | Operation                                                                      |
+|---|---------------------------------|--------------------------------------------------------------------------------|
+| 1 | All location records for a date | `Query` — PK = `LOC#<date>`                                                   |
+| 2 | User's location for a date      | `GetItem` — PK = `LOC#<date>`, SK = `USER#<userId>`                           |
+| 3 | User's locations for a month    | `Query GSI1` — GSI1PK = `USER#<userId>`, GSI1SK `begins_with` `LOC#<YYYY-MM>` |
+| 4 | Upsert location record          | `PutItem` — PK = `LOC#<date>`, SK = `USER#<userId>`                           |
 
 ### Explanation
 
-- **`LOC#<date>`** — Partitions location records by date, same approach as Meal Participation. All users' locations for one date live in one partition.
-- **`USER#<userId>`** — SK identifies the user. One location record per user per date.
-- **`GSI1PK = USER#<userId>`** — Reuses the overloaded GSI1 to provide a user-centric view. Querying with `begins_with LOC#<YYYY-MM>` returns all location records for a user in a given month (pattern #3, for WFH overage reporting).
-- **`GSI1SK = LOC#<date>`** — Date-based sort key in GSI1, enabling month-range queries and chronological ordering.
+- Same date-partitioned approach as Meal Participation. One record per user per date.
+- GSI1 flips access to user-centric. `begins_with LOC#<YYYY-MM>` pulls all location records for a user within a month.
 
 ---
 
@@ -153,24 +164,23 @@
 
 ### DB Schema
 
-#### Special Day Item
+**Special Day Item**
 
-| PK          | SK     | Attributes                       |
-| ----------- | ------ | -------------------------------- |
+| PK           | SK       | Attributes                        |
+| ------------ | -------- | --------------------------------- |
 | `SPECIALDAY` | `<date>` | `title`, `description`, `type`, … |
 
 ### How Each Access Pattern Is Served
 
-| # | Pattern                            | Operation                                                                                 |
-|---|------------------------------------|-------------------------------------------------------------------------------------------|
-| 1 | Get special day for a specific date | `GetItem` — PK = `SPECIALDAY`, SK = `<date>`                                            |
-| 2 | Get all special days in a month    | `Query` — PK = `SPECIALDAY`, SK `between` `<YYYY-MM-01>` and `<YYYY-MM-31>`              |
+| # | Pattern                             | Operation                                                                |
+|---|-------------------------------------|--------------------------------------------------------------------------|
+| 1 | Get special day for a specific date | `GetItem` — PK = `SPECIALDAY`, SK = `<date>`                            |
+| 2 | Get all special days in a month     | `Query` — PK = `SPECIALDAY`, SK `between` `YYYY-MM-01` and `YYYY-MM-31` |
 
 ### Explanation
 
-- **`SPECIALDAY`** — A fixed partition key that groups all special day items into one partition. This is safe because the total number of special days is small (low cardinality).
-- **`<date>`** — The raw date (e.g., `2026-03-15`) is used directly as the SK. Since all special days share the same PK, a `between` condition on SK efficiently retrieves all days within a month or any date range.
-- **No GSI needed** — Both access patterns are served directly from the main table.
+- Fixed PK groups all special days in one partition. Works fine given the low item count.
+- Raw date as SK allows range queries. No GSI needed.
 
 ---
 
@@ -184,23 +194,64 @@
 
 ### DB Schema
 
-#### Headcount Summary Item
+**Headcount Summary Item**
 
-| PK               | SK        | Attributes                                              |
-| ---------------- | --------- | ------------------------------------------------------- |
+| PK               | SK        | Attributes                                                |
+| ---------------- | --------- | --------------------------------------------------------- |
 | `SUMMARY#<date>` | `SUMMARY` | `totalOptIn`, `totalOptOut`, `totalWFH`, `generatedAt`, … |
 
 ### How Each Access Pattern Is Served
 
-| # | Pattern                             | Operation                                                         |
-|---|-------------------------------------|-------------------------------------------------------------------|
-| 1 | Generate headcount summary for a date | Application logic — reads from Meal, Location, Special Day, User |
-| 2 | Get a previously generated summary  | `GetItem` — PK = `SUMMARY#<date>`, SK = `SUMMARY`                |
-| 3 | Store a generated summary           | `PutItem` — PK = `SUMMARY#<date>`, SK = `SUMMARY`                |
+| # | Pattern                               | Operation                                                        |
+|---|---------------------------------------|------------------------------------------------------------------|
+| 1 | Generate headcount summary for a date | Application logic — reads Meal, Location, Special Day, User data |
+| 2 | Get a previously generated summary    | `GetItem` — PK = `SUMMARY#<date>`, SK = `SUMMARY`               |
+| 3 | Store a generated summary             | `PutItem` — PK = `SUMMARY#<date>`, SK = `SUMMARY`               |
 
 ### Explanation
 
-- **`SUMMARY#<date>`** — Each date gets its own partition for the summary record.
-- **`SUMMARY`** — A constant SK since there is only one summary per date.
-- **Pattern #1 is not a DB read** — It is application logic that queries Meal Participation, Work Location, Special Day, and User items, then computes and stores the result via pattern #3.
-- **No GSI needed** — Both read and write patterns are direct `GetItem`/`PutItem` operations.
+- One summary per date. Pattern #1 is computed in application code by reading other entities, then stored via pattern #3.
+- No GSI needed.
+
+---
+
+## GSI1 Usage
+
+GSI1 is overloaded — different entities project different values onto GSI1PK/GSI1SK.
+
+| Entity             | GSI1PK          | GSI1SK                   | Serves                              |
+| ------------------ | --------------- | ------------------------ | ----------------------------------- |
+| User               | `USERS`         | `USER#<userId>`          | Get all users                       |
+| Team               | `TEAMS`         | `TEAM#<teamId>`          | Get all teams                       |
+| Meal Participation | `USER#<userId>` | `MEAL#<date>#<mealType>` | User's meal history across dates    |
+| Work Location      | `USER#<userId>` | `LOC#<date>`             | User's location records for a month |
+
+Special Day and Headcount Summary don't use GSI1.
+
+Total GSIs: **1**
+
+---
+
+## Single Table Benefits
+
+- All entities in one table — single provisioning and billing unit.
+- GSI1 is overloaded to serve collection queries (all users, all teams) and user-centric queries (meal history, location history) without needing multiple indexes.
+- Prefixed keys keep entities separated and the table easy to scan/debug.
+- No cross-table coordination needed for transactions or batch operations.
+
+---
+
+## Summary
+
+| Entity             | PK                     | SK                         | Uses GSI1 | Operations              |
+| ------------------ | ---------------------- | -------------------------- | --------- | ----------------------- |
+| User               | `USER#<userId>`        | `METADATA`                 | Yes       | GetItem                 |
+| Identity Mapping   | `EXTID#<type>#<value>` | `EXTID#<type>#<value>`     | No        | GetItem                 |
+| Team               | `TEAM#<teamId>`        | `METADATA`                 | Yes       | GetItem                 |
+| Meal Participation | `MEAL#<date>`          | `USER#<userId>#<mealType>` | Yes       | Query, GetItem, PutItem |
+| Work Location      | `LOC#<date>`           | `USER#<userId>`            | Yes       | Query, GetItem, PutItem |
+| Special Day        | `SPECIALDAY`           | `<date>`                   | No        | GetItem, Query          |
+| Headcount Summary  | `SUMMARY#<date>`       | `SUMMARY`                  | No        | GetItem, PutItem        |
+
+- 7 item types, 1 table, 1 GSI
+- All 18 access patterns served without Scans
