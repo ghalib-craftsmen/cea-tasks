@@ -171,3 +171,36 @@
 - **`SPECIALDAY`** — A fixed partition key that groups all special day items into one partition. This is safe because the total number of special days is small (low cardinality).
 - **`<date>`** — The raw date (e.g., `2026-03-15`) is used directly as the SK. Since all special days share the same PK, a `between` condition on SK efficiently retrieves all days within a month or any date range.
 - **No GSI needed** — Both access patterns are served directly from the main table.
+
+---
+
+## Headcount Summary
+
+### Access Patterns
+
+1. Generate headcount summary for a date (reads from Participation, Work Location, Special Day, User)
+2. Get a previously generated summary for a date
+3. Store a generated summary
+
+### DB Schema
+
+#### Headcount Summary Item
+
+| PK               | SK        | Attributes                                              |
+| ---------------- | --------- | ------------------------------------------------------- |
+| `SUMMARY#<date>` | `SUMMARY` | `totalOptIn`, `totalOptOut`, `totalWFH`, `generatedAt`, … |
+
+### How Each Access Pattern Is Served
+
+| # | Pattern                             | Operation                                                         |
+|---|-------------------------------------|-------------------------------------------------------------------|
+| 1 | Generate headcount summary for a date | Application logic — reads from Meal, Location, Special Day, User |
+| 2 | Get a previously generated summary  | `GetItem` — PK = `SUMMARY#<date>`, SK = `SUMMARY`                |
+| 3 | Store a generated summary           | `PutItem` — PK = `SUMMARY#<date>`, SK = `SUMMARY`                |
+
+### Explanation
+
+- **`SUMMARY#<date>`** — Each date gets its own partition for the summary record.
+- **`SUMMARY`** — A constant SK since there is only one summary per date.
+- **Pattern #1 is not a DB read** — It is application logic that queries Meal Participation, Work Location, Special Day, and User items, then computes and stores the result via pattern #3.
+- **No GSI needed** — Both read and write patterns are direct `GetItem`/`PutItem` operations.
