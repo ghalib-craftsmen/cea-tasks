@@ -106,3 +106,38 @@
 - **`USER#<userId>#<mealType>`** — A composite SK that encodes both user and meal type. Using `begins_with USER#<userId>` retrieves all meal types for a user on that date (pattern #2). The full SK gives an exact record (pattern #3).
 - **`GSI1PK = USER#<userId>`** — The overloaded GSI1 is reused here to provide a user-centric view. Querying GSI1 with `begins_with MEAL#` returns all meal records for a user across all dates (pattern #4, for reporting).
 - **`GSI1SK = MEAL#<date>#<mealType>`** — Date comes first in the GSI1 sort key so history results are sorted chronologically.
+
+---
+
+## Work Location
+
+### Access Patterns
+
+1. Get all location records for a date (headcount — all users, one date)
+2. Get a specific user's location for a date
+3. Get a user's location records for a month (WFH overage report)
+4. Upsert location record
+
+### DB Schema
+
+#### Work Location Item
+
+| PK           | SK              | GSI1PK          | GSI1SK         | Attributes                   |
+| ------------ | --------------- | --------------- | -------------- | ---------------------------- |
+| `LOC#<date>` | `USER#<userId>` | `USER#<userId>` | `LOC#<date>`   | `location`, `updatedAt`, …   |
+
+### How Each Access Pattern Is Served
+
+| # | Pattern                              | Operation                                                                        |
+|---|--------------------------------------|----------------------------------------------------------------------------------|
+| 1 | All location records for a date      | `Query` — PK = `LOC#<date>`                                                     |
+| 2 | A specific user's location for a date | `GetItem` — PK = `LOC#<date>`, SK = `USER#<userId>`                            |
+| 3 | A user's location records for a month | `Query GSI1` — GSI1PK = `USER#<userId>`, GSI1SK `begins_with` `LOC#<YYYY-MM>`  |
+| 4 | Upsert location record               | `PutItem` — PK = `LOC#<date>`, SK = `USER#<userId>`                             |
+
+### Explanation
+
+- **`LOC#<date>`** — Partitions location records by date, same approach as Meal Participation. All users' locations for one date live in one partition.
+- **`USER#<userId>`** — SK identifies the user. One location record per user per date.
+- **`GSI1PK = USER#<userId>`** — Reuses the overloaded GSI1 to provide a user-centric view. Querying with `begins_with LOC#<YYYY-MM>` returns all location records for a user in a given month (pattern #3, for WFH overage reporting).
+- **`GSI1SK = LOC#<date>`** — Date-based sort key in GSI1, enabling month-range queries and chronological ordering.
