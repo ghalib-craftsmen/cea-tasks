@@ -39,3 +39,33 @@
 - **Identity Mapping Items** — Separate items for reverse lookups. For example, a user with `discordId = "abc123"` gets an extra item with PK/SK = `EXTID#discord#abc123`. This avoids needing a GSI for identity lookups — a simple two-step read (`GetItem` for the mapping → `GetItem` for the user) handles it.
   - When a user is created, one identity-mapping item is written per external identity (e.g., one for `discord`, one for `username`).
 - **`GSI1PK = USERS`** — All user items share the same GSI1 partition key `USERS`, which allows a single `Query` on GSI1 to return every user. `GSI1SK = USER#<userId>` provides sort order and uniqueness within that partition.
+
+---
+
+## Team
+
+### Access Patterns
+
+1. Get team by teamId
+2. Get all teams
+
+### DB Schema
+
+#### Team Item
+
+| PK              | SK         | GSI1PK  | GSI1SK          | Attributes          |
+| --------------- | ---------- | ------- | --------------- | ------------------- |
+| `TEAM#<teamId>` | `METADATA` | `TEAMS` | `TEAM#<teamId>` | `teamName`, …       |
+
+### How Each Access Pattern Is Served
+
+| # | Pattern          | Operation                                                  |
+|---|------------------|------------------------------------------------------------|
+| 1 | Get team by teamId | `GetItem` — PK = `TEAM#<teamId>`, SK = `METADATA`       |
+| 2 | Get all teams      | `Query GSI1` — GSI1PK = `TEAMS`                         |
+
+### Explanation
+
+- **`TEAM#<teamId>`** — The `TEAM#` prefix namespaces team items in the single table, same convention as User.
+- **`METADATA`** — Same constant SK convention, indicating the team's core record.
+- **`GSI1PK = TEAMS`** — Groups all team items under one GSI1 partition, allowing a single `Query` to fetch all teams. Same overloaded GSI1 pattern used by User.
