@@ -141,3 +141,33 @@
 - **`USER#<userId>`** — SK identifies the user. One location record per user per date.
 - **`GSI1PK = USER#<userId>`** — Reuses the overloaded GSI1 to provide a user-centric view. Querying with `begins_with LOC#<YYYY-MM>` returns all location records for a user in a given month (pattern #3, for WFH overage reporting).
 - **`GSI1SK = LOC#<date>`** — Date-based sort key in GSI1, enabling month-range queries and chronological ordering.
+
+---
+
+## Special Day
+
+### Access Patterns
+
+1. Get special day for a specific date
+2. Get all special days in a month (or range)
+
+### DB Schema
+
+#### Special Day Item
+
+| PK          | SK     | Attributes                       |
+| ----------- | ------ | -------------------------------- |
+| `SPECIALDAY` | `<date>` | `title`, `description`, `type`, … |
+
+### How Each Access Pattern Is Served
+
+| # | Pattern                            | Operation                                                                                 |
+|---|------------------------------------|-------------------------------------------------------------------------------------------|
+| 1 | Get special day for a specific date | `GetItem` — PK = `SPECIALDAY`, SK = `<date>`                                            |
+| 2 | Get all special days in a month    | `Query` — PK = `SPECIALDAY`, SK `between` `<YYYY-MM-01>` and `<YYYY-MM-31>`              |
+
+### Explanation
+
+- **`SPECIALDAY`** — A fixed partition key that groups all special day items into one partition. This is safe because the total number of special days is small (low cardinality).
+- **`<date>`** — The raw date (e.g., `2026-03-15`) is used directly as the SK. Since all special days share the same PK, a `between` condition on SK efficiently retrieves all days within a month or any date range.
+- **No GSI needed** — Both access patterns are served directly from the main table.
