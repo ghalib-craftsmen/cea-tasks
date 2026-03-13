@@ -183,7 +183,7 @@ def count_wfh_days_this_month(user_id: str, month_prefix: str) -> int:
         return sum(1 for item in response.get("Items", []) if item.get("work_location") == "WFH")
     except ClientError as e:
         logger.error("DynamoDB query failed for WFH count user_id=%s month=%s: %s", user_id, month_prefix, e)
-        raise
+        return 0
 
 
 def get_records_for_date(date: str) -> list[MealRecord]:
@@ -195,7 +195,7 @@ def get_records_for_date(date: str) -> list[MealRecord]:
         return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
     except ClientError as e:
         logger.error("DynamoDB query failed for date=%s: %s", date, e)
-        raise
+        return []
 
 
 def get_user_history(user_id: str) -> list[MealRecord]:
@@ -207,4 +207,4 @@ def get_user_history(user_id: str) -> list[MealRecord]:
         return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
     except ClientError as e:
         logger.error("DynamoDB query failed for user_id=%s: %s", user_id, e)
-        raise
+        return []
