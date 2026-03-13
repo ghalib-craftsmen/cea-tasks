@@ -179,6 +179,7 @@ def register() -> None:
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bot {token}",
+            "User-Agent": "DiscordBot (https://github.com/ghalib-craftsmen/cea-tasks/Task-2, 1.0)",
         },
         method="PUT",  # PUT replaces the full command list atomically
     )
