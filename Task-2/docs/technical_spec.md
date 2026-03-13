@@ -185,8 +185,7 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | --- | --- |
 | `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
 | `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
-| `DYNAMODB_MEAL_TABLE` | Meal records table name (defaults to `mhp-meal-records`). |
-| `DYNAMODB_USER_HISTORY_TABLE` | User history table name (defaults to `mhp-user-history`). Denormalized read replica of `DYNAMODB_MEAL_TABLE` for user-first queries. |
+| `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
@@ -309,10 +308,10 @@ Employees who set their work location to `WFH` are subject to a soft limit of **
 After a successful WFH location update:
 
 month_prefix = YYYY-MM derived from the target_date
-wfh_count    = count of records in mhp-user-history where
-               PK = USER#{user_id}
-               AND SK begins_with DATE#{month_prefix}
-               AND work_location == "WFH"   (client-side filter)
+wfh_count    = count of items in MHP_Table where
+               GSI1PK = USER#<userId>
+               AND GSI1SK begins_with LOC#<month_prefix>
+               AND location == "WFH"   (client-side filter)
 
 if wfh_count >= WFH_MONTHLY_LIMIT (5):
     → append ephemeral warning to the confirmation message
@@ -333,7 +332,7 @@ The count includes the record just written, so the warning fires as soon as the 
 
 **DynamoDB query used for the count:**
 
-The `mhp-user-history` table (`pk=USER#{user_id}`, `sk=DATE#{date}`) is queried with a `begins_with` range key condition to scope results to the target calendar month without a GSI. Client-side filtering then isolates `work_location == "WFH"` records.
+`Query GSI1` on `MHP_Table` — `GSI1PK = USER#<userId>`, `GSI1SK begins_with LOC#<YYYY-MM>`. Returns all Work Location items for that user in the target month. Client-side filter then isolates `location == "WFH"` records.
 
 ---
 
