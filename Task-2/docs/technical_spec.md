@@ -85,31 +85,45 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 | **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
-### 2.3 DynamoDB Data Model (Proposed)
+### 2.3 DynamoDB Data Model
 
-Multi-table design with no GSIs. All aggregation queries retrieve the full record set for a date and filter client-side — a sufficient strategy given the bounded per-day record count of an internal tool.
+Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All 18 access patterns are served without Scans.
 
-**Tables:**
+**Table:** `MHP_Table`
 
-Both tables use `pk` as the partition key attribute name and `sk` as the sort key attribute name.
+**Keys:**
 
-| Table | `pk` value | `sk` value | GSIs |
-| --- | --- | --- | --- |
-| `mhp-meal-records` | `DATE#{date}` | `USER#{user_id}` | None |
-| `mhp-user-history` | `USER#{user_id}` | `DATE#{date}` | None |
-
-**Access patterns:**
-
-| Operation | Table | Key strategy |
+| Attribute | Type | Description |
 | --- | --- | --- |
-| Get all records for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` — base table. |
-| Get one user's record for a date | `mhp-meal-records` | `GetItem(PK=DATE#{date}, SK=USER#{user_id})` — direct key lookup. |
-| Get a user's records across dates | `mhp-user-history` | `Query(PK=USER#{user_id})` — base table. |
-| Get OFFICE or WFH headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `work_location`. |
-| Get dietary headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_type`. |
-| Count opt-ins / opt-outs for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_opt_in`. |
-| Count a user's WFH days in a calendar month | `mhp-user-history` | `Query(PK=USER#{user_id}, SK begins_with DATE#{YYYY-MM})` + client-side filter on `work_location == "WFH"`. |
-| Create or update a user's record | Both tables | `mhp-meal-records` is authoritative; `mhp-user-history` is a denormalized read replica. |
+| `PK` | String | Partition key |
+| `SK` | String | Sort key |
+| `GSI1PK` | String | GSI1 partition key |
+| `GSI1SK` | String | GSI1 sort key |
+
+**Key conventions:** Prefixed keys namespace entities (e.g., `USER#<userId>`, `MEAL#<date>`). `METADATA` as SK marks an entity's core record. Dates follow `YYYY-MM-DD`. `#` separates prefix from value and joins composite keys.
+
+**Item types:**
+
+| Entity | PK | SK | Uses GSI1 |
+| --- | --- | --- | --- |
+| User | `USER#<userId>` | `METADATA` | Yes |
+| Identity Mapping | `EXTID#<type>#<value>` | `EXTID#<type>#<value>` | No |
+| Team | `TEAM#<teamId>` | `METADATA` | Yes |
+| Meal Participation | `MEAL#<date>` | `USER#<userId>#<mealType>` | Yes |
+| Work Location | `LOC#<date>` | `USER#<userId>` | Yes |
+| Special Day | `SPECIALDAY` | `<date>` | No |
+| Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
+
+**GSI1 overloaded usage:**
+
+| Entity | GSI1PK | GSI1SK | Serves |
+| --- | --- | --- | --- |
+| User | `USERS` | `USER#<userId>` | Get all users |
+| Team | `TEAMS` | `TEAM#<teamId>` | Get all teams |
+| Meal Participation | `USER#<userId>` | `MEAL#<date>#<mealType>` | User's meal history across dates |
+| Work Location | `USER#<userId>` | `LOC#<date>` | User's location records for a month |
+
+Total GSIs: **1**
 
 ---
 
