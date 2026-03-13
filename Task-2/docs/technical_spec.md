@@ -1,8 +1,8 @@
 # Meal Headcount Planner — Discord Bot Integration
 
-**Version:** 1.1    
-**Date:** 2026-03-04    
-**Status:** Draft    
+**Version:** 1.2
+**Date:** 2026-03-13
+**Status:** Draft
 
 ---
 
@@ -52,19 +52,24 @@ API Gateway (HTTP API)
      │
      │  Proxy integration
      ▼
-AWS Lambda (plain handler)
+Router Lambda (sig verification + routing)
      │
-     ├──► DynamoDB (read / write meal records)
+     │  Invoke
+     ▼
+Command Lambda (business logic)
+     │
+     ├──► DynamoDB (read / write)
      │
      └──► Discord API (send follow-up response)
 ```
 
 1. A Discord user triggers a slash command or button interaction.
 2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
-3. API Gateway proxies the raw request (including signature headers) to a single **Lambda function**.
-4. The Lambda handler (`app/handler.py`) runs synchronously and:
+3. API Gateway proxies the raw request (including signature headers) to the **Router Lambda**.
+4. The Router Lambda:
    - Validates the Ed25519 signature (reject immediately if invalid).
-   - Parses the interaction payload and routes to the appropriate service function.
+   - Parses the interaction payload and invokes the appropriate **Command Lambda** by command group.
+5. The Command Lambda runs the business logic:
    - Reads from / writes to **DynamoDB**.
    - Returns a JSON response to Discord (or defers and sends a follow-up).
 
@@ -75,8 +80,8 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
 | **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 + SnapStart | ~20% lower compute cost vs x86. **SnapStart** (enabled on the published version) eliminates cold starts by restoring a pre-initialized execution environment snapshot — no warm-up pings or provisioned concurrency needed. Requires Python 3.12 runtime. |
-| **AWS Lambda** | Single function | One handler for all routes | Eliminates overhead of managing and cold-starting multiple per-route functions. A single `handler(event, context)` entry point dispatches to service functions by command name. |
+| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint; fast cold-start. SnapStart eliminates cold-start latency. Requires Python 3.12 runtime. |
+| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. Independently deployable and scalable per command group. |
 | **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
