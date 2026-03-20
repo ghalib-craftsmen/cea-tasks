@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
+
+WorkLocation = Literal["OFFICE", "WFH"]
+MealType = Literal["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
 
 class MealRecord(BaseModel):
-    date: str                       # YYYY-MM-DD — partition key
-    user_id: str                    # Discord snowflake — sort key
+    date: str                               # YYYY-MM-DD — partition key
+    user_id: str                            # Discord snowflake — sort key
     meal_opt_in: bool = True
-    work_location: str = "OFFICE"   # OFFICE | WFH
-    meal_type: str = "LUNCH"        # LUNCH | SNACKS | IFTAR | EVENT_DINNER | OPTIONAL_DINNER
+    work_location: WorkLocation = "OFFICE"
+    meal_type: MealType = "LUNCH"
     updated_at: str = ""
     updated_by: str = ""
 
