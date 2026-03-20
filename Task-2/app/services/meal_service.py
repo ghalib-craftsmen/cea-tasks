@@ -22,6 +22,7 @@ _history_table = _dynamodb.Table(settings.dynamodb_user_history_table)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
+_WFH_MONTHLY_LIMIT = 5
 
 
 def _serialize(item: dict) -> dict:
@@ -139,7 +140,13 @@ def update_location(
     record.work_location = location
     record.updated_by = updated_by
     upsert_record(record)
-    return f"Work location set to **{location}** for {date}."
+
+    msg = f"Work location set to **{location}** for {date}."
+    if location == "WFH" and not bypass_cutoff:
+        wfh_count = count_wfh_days_this_month(user_id, date[:7])
+        if wfh_count >= _WFH_MONTHLY_LIMIT:
+            msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {_WFH_MONTHLY_LIMIT}). Please coordinate with your team lead."
+    return msg
 
 
 def update_meal_type(
@@ -165,6 +172,20 @@ def update_meal_type(
     return f"Meal type set to **{meal_type}** for {date}."
 
 
+def count_wfh_days_this_month(user_id: str, month_prefix: str) -> int:
+    """Count WFH records for a user in a given calendar month (YYYY-MM)."""
+    try:
+        response = _history_table.query(
+            KeyConditionExpression=(
+                Key("pk").eq(f"USER#{user_id}") & Key("sk").begins_with(f"DATE#{month_prefix}")
+            )
+        )
+        return sum(1 for item in response.get("Items", []) if item.get("work_location") == "WFH")
+    except ClientError as e:
+        logger.error("DynamoDB query failed for WFH count user_id=%s month=%s: %s", user_id, month_prefix, e)
+        return 0
+
+
 def get_records_for_date(date: str) -> list[MealRecord]:
     """Query mhp-meal-records by date partition key."""
     try:
@@ -174,7 +195,7 @@ def get_records_for_date(date: str) -> list[MealRecord]:
         return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
     except ClientError as e:
         logger.error("DynamoDB query failed for date=%s: %s", date, e)
-        raise
+        return []
 
 
 def get_user_history(user_id: str) -> list[MealRecord]:
@@ -186,4 +207,4 @@ def get_user_history(user_id: str) -> list[MealRecord]:
         return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
     except ClientError as e:
         logger.error("DynamoDB query failed for user_id=%s: %s", user_id, e)
-        raise
+        return []
