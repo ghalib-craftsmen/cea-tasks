@@ -10,11 +10,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
+_USER_AGENT = "DiscordBot (https://github.com/ghalib-craftsmen/cea-tasks, 1.0)"
 
 
 def send_followup(interaction_token: str, content: str, ephemeral: bool = True) -> None:
     """Send a deferred follow-up message to Discord via the REST API."""
-    url = f"{DISCORD_API_BASE}/webhooks/{settings.discord_public_key}/{interaction_token}"
+    url = f"{DISCORD_API_BASE}/webhooks/{settings.discord_application_id}/{interaction_token}"
     payload = {"content": content}
     if ephemeral:
         payload["flags"] = 64  # EPHEMERAL flag
@@ -26,6 +27,7 @@ def send_followup(interaction_token: str, content: str, ephemeral: bool = True) 
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bot {settings.discord_bot_token}",
+            "User-Agent": _USER_AGENT,
         },
         method="POST",
     )
@@ -53,6 +55,7 @@ def send_channel_message(channel_id: str, content: str) -> None:
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bot {settings.discord_bot_token}",
+            "User-Agent": _USER_AGENT,
         },
         method="POST",
     )

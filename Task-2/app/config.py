@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     # Discord Application
     discord_public_key: str
     discord_bot_token: str
+    discord_application_id: str
 
     # AWS
     dynamodb_meal_table: str = "mhp-meal-records"
