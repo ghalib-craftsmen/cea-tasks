@@ -101,7 +101,7 @@ COMMANDS = [
             {
                 "type": 1,
                 "name": "summary",
-                "description": "[Team Lead] View headcount summary for a date",
+                "description": "[Team Lead] View headcount and location split for a date",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True}
                 ],
@@ -110,7 +110,7 @@ COMMANDS = [
             {
                 "type": 1,
                 "name": "summary-all",
-                "description": "[Admin] View org-wide headcount for a date",
+                "description": "[Admin] View org-wide headcount and location split for a date",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True}
                 ],
