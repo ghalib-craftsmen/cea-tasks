@@ -46,24 +46,14 @@ COMMANDS = [
                     }
                 ],
             },
-            # /meal update date [opt_in] [location] [meal_type]
+            # /meal update date [opt_in] [meal_type]
             {
                 "type": 1,
                 "name": "update",
-                "description": "Update your opt-in, location, or meal type",
+                "description": "Update your opt-in status or meal type for a date",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": False},
-                    {
-                        "type": _STR,
-                        "name": "location",
-                        "description": "OFFICE or WFH",
-                        "required": False,
-                        "choices": [
-                            {"name": "Office", "value": "OFFICE"},
-                            {"name": "WFH", "value": "WFH"},
-                        ],
-                    },
                     {
                         "type": _STR,
                         "name": "meal_type",
@@ -75,6 +65,25 @@ COMMANDS = [
                             {"name": "Iftar", "value": "IFTAR"},
                             {"name": "Event Dinner", "value": "EVENT_DINNER"},
                             {"name": "Optional Dinner", "value": "OPTIONAL_DINNER"},
+                        ],
+                    },
+                ],
+            },
+            # /meal location date location
+            {
+                "type": 1,
+                "name": "location",
+                "description": "Set your work location for a date",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "location",
+                        "description": "OFFICE or WFH",
+                        "required": True,
+                        "choices": [
+                            {"name": "Office", "value": "OFFICE"},
+                            {"name": "WFH", "value": "WFH"},
                         ],
                     },
                 ],
