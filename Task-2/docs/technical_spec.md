@@ -1,8 +1,8 @@
 # Meal Headcount Planner — Discord Bot Integration
 
-**Version:** 1.1    
-**Date:** 2026-03-04    
-**Status:** Draft    
+**Version:** 1.2
+**Date:** 2026-03-13
+**Status:** Draft
 
 ---
 
@@ -52,19 +52,24 @@ API Gateway (HTTP API)
      │
      │  Proxy integration
      ▼
-AWS Lambda (plain handler)
+Router Lambda (sig verification + routing)
      │
-     ├──► DynamoDB (read / write meal records)
+     │  Invoke
+     ▼
+Command Lambda (business logic)
+     │
+     ├──► DynamoDB (read / write)
      │
      └──► Discord API (send follow-up response)
 ```
 
 1. A Discord user triggers a slash command or button interaction.
 2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
-3. API Gateway proxies the raw request (including signature headers) to a single **Lambda function**.
-4. The Lambda handler (`app/handler.py`) runs synchronously and:
+3. API Gateway proxies the raw request (including signature headers) to the **Router Lambda**.
+4. The Router Lambda:
    - Validates the Ed25519 signature (reject immediately if invalid).
-   - Parses the interaction payload and routes to the appropriate service function.
+   - Parses the interaction payload and invokes the appropriate **Command Lambda** by command group.
+5. The Command Lambda runs the business logic:
    - Reads from / writes to **DynamoDB**.
    - Returns a JSON response to Discord (or defers and sends a follow-up).
 
@@ -75,36 +80,50 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
 | **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **AWS Lambda** | `arm64` (Graviton2), 512 MB | Graviton2 + SnapStart | ~20% lower compute cost vs x86. **SnapStart** (enabled on the published version) eliminates cold starts by restoring a pre-initialized execution environment snapshot — no warm-up pings or provisioned concurrency needed. Requires Python 3.12 runtime. |
-| **AWS Lambda** | Single function | One handler for all routes | Eliminates overhead of managing and cold-starting multiple per-route functions. A single `handler(event, context)` entry point dispatches to service functions by command name. |
+| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint; fast cold-start. SnapStart eliminates cold-start latency. Requires Python 3.12 runtime. |
+| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. Independently deployable and scalable per command group. |
 | **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
-### 2.3 DynamoDB Data Model (Proposed)
+### 2.3 DynamoDB Data Model
 
-Multi-table design with no GSIs. All aggregation queries retrieve the full record set for a date and filter client-side — a sufficient strategy given the bounded per-day record count of an internal tool.
+Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All 18 access patterns are served without Scans.
 
-**Tables:**
+**Table:** `MHP_Table`
 
-Both tables use `pk` as the partition key attribute name and `sk` as the sort key attribute name.
+**Keys:**
 
-| Table | `pk` value | `sk` value | GSIs |
-| --- | --- | --- | --- |
-| `mhp-meal-records` | `DATE#{date}` | `USER#{user_id}` | None |
-| `mhp-user-history` | `USER#{user_id}` | `DATE#{date}` | None |
-
-**Access patterns:**
-
-| Operation | Table | Key strategy |
+| Attribute | Type | Description |
 | --- | --- | --- |
-| Get all records for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` — base table. |
-| Get one user's record for a date | `mhp-meal-records` | `GetItem(PK=DATE#{date}, SK=USER#{user_id})` — direct key lookup. |
-| Get a user's records across dates | `mhp-user-history` | `Query(PK=USER#{user_id})` — base table. |
-| Get OFFICE or WFH headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `work_location`. |
-| Get dietary headcount for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_type`. |
-| Count opt-ins / opt-outs for a date | `mhp-meal-records` | `Query(PK=DATE#{date})` + client-side filter on `meal_opt_in`. |
-| Count a user's WFH days in a calendar month | `mhp-user-history` | `Query(PK=USER#{user_id}, SK begins_with DATE#{YYYY-MM})` + client-side filter on `work_location == "WFH"`. |
-| Create or update a user's record | Both tables | `mhp-meal-records` is authoritative; `mhp-user-history` is a denormalized read replica. |
+| `PK` | String | Partition key |
+| `SK` | String | Sort key |
+| `GSI1PK` | String | GSI1 partition key |
+| `GSI1SK` | String | GSI1 sort key |
+
+**Key conventions:** Prefixed keys namespace entities (e.g., `USER#<userId>`, `MEAL#<date>`). `METADATA` as SK marks an entity's core record. Dates follow `YYYY-MM-DD`. `#` separates prefix from value and joins composite keys.
+
+**Item types:**
+
+| Entity | PK | SK | Uses GSI1 |
+| --- | --- | --- | --- |
+| User | `USER#<userId>` | `METADATA` | Yes |
+| Identity Mapping | `EXTID#<type>#<value>` | `EXTID#<type>#<value>` | No |
+| Team | `TEAM#<teamId>` | `METADATA` | Yes |
+| Meal Participation | `MEAL#<date>` | `USER#<userId>#<mealType>` | Yes |
+| Work Location | `LOC#<date>` | `USER#<userId>` | Yes |
+| Special Day | `SPECIALDAY` | `<date>` | No |
+| Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
+
+**GSI1 overloaded usage:**
+
+| Entity | GSI1PK | GSI1SK | Serves |
+| --- | --- | --- | --- |
+| User | `USERS` | `USER#<userId>` | Get all users |
+| Team | `TEAMS` | `TEAM#<teamId>` | Get all teams |
+| Meal Participation | `USER#<userId>` | `MEAL#<date>#<mealType>` | User's meal history across dates |
+| Work Location | `USER#<userId>` | `LOC#<date>` | User's location records for a month |
+
+Total GSIs: **1**
 
 ---
 
@@ -166,8 +185,7 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | --- | --- |
 | `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
 | `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
-| `DYNAMODB_MEAL_TABLE` | Meal records table name (defaults to `mhp-meal-records`). |
-| `DYNAMODB_USER_HISTORY_TABLE` | User history table name (defaults to `mhp-user-history`). Denormalized read replica of `DYNAMODB_MEAL_TABLE` for user-first queries. |
+| `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
 | `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
@@ -290,10 +308,10 @@ Employees who set their work location to `WFH` are subject to a soft limit of **
 After a successful WFH location update:
 
 month_prefix = YYYY-MM derived from the target_date
-wfh_count    = count of records in mhp-user-history where
-               PK = USER#{user_id}
-               AND SK begins_with DATE#{month_prefix}
-               AND work_location == "WFH"   (client-side filter)
+wfh_count    = count of items in MHP_Table where
+               GSI1PK = USER#<userId>
+               AND GSI1SK begins_with LOC#<month_prefix>
+               AND location == "WFH"   (client-side filter)
 
 if wfh_count >= WFH_MONTHLY_LIMIT (5):
     → append ephemeral warning to the confirmation message
@@ -314,7 +332,7 @@ The count includes the record just written, so the warning fires as soon as the 
 
 **DynamoDB query used for the count:**
 
-The `mhp-user-history` table (`pk=USER#{user_id}`, `sk=DATE#{date}`) is queried with a `begins_with` range key condition to scope results to the target calendar month without a GSI. Client-side filtering then isolates `work_location == "WFH"` records.
+`Query GSI1` on `MHP_Table` — `GSI1PK = USER#<userId>`, `GSI1SK begins_with LOC#<YYYY-MM>`. Returns all Work Location items for that user in the target month. Client-side filter then isolates `location == "WFH"` records.
 
 ---
 
