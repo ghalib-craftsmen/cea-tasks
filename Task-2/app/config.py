@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     discord_application_id: str
 
     # AWS
-    dynamodb_table: str = "MHP_Table"
+    dynamodb_table: str = "trainee-2026-ghalib-MHP_Table"
     aws_region: str = "ap-southeast-1"
     command_lambda_name: str = "mhp-command"
 
