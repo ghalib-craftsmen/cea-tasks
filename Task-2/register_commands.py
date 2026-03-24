@@ -134,6 +134,19 @@ COMMANDS = [
                             {"name": "WFH", "value": "WFH"},
                         ],
                     },
+                    {
+                        "type": _STR,
+                        "name": "meal_type",
+                        "description": "Meal type",
+                        "required": False,
+                        "choices": [
+                            {"name": "Lunch", "value": "LUNCH"},
+                            {"name": "Snacks", "value": "SNACKS"},
+                            {"name": "Iftar", "value": "IFTAR"},
+                            {"name": "Event Dinner", "value": "EVENT_DINNER"},
+                            {"name": "Optional Dinner", "value": "OPTIONAL_DINNER"},
+                        ],
+                    },
                 ],
             },
             # /meal event date [action]  (Admin)
