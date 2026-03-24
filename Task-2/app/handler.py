@@ -318,5 +318,10 @@ def handler(event: dict, context: Any) -> dict:
     if payload.get("type") != _APPLICATION_COMMAND:
         return _err(400, "Unsupported interaction type")
 
-    interaction = DiscordInteraction(**payload)
+    try:
+        interaction = DiscordInteraction(**payload)
+    except Exception as exc:
+        logger.error("Failed to parse interaction payload: %s", exc)
+        return _err(400, "Invalid interaction payload")
+
     return _route_command(interaction)
