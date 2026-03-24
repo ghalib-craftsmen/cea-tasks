@@ -9,8 +9,8 @@ MealType = Literal["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"
 
 
 class MealRecord(BaseModel):
-    date: str                               # YYYY-MM-DD — partition key
-    user_id: str                            # Discord snowflake — sort key
+    date: str                               # YYYY-MM-DD
+    user_id: str                            # Discord snowflake
     meal_opt_in: bool = True
     work_location: WorkLocation = "OFFICE"
     meal_type: MealType = "LUNCH"
@@ -18,41 +18,46 @@ class MealRecord(BaseModel):
     updated_by: str = ""
 
     @classmethod
-    def from_dynamo(cls, item: dict) -> MealRecord:
+    def from_dynamo_pair(cls, meal_item: dict | None, loc_item: dict | None) -> MealRecord | None:
+        """Merge a Meal Participation item and a Work Location item into a MealRecord."""
+        if meal_item is None and loc_item is None:
+            return None
+        base = meal_item or loc_item
         return cls(
-            date=item["date"],
-            user_id=item["user_id"],
-            meal_opt_in=item.get("meal_opt_in", True),
-            work_location=item.get("work_location", "OFFICE"),
-            meal_type=item.get("meal_type", "LUNCH"),
-            updated_at=item.get("updated_at", ""),
-            updated_by=item.get("updated_by", ""),
+            date=base["date"],
+            user_id=base["user_id"],
+            meal_opt_in=(meal_item or {}).get("meal_opt_in", True),
+            work_location=(loc_item or {}).get("work_location", "OFFICE"),
+            meal_type=(meal_item or {}).get("meal_type", "LUNCH"),
+            updated_at=base.get("updated_at", ""),
+            updated_by=base.get("updated_by", ""),
         )
 
-    def to_dynamo(self) -> dict:
-        """Item for mhp-meal-records: pk=DATE#{date}, sk=USER#{user_id}."""
+    def to_meal_dynamo(self) -> dict:
+        """Meal Participation item: PK=MEAL#<date>, SK=USER#<userId>."""
         return {
-            "pk": f"DATE#{self.date}",
-            "sk": f"USER#{self.user_id}",
+            "PK": f"MEAL#{self.date}",
+            "SK": f"USER#{self.user_id}",
+            "GSI1PK": f"USER#{self.user_id}",
+            "GSI1SK": f"MEAL#{self.date}",
             "date": self.date,
             "user_id": self.user_id,
             "meal_opt_in": self.meal_opt_in,
-            "work_location": self.work_location,
             "meal_type": self.meal_type,
             "updated_at": self.updated_at,
             "updated_by": self.updated_by,
         }
 
-    def to_user_history_dynamo(self) -> dict:
-        """Item for mhp-user-history: pk=USER#{user_id}, sk=DATE#{date}."""
+    def to_loc_dynamo(self) -> dict:
+        """Work Location item: PK=LOC#<date>, SK=USER#<userId>."""
         return {
-            "pk": f"USER#{self.user_id}",
-            "sk": f"DATE#{self.date}",
+            "PK": f"LOC#{self.date}",
+            "SK": f"USER#{self.user_id}",
+            "GSI1PK": f"USER#{self.user_id}",
+            "GSI1SK": f"LOC#{self.date}",
             "date": self.date,
             "user_id": self.user_id,
-            "meal_opt_in": self.meal_opt_in,
             "work_location": self.work_location,
-            "meal_type": self.meal_type,
             "updated_at": self.updated_at,
             "updated_by": self.updated_by,
         }

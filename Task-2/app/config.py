@@ -9,8 +9,7 @@ class Settings(BaseSettings):
     discord_application_id: str
 
     # AWS
-    dynamodb_meal_table: str = "mhp-meal-records"
-    dynamodb_user_history_table: str = "mhp-user-history"
+    dynamodb_table: str = "MHP_Table"
     aws_region: str = "ap-southeast-1"
 
     # Discord Role IDs

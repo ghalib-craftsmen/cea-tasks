@@ -17,8 +17,7 @@ from app.models.meal_models import EventConfig, MealRecord
 logger = logging.getLogger(__name__)
 
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
-_meal_table = _dynamodb.Table(settings.dynamodb_meal_table)
-_history_table = _dynamodb.Table(settings.dynamodb_user_history_table)
+_table = _dynamodb.Table(settings.dynamodb_table)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
@@ -69,24 +68,22 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
 
 def get_record(date: str, user_id: str) -> MealRecord | None:
     try:
-        response = _meal_table.get_item(
-            Key={"pk": f"DATE#{date}", "sk": f"USER#{user_id}"}
-        )
-        item = response.get("Item")
-        return MealRecord.from_dynamo(item) if item else None
+        meal_resp = _table.get_item(Key={"PK": f"MEAL#{date}", "SK": f"USER#{user_id}"})
+        loc_resp = _table.get_item(Key={"PK": f"LOC#{date}", "SK": f"USER#{user_id}"})
+        return MealRecord.from_dynamo_pair(meal_resp.get("Item"), loc_resp.get("Item"))
     except ClientError as e:
         logger.error("DynamoDB get_item failed for date=%s user_id=%s: %s", date, user_id, e)
         raise
 
 
 def upsert_record(record: MealRecord) -> None:
-    """Write-through: atomic write to mhp-meal-records and mhp-user-history via TransactWriteItems."""
+    """Atomically write Meal Participation and Work Location items to MHP_Table."""
     record.updated_at = datetime.now(ZoneInfo(settings.timezone)).isoformat()
     try:
         _dynamodb.meta.client.transact_write_items(
             TransactItems=[
-                {"Put": {"TableName": settings.dynamodb_meal_table, "Item": _serialize(record.to_dynamo())}},
-                {"Put": {"TableName": settings.dynamodb_user_history_table, "Item": _serialize(record.to_user_history_dynamo())}},
+                {"Put": {"TableName": settings.dynamodb_table, "Item": _serialize(record.to_meal_dynamo())}},
+                {"Put": {"TableName": settings.dynamodb_table, "Item": _serialize(record.to_loc_dynamo())}},
             ]
         )
     except ClientError as e:
@@ -173,38 +170,58 @@ def update_meal_type(
 
 
 def count_wfh_days_this_month(user_id: str, month_prefix: str) -> int:
-    """Count WFH records for a user in a given calendar month (YYYY-MM)."""
+    """Count WFH Work Location items for a user in a given calendar month (YYYY-MM).
+
+    Queries GSI1: GSI1PK=USER#<userId>, GSI1SK begins_with LOC#<YYYY-MM>.
+    """
     try:
-        response = _history_table.query(
+        response = _table.query(
+            IndexName="GSI1",
             KeyConditionExpression=(
-                Key("pk").eq(f"USER#{user_id}") & Key("sk").begins_with(f"DATE#{month_prefix}")
-            )
+                Key("GSI1PK").eq(f"USER#{user_id}") & Key("GSI1SK").begins_with(f"LOC#{month_prefix}")
+            ),
         )
         return sum(1 for item in response.get("Items", []) if item.get("work_location") == "WFH")
     except ClientError as e:
-        logger.error("DynamoDB query failed for WFH count user_id=%s month=%s: %s", user_id, month_prefix, e)
+        logger.error("DynamoDB GSI1 query failed for WFH count user_id=%s month=%s: %s", user_id, month_prefix, e)
         return 0
 
 
 def get_records_for_date(date: str) -> list[MealRecord]:
-    """Query mhp-meal-records by date partition key."""
+    """Query MHP_Table for all meal and location items on a given date, then merge by user."""
     try:
-        response = _meal_table.query(
-            KeyConditionExpression=Key("pk").eq(f"DATE#{date}")
-        )
-        return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
+        meal_response = _table.query(KeyConditionExpression=Key("PK").eq(f"MEAL#{date}"))
+        loc_response = _table.query(KeyConditionExpression=Key("PK").eq(f"LOC#{date}"))
+
+        meal_by_user = {item["user_id"]: item for item in meal_response.get("Items", [])}
+        loc_by_user = {item["user_id"]: item for item in loc_response.get("Items", [])}
+
+        all_user_ids = meal_by_user.keys() | loc_by_user.keys()
+        return [
+            MealRecord.from_dynamo_pair(meal_by_user.get(uid), loc_by_user.get(uid))
+            for uid in all_user_ids
+        ]
     except ClientError as e:
         logger.error("DynamoDB query failed for date=%s: %s", date, e)
         return []
 
 
 def get_user_history(user_id: str) -> list[MealRecord]:
-    """Query mhp-user-history for all records belonging to a user."""
+    """Query GSI1 for all meal and location items belonging to a user, then merge by date."""
     try:
-        response = _history_table.query(
-            KeyConditionExpression=Key("pk").eq(f"USER#{user_id}")
+        response = _table.query(
+            IndexName="GSI1",
+            KeyConditionExpression=Key("GSI1PK").eq(f"USER#{user_id}"),
         )
-        return [MealRecord.from_dynamo(item) for item in response.get("Items", [])]
+        items = response.get("Items", [])
+        meal_by_date = {item["date"]: item for item in items if item.get("GSI1SK", "").startswith("MEAL#")}
+        loc_by_date = {item["date"]: item for item in items if item.get("GSI1SK", "").startswith("LOC#")}
+
+        all_dates = meal_by_date.keys() | loc_by_date.keys()
+        return [
+            MealRecord.from_dynamo_pair(meal_by_date.get(d), loc_by_date.get(d))
+            for d in all_dates
+        ]
     except ClientError as e:
-        logger.error("DynamoDB query failed for user_id=%s: %s", user_id, e)
+        logger.error("DynamoDB GSI1 query failed for user_id=%s: %s", user_id, e)
         return []
