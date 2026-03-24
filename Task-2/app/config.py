@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # AWS
     dynamodb_table: str = "trainee-2026-abdullah-MHP_Table"
     aws_region: str = "ap-southeast-1"
-    command_lambda_name: str = "trainee-2026-abdullah-mhp-command"
+    command_lambda_name: str = "trainee-2026-abdullah-craftsmeal-command"
 
     # Discord Role IDs
     role_team_lead_id: str
