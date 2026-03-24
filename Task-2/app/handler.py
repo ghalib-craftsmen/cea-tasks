@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date as _date
 from typing import Any
 
 from app.config import settings
@@ -36,7 +37,6 @@ def _get_option(options: list, name: str) -> Any:
 
 
 def _handle_meal_status(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    from datetime import date as _date
     user_id = interaction.get_user().id
     target_date = _get_option(options, "date") or str(_date.today())
     record = meal_service.get_record(target_date, user_id) or MealRecord(date=target_date, user_id=user_id)

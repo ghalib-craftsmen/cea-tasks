@@ -23,19 +23,21 @@ _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
 _WFH_MONTHLY_LIMIT = 5
 
+# Loaded once at module level — captured in SnapStart snapshot
+with _EVENTS_PATH.open() as _f:
+    _EVENTS: list[EventConfig] = [EventConfig(**e) for e in json.load(_f)]
+
 
 def _serialize(item: dict) -> dict:
-    """Convert a plain Python dict to DynamoDB wire format for use with transact_write_items."""
     return {k: _serializer.serialize(v) for k, v in item.items()}
 
 
 def _load_events() -> list[EventConfig]:
-    with _EVENTS_PATH.open() as f:
-        return [EventConfig(**e) for e in json.load(f)]
+    return _EVENTS
 
 
 def is_event_day(date: str) -> bool:
-    return any(e.date == date for e in _load_events())
+    return any(e.date == date for e in _EVENTS)
 
 
 def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
