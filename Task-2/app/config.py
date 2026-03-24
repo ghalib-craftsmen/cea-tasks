@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     timezone: str = "Asia/Dhaka"
     default_cutoff_time: str = "00:00"
 
-    # Internal API (dashboard)
-    internal_api_key: str
+    # Internal API (dashboard) — not used until dashboard is implemented
+    internal_api_key: str = ""
 
 
 settings = Settings()  
