@@ -22,3 +22,7 @@ htmlcov/
 # Github templates
 issues/
 pr/
+
+# Lambda build artifacts
+package/
+lambda.zip
