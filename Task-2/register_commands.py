@@ -133,20 +133,47 @@ COMMANDS = [
             },
         ],
     },
-    # /location <date> <location>
+    # /location set <date> <location>
+    # /location override <user> <date> <location>  (Admin)
     {
         "name": "location",
-        "description": "Set your work location for a date (WFH automatically opts you out of all meals)",
+        "description": "Manage work location",
         "options": [
-            {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
             {
-                "type": _STR,
-                "name": "location",
-                "description": "OFFICE or WFH",
-                "required": True,
-                "choices": [
-                    {"name": "Office", "value": "OFFICE"},
-                    {"name": "WFH", "value": "WFH"},
+                "type": 1,
+                "name": "set",
+                "description": "Set your work location for a date (WFH automatically opts you out of all meals)",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "location",
+                        "description": "OFFICE or WFH",
+                        "required": True,
+                        "choices": [
+                            {"name": "Office", "value": "OFFICE"},
+                            {"name": "WFH", "value": "WFH"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "type": 1,
+                "name": "override",
+                "description": "[Admin] Override any user's work location",
+                "options": [
+                    {"type": _USER, "name": "user", "description": "Target user", "required": True},
+                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "location",
+                        "description": "OFFICE or WFH",
+                        "required": True,
+                        "choices": [
+                            {"name": "Office", "value": "OFFICE"},
+                            {"name": "WFH", "value": "WFH"},
+                        ],
+                    },
                 ],
             },
         ],

@@ -77,7 +77,7 @@ def _handle_meal_optout(interaction: DiscordInteraction, options: list) -> tuple
     if not target_date:
         return _reply("Please provide a date.")
     if not meal_service.is_event_day(target_date):
-        return _reply(f"{target_date} is not an event day. Use `/meal update` or `/location` to change your meal preference.")
+        return _reply(f"{target_date} is not an event day. Use `/meal update` or `/location set` to change your meal preference.")
     return _reply(meal_service.opt_out(target_date, user_id, updated_by=user_id))
 
 
@@ -181,6 +181,24 @@ def _handle_work_location(interaction: DiscordInteraction, options: list) -> tup
     return _reply(meal_service.update_location(target_date, user_id, location, updated_by=user_id))
 
 
+def _handle_location_override(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    if not _is_admin(interaction):
+        return _reply("You do not have permission to use this command.")
+    user_id = interaction.get_user().id
+    target_user = _get_option(options, "user")
+    target_date = _get_option(options, "date")
+    location = _get_option(options, "location")
+    if not target_user or not target_date or not location:
+        return _reply("Please provide user, date, and location.")
+    return _reply(meal_service.update_location(target_date, target_user, location, updated_by=user_id, bypass_cutoff=True))
+
+
+_LOCATION_HANDLERS = {
+    "set":      _handle_work_location,
+    "override": _handle_location_override,
+}
+
+
 _MEAL_HANDLERS = {
     "status":      _handle_meal_status,
     "update":      _handle_meal_update,
@@ -238,7 +256,12 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
         return _handle_special_day(interaction, subcommand, sub_options)
 
     if command == "location":
-        return _handle_work_location(interaction, options)
+        if not subcommand:
+            return _reply("Please specify a subcommand.")
+        handler_fn = _LOCATION_HANDLERS.get(subcommand)
+        if not handler_fn:
+            return _reply("Unknown subcommand.")
+        return handler_fn(interaction, sub_options)
 
     if command == "history":
         return _handle_users_history(interaction, options)
