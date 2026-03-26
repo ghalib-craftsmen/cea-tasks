@@ -69,25 +69,6 @@ COMMANDS = [
                     },
                 ],
             },
-            # /meal location date location
-            {
-                "type": 1,
-                "name": "location",
-                "description": "Set your work location for a date",
-                "options": [
-                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
-                    {
-                        "type": _STR,
-                        "name": "location",
-                        "description": "OFFICE or WFH",
-                        "required": True,
-                        "choices": [
-                            {"name": "Office", "value": "OFFICE"},
-                            {"name": "WFH", "value": "WFH"},
-                        ],
-                    },
-                ],
-            },
             # /meal optout date
             {
                 "type": 1,
@@ -163,6 +144,23 @@ COMMANDS = [
                         "required": False,
                         "choices": [{"name": "Announce", "value": "announce"}],
                     },
+                ],
+            },
+        ],
+    },
+    {
+        "name": "location",
+        "description": "Set your work location for a date (WFH automatically opts you out of all meals)",
+        "options": [
+            {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+            {
+                "type": _STR,
+                "name": "location",
+                "description": "OFFICE or WFH",
+                "required": True,
+                "choices": [
+                    {"name": "Office", "value": "OFFICE"},
+                    {"name": "WFH", "value": "WFH"},
                 ],
             },
         ],

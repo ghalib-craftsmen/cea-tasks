@@ -137,14 +137,18 @@ def update_location(
 
     record = get_record(date, user_id) or MealRecord(date=date, user_id=user_id)
     record.work_location = location
+    if location == "WFH":
+        record.meal_opt_in = False
     record.updated_by = updated_by
     upsert_record(record)
 
     msg = f"Work location set to **{location}** for {date}."
-    if location == "WFH" and not bypass_cutoff:
-        wfh_count = count_wfh_days_this_month(user_id, date[:7])
-        if wfh_count >= _WFH_MONTHLY_LIMIT:
-            msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {_WFH_MONTHLY_LIMIT}). Please coordinate with your team lead."
+    if location == "WFH":
+        msg += "\nYou have been automatically opted **out** of all meals for this day."
+        if not bypass_cutoff:
+            wfh_count = count_wfh_days_this_month(user_id, date[:7])
+            if wfh_count >= _WFH_MONTHLY_LIMIT:
+                msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {_WFH_MONTHLY_LIMIT}). Please coordinate with your team lead."
     return msg
 
 

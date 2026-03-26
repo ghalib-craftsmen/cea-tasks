@@ -60,14 +60,6 @@ def _handle_meal_update(interaction: DiscordInteraction, options: list) -> tuple
     return _reply("\n".join(msgs) if msgs else "Nothing to update.")
 
 
-def _handle_meal_location(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    user_id = interaction.get_user().id
-    target_date = _get_option(options, "date")
-    location = _get_option(options, "location")
-    if not target_date or not location:
-        return _reply("Please provide both date and location.")
-    return _reply(meal_service.update_location(target_date, user_id, location, updated_by=user_id))
-
 
 def _handle_meal_optout(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     user_id = interaction.get_user().id
@@ -75,7 +67,7 @@ def _handle_meal_optout(interaction: DiscordInteraction, options: list) -> tuple
     if not target_date:
         return _reply("Please provide a date.")
     if not meal_service.is_event_day(target_date):
-        return _reply(f"{target_date} is not an event day. Use `/meal update` or `/meal location` to change your meal preference.")
+        return _reply(f"{target_date} is not an event day. Use `/meal update` or `/location` to change your meal preference.")
     return _reply(meal_service.opt_out(target_date, user_id, updated_by=user_id))
 
 
@@ -149,10 +141,18 @@ def _handle_meal_event(interaction: DiscordInteraction, options: list) -> tuple[
     return _reply("Unknown action.")
 
 
+def _handle_work_location(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    user_id = interaction.get_user().id
+    target_date = _get_option(options, "date")
+    location = _get_option(options, "location")
+    if not target_date or not location:
+        return _reply("Please provide both date and location.")
+    return _reply(meal_service.update_location(target_date, user_id, location, updated_by=user_id))
+
+
 _MEAL_HANDLERS = {
     "status":      _handle_meal_status,
     "update":      _handle_meal_update,
-    "location":    _handle_meal_location,
     "optout":      _handle_meal_optout,
     "summary":     _handle_meal_summary,
     "summary-all": _handle_meal_summary_all,
@@ -205,6 +205,9 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
         if not subcommand:
             return _reply("Please specify a subcommand.")
         return _handle_special_day(interaction, subcommand, sub_options)
+
+    if command == "location":
+        return _handle_work_location(interaction, options)
 
     return _reply("Unknown command.")
 
