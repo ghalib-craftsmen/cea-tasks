@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import logging
 import time
@@ -49,7 +50,7 @@ def _verify_signature(headers: dict, raw_body: bytes) -> bool:
         verify_key = VerifyKey(bytes.fromhex(settings.discord_public_key))
         verify_key.verify(timestamp.encode() + raw_body, bytes.fromhex(sig))
         return True
-    except (BadSignatureError, Exception):
+    except (BadSignatureError, ValueError):
         return False
 
 
@@ -64,7 +65,10 @@ def handler(event: dict, context: Any) -> dict:
         return _err(404, "Not found")
 
     body_str: str = event.get("body", "") or ""
-    raw_body = base64.b64decode(body_str) if event.get("isBase64Encoded") else body_str.encode()
+    try:
+        raw_body = base64.b64decode(body_str) if event.get("isBase64Encoded") else body_str.encode()
+    except binascii.Error:
+        return _err(400, "Invalid request body")
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
 
     if not _verify_signature(headers, raw_body):
