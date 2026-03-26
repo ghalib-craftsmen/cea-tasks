@@ -46,46 +46,20 @@ COMMANDS = [
                     }
                 ],
             },
-            # /meal update date [opt_in] [meal_type]
+            # /meal update <date> [opt_in] [lunch] [snacks] [iftar] [event_dinner] [optional_dinner]
+            # No meal types selected = applies to all. Specific types = opt out of only those.
             {
                 "type": 1,
                 "name": "update",
-                "description": "Update your opt-in status or meal type for a date",
+                "description": "Update your meal opt-in/out for a date",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": False},
-                    {
-                        "type": _STR,
-                        "name": "meal_type",
-                        "description": "Meal type",
-                        "required": False,
-                        "choices": [
-                            {"name": "Lunch", "value": "LUNCH"},
-                            {"name": "Snacks", "value": "SNACKS"},
-                            {"name": "Iftar", "value": "IFTAR"},
-                            {"name": "Event Dinner", "value": "EVENT_DINNER"},
-                            {"name": "Optional Dinner", "value": "OPTIONAL_DINNER"},
-                        ],
-                    },
-                ],
-            },
-            # /meal location date location
-            {
-                "type": 1,
-                "name": "location",
-                "description": "Set your work location for a date",
-                "options": [
-                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
-                    {
-                        "type": _STR,
-                        "name": "location",
-                        "description": "OFFICE or WFH",
-                        "required": True,
-                        "choices": [
-                            {"name": "Office", "value": "OFFICE"},
-                            {"name": "WFH", "value": "WFH"},
-                        ],
-                    },
+                    {"type": _BOOL, "name": "lunch", "description": "Select Lunch", "required": False},
+                    {"type": _BOOL, "name": "snacks", "description": "Select Snacks", "required": False},
+                    {"type": _BOOL, "name": "iftar", "description": "Select Iftar", "required": False},
+                    {"type": _BOOL, "name": "event_dinner", "description": "Select Event Dinner", "required": False},
+                    {"type": _BOOL, "name": "optional_dinner", "description": "Select Optional Dinner", "required": False},
                 ],
             },
             # /meal optout date
@@ -115,7 +89,7 @@ COMMANDS = [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True}
                 ],
             },
-            # /meal override user date [opt_in] [location]  (Admin)
+            # /meal override user date [opt_in]  (Admin)
             {
                 "type": 1,
                 "name": "override",
@@ -124,16 +98,11 @@ COMMANDS = [
                     {"type": _USER, "name": "user", "description": "Target user", "required": True},
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": False},
-                    {
-                        "type": _STR,
-                        "name": "location",
-                        "description": "OFFICE or WFH",
-                        "required": False,
-                        "choices": [
-                            {"name": "Office", "value": "OFFICE"},
-                            {"name": "WFH", "value": "WFH"},
-                        ],
-                    },
+                    {"type": _BOOL, "name": "lunch", "description": "Select Lunch", "required": False},
+                    {"type": _BOOL, "name": "snacks", "description": "Select Snacks", "required": False},
+                    {"type": _BOOL, "name": "iftar", "description": "Select Iftar", "required": False},
+                    {"type": _BOOL, "name": "event_dinner", "description": "Select Event Dinner", "required": False},
+                    {"type": _BOOL, "name": "optional_dinner", "description": "Select Optional Dinner", "required": False},
                 ],
             },
             # /meal event date [action]  (Admin)
@@ -152,6 +121,59 @@ COMMANDS = [
                     },
                 ],
             },
+        ],
+    },
+    # /location set <date> <location>
+    # /location override <user> <date> <location>  (Admin)
+    {
+        "name": "location",
+        "description": "Manage work location",
+        "options": [
+            {
+                "type": 1,
+                "name": "set",
+                "description": "Set your work location for a date (WFH automatically opts you out of all meals)",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "location",
+                        "description": "OFFICE or WFH",
+                        "required": True,
+                        "choices": [
+                            {"name": "Office", "value": "OFFICE"},
+                            {"name": "WFH", "value": "WFH"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "type": 1,
+                "name": "override",
+                "description": "[Admin] Override any user's work location",
+                "options": [
+                    {"type": _USER, "name": "user", "description": "Target user", "required": True},
+                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "location",
+                        "description": "OFFICE or WFH",
+                        "required": True,
+                        "choices": [
+                            {"name": "Office", "value": "OFFICE"},
+                            {"name": "WFH", "value": "WFH"},
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    # /history <user>  (Team Lead / Admin)
+    {
+        "name": "history",
+        "description": "View a user's meal and location history",
+        "options": [
+            {"type": _USER, "name": "user", "description": "Target user", "required": True},
         ],
     },
     {
