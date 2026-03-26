@@ -122,6 +122,22 @@ def _handle_meal_override(interaction: DiscordInteraction, options: list) -> tup
     return _reply("\n".join(msgs) if msgs else "Nothing to update.")
 
 
+def _handle_users_history(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    if not _is_team_lead(interaction):
+        return _reply("You do not have permission to use this command.")
+    target_user = _get_option(options, "user")
+    if not target_user:
+        return _reply("Please provide a user.")
+    records = meal_service.get_user_history(target_user)
+    if not records:
+        return _reply(f"No meal history found for <@{target_user}>.")
+    lines = [f"**History for <@{target_user}>**"]
+    for r in records:
+        meal_status = f"Opted {'in' if r.meal_opt_in else 'out'} ({r.meal_type})"
+        lines.append(f"`{r.date}` — Meal: {meal_status} | Location: {r.work_location}")
+    return _reply("\n".join(lines))
+
+
 def _handle_meal_event(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     action = _get_option(options, "action") or "announce"
     if action == "announce":
@@ -208,6 +224,9 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
 
     if command == "location":
         return _handle_work_location(interaction, options)
+
+    if command == "history":
+        return _handle_users_history(interaction, options)
 
     return _reply("Unknown command.")
 

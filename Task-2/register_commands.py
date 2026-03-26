@@ -148,6 +148,7 @@ COMMANDS = [
             },
         ],
     },
+    # /location <date> <location>
     {
         "name": "location",
         "description": "Set your work location for a date (WFH automatically opts you out of all meals)",
@@ -163,6 +164,14 @@ COMMANDS = [
                     {"name": "WFH", "value": "WFH"},
                 ],
             },
+        ],
+    },
+    # /history <user>  (Team Lead / Admin)
+    {
+        "name": "history",
+        "description": "View a user's meal and location history",
+        "options": [
+            {"type": _USER, "name": "user", "description": "Target user", "required": True},
         ],
     },
     {
