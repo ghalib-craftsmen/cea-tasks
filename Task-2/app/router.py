@@ -71,7 +71,11 @@ def handler(event: dict, context: Any) -> dict:
         logger.warning("Invalid signature")
         return _err(401, "Invalid request signature")
 
-    payload = json.loads(raw_body)
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError:
+        logger.warning("Invalid JSON in request body")
+        return _err(400, "Invalid request body")
 
     if payload.get("type") == _PING:
         return _ok({"type": _PONG})
