@@ -89,7 +89,7 @@ COMMANDS = [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True}
                 ],
             },
-            # /meal override user date [opt_in] [location]  (Admin)
+            # /meal override user date [opt_in]  (Admin)
             {
                 "type": 1,
                 "name": "override",
@@ -98,16 +98,6 @@ COMMANDS = [
                     {"type": _USER, "name": "user", "description": "Target user", "required": True},
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": False},
-                    {
-                        "type": _STR,
-                        "name": "location",
-                        "description": "OFFICE or WFH",
-                        "required": False,
-                        "choices": [
-                            {"name": "Office", "value": "OFFICE"},
-                            {"name": "WFH", "value": "WFH"},
-                        ],
-                    },
                     {"type": _BOOL, "name": "lunch", "description": "Select Lunch", "required": False},
                     {"type": _BOOL, "name": "snacks", "description": "Select Snacks", "required": False},
                     {"type": _BOOL, "name": "iftar", "description": "Select Iftar", "required": False},

@@ -119,7 +119,6 @@ def _handle_meal_override(interaction: DiscordInteraction, options: list) -> tup
     if not target_user or not target_date:
         return _reply("Please provide both user and date.")
     opt_in_val = _get_option(options, "opt_in")
-    location = _get_option(options, "location")
     meal_types = _collect_meal_types(options)
     msgs = []
     if opt_in_val is not None:
@@ -127,8 +126,6 @@ def _handle_meal_override(interaction: DiscordInteraction, options: list) -> tup
         msgs.append(fn(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=True))
     elif meal_types:
         msgs.append(meal_service.opt_out(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=True))
-    if location:
-        msgs.append(meal_service.update_location(target_date, target_user, location, updated_by=user_id, bypass_cutoff=True))
     return _reply("\n".join(msgs) if msgs else "Nothing to update.")
 
 
