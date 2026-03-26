@@ -40,8 +40,19 @@ def _handle_meal_status(interaction: DiscordInteraction, options: list) -> tuple
     user_id = interaction.get_user().id
     target_date = _get_option(options, "date") or str(_date.today())
     record = meal_service.get_record(target_date, user_id) or MealRecord(date=target_date, user_id=user_id)
-    status = "opted in" if record.meal_opt_in else "opted out"
-    return _reply(f"**{target_date}** — {status} | Location: {record.work_location} | Meal: {record.meal_type}")
+    if not record.meal_opt_in:
+        status = "opted out (all meals)"
+    elif record.opted_out_meals:
+        status = f"opted out of: {', '.join(record.opted_out_meals)}"
+    else:
+        status = "opted in (all meals)"
+    return _reply(f"**{target_date}** — {status} | Location: {record.work_location}")
+
+
+def _collect_meal_types(options: list) -> list[str] | None:
+    """Collect selected meal type booleans. Returns None if none selected (means all)."""
+    selected = [mt.upper() for mt in ("lunch", "snacks", "iftar", "event_dinner", "optional_dinner") if _get_option(options, mt)]
+    return selected or None
 
 
 def _handle_meal_update(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
@@ -50,14 +61,13 @@ def _handle_meal_update(interaction: DiscordInteraction, options: list) -> tuple
     if not target_date:
         return _reply("Please provide a date.")
     opt_in_val = _get_option(options, "opt_in")
-    meal_type = _get_option(options, "meal_type")
-    msgs = []
+    meal_types = _collect_meal_types(options)
     if opt_in_val is not None:
         fn = meal_service.opt_in if opt_in_val else meal_service.opt_out
-        msgs.append(fn(target_date, user_id, updated_by=user_id))
-    if meal_type:
-        msgs.append(meal_service.update_meal_type(target_date, user_id, meal_type, updated_by=user_id))
-    return _reply("\n".join(msgs) if msgs else "Nothing to update.")
+        return _reply(fn(target_date, user_id, updated_by=user_id, meal_types=meal_types))
+    if meal_types:
+        return _reply(meal_service.opt_out(target_date, user_id, updated_by=user_id, meal_types=meal_types))
+    return _reply("Nothing to update.")
 
 
 
@@ -110,15 +120,15 @@ def _handle_meal_override(interaction: DiscordInteraction, options: list) -> tup
         return _reply("Please provide both user and date.")
     opt_in_val = _get_option(options, "opt_in")
     location = _get_option(options, "location")
-    meal_type = _get_option(options, "meal_type")
+    meal_types = _collect_meal_types(options)
     msgs = []
     if opt_in_val is not None:
         fn = meal_service.opt_in if opt_in_val else meal_service.opt_out
-        msgs.append(fn(target_date, target_user, updated_by=user_id, bypass_cutoff=True))
+        msgs.append(fn(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=True))
+    elif meal_types:
+        msgs.append(meal_service.opt_out(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=True))
     if location:
         msgs.append(meal_service.update_location(target_date, target_user, location, updated_by=user_id, bypass_cutoff=True))
-    if meal_type:
-        msgs.append(meal_service.update_meal_type(target_date, target_user, meal_type, updated_by=user_id, bypass_cutoff=True))
     return _reply("\n".join(msgs) if msgs else "Nothing to update.")
 
 
@@ -133,7 +143,12 @@ def _handle_users_history(interaction: DiscordInteraction, options: list) -> tup
         return _reply(f"No meal history found for <@{target_user}>.")
     lines = [f"**History for <@{target_user}>**"]
     for r in records:
-        meal_status = f"Opted {'in' if r.meal_opt_in else 'out'} ({r.meal_type})"
+        if not r.meal_opt_in:
+            meal_status = "Opted out (all)"
+        elif r.opted_out_meals:
+            meal_status = f"Out: {', '.join(r.opted_out_meals)}"
+        else:
+            meal_status = "Opted in (all)"
         lines.append(f"`{r.date}` — Meal: {meal_status} | Location: {r.work_location}")
     return _reply("\n".join(lines))
 

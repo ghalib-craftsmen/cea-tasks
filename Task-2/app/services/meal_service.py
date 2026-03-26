@@ -23,6 +23,7 @@ _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
 _deserializer = TypeDeserializer()
 _WFH_MONTHLY_LIMIT = 5
+VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
 
 # Loaded once at module level — captured in SnapStart snapshot
 with _EVENTS_PATH.open() as _f:
@@ -111,31 +112,43 @@ def upsert_record(record: MealRecord) -> None:
         raise
 
 
-def opt_in(date: str, user_id: str, updated_by: str, bypass_cutoff: bool = False) -> str:
+def opt_in(date: str, user_id: str, updated_by: str, meal_types: list[str] | None = None, bypass_cutoff: bool = False) -> str:
     err = check_cutoff(date, bypass=bypass_cutoff)
     if err:
         return err
 
     record = get_record(date, user_id) or MealRecord(date=date, user_id=user_id)
-    record.meal_opt_in = True
+    if meal_types:
+        record.opted_out_meals = [m for m in record.opted_out_meals if m not in meal_types]
+    else:
+        record.meal_opt_in = True
+        record.opted_out_meals = []
     record.updated_by = updated_by
     upsert_record(record)
-    return f"You are opted **in** for the meal on {date}."
+    if meal_types:
+        return f"You are opted **in** for **{', '.join(meal_types)}** on {date}."
+    return f"You are opted **in** for all meals on {date}."
 
 
-def opt_out(date: str, user_id: str, updated_by: str, bypass_cutoff: bool = False) -> str:
+def opt_out(date: str, user_id: str, updated_by: str, meal_types: list[str] | None = None, bypass_cutoff: bool = False) -> str:
     err = check_cutoff(date, bypass=bypass_cutoff)
     if err:
         return err
 
     record = get_record(date, user_id) or MealRecord(date=date, user_id=user_id)
-    record.meal_opt_in = False
+    if meal_types:
+        record.opted_out_meals = list(set(record.opted_out_meals) | set(meal_types))
+    else:
+        record.meal_opt_in = False
+        record.opted_out_meals = []
     record.updated_by = updated_by
     upsert_record(record)
 
+    if meal_types:
+        return f"You have opted **out** of **{', '.join(meal_types)}** on {date}."
     if is_event_day(date):
         return f"You have opted out of the event meal on {date}."
-    return f"You have opted **out** of the meal on {date}."
+    return f"You have opted **out** of all meals on {date}."
 
 
 def update_location(
@@ -170,27 +183,6 @@ def update_location(
     return msg
 
 
-def update_meal_type(
-    date: str,
-    user_id: str,
-    meal_type: str,
-    updated_by: str,
-    bypass_cutoff: bool = False,
-) -> str:
-    VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
-    meal_type = meal_type.upper().replace(" ", "_")
-    if meal_type not in VALID_MEAL_TYPES:
-        return f"Invalid meal type. Choose from: {', '.join(sorted(VALID_MEAL_TYPES))}."
-
-    err = check_cutoff(date, bypass=bypass_cutoff)
-    if err:
-        return err
-
-    record = get_record(date, user_id) or MealRecord(date=date, user_id=user_id)
-    record.meal_type = meal_type
-    record.updated_by = updated_by
-    upsert_record(record)
-    return f"Meal type set to **{meal_type}** for {date}."
 
 
 def count_wfh_days_this_month(user_id: str, month_prefix: str) -> int:

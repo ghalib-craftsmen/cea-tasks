@@ -46,27 +46,20 @@ COMMANDS = [
                     }
                 ],
             },
-            # /meal update date [opt_in] [meal_type]
+            # /meal update <date> [opt_in] [lunch] [snacks] [iftar] [event_dinner] [optional_dinner]
+            # No meal types selected = applies to all. Specific types = opt out of only those.
             {
                 "type": 1,
                 "name": "update",
-                "description": "Update your opt-in status or meal type for a date",
+                "description": "Update your meal opt-in/out for a date",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": False},
-                    {
-                        "type": _STR,
-                        "name": "meal_type",
-                        "description": "Meal type",
-                        "required": False,
-                        "choices": [
-                            {"name": "Lunch", "value": "LUNCH"},
-                            {"name": "Snacks", "value": "SNACKS"},
-                            {"name": "Iftar", "value": "IFTAR"},
-                            {"name": "Event Dinner", "value": "EVENT_DINNER"},
-                            {"name": "Optional Dinner", "value": "OPTIONAL_DINNER"},
-                        ],
-                    },
+                    {"type": _BOOL, "name": "lunch", "description": "Select Lunch", "required": False},
+                    {"type": _BOOL, "name": "snacks", "description": "Select Snacks", "required": False},
+                    {"type": _BOOL, "name": "iftar", "description": "Select Iftar", "required": False},
+                    {"type": _BOOL, "name": "event_dinner", "description": "Select Event Dinner", "required": False},
+                    {"type": _BOOL, "name": "optional_dinner", "description": "Select Optional Dinner", "required": False},
                 ],
             },
             # /meal optout date
@@ -115,19 +108,11 @@ COMMANDS = [
                             {"name": "WFH", "value": "WFH"},
                         ],
                     },
-                    {
-                        "type": _STR,
-                        "name": "meal_type",
-                        "description": "Meal type",
-                        "required": False,
-                        "choices": [
-                            {"name": "Lunch", "value": "LUNCH"},
-                            {"name": "Snacks", "value": "SNACKS"},
-                            {"name": "Iftar", "value": "IFTAR"},
-                            {"name": "Event Dinner", "value": "EVENT_DINNER"},
-                            {"name": "Optional Dinner", "value": "OPTIONAL_DINNER"},
-                        ],
-                    },
+                    {"type": _BOOL, "name": "lunch", "description": "Select Lunch", "required": False},
+                    {"type": _BOOL, "name": "snacks", "description": "Select Snacks", "required": False},
+                    {"type": _BOOL, "name": "iftar", "description": "Select Iftar", "required": False},
+                    {"type": _BOOL, "name": "event_dinner", "description": "Select Event Dinner", "required": False},
+                    {"type": _BOOL, "name": "optional_dinner", "description": "Select Optional Dinner", "required": False},
                 ],
             },
             # /meal event date [action]  (Admin)

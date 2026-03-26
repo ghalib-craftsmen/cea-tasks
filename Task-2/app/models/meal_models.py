@@ -5,7 +5,6 @@ from typing import Literal
 from pydantic import BaseModel
 
 WorkLocation = Literal["OFFICE", "WFH"]
-MealType = Literal["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
 
 class MealRecord(BaseModel):
@@ -13,7 +12,7 @@ class MealRecord(BaseModel):
     user_id: str                            # Discord snowflake
     meal_opt_in: bool = True
     work_location: WorkLocation = "OFFICE"
-    meal_type: MealType = "LUNCH"
+    opted_out_meals: list[str] = []
     updated_at: str = ""
     updated_by: str = ""
 
@@ -28,7 +27,7 @@ class MealRecord(BaseModel):
             user_id=base["user_id"],
             meal_opt_in=(meal_item or {}).get("meal_opt_in", True),
             work_location=(loc_item or {}).get("work_location", "OFFICE"),
-            meal_type=(meal_item or {}).get("meal_type", "LUNCH"),
+            opted_out_meals=(meal_item or {}).get("opted_out_meals", []),
             updated_at=base.get("updated_at", ""),
             updated_by=base.get("updated_by", ""),
         )
@@ -43,7 +42,7 @@ class MealRecord(BaseModel):
             "date": self.date,
             "user_id": self.user_id,
             "meal_opt_in": self.meal_opt_in,
-            "meal_type": self.meal_type,
+            "opted_out_meals": self.opted_out_meals,
             "updated_at": self.updated_at,
             "updated_by": self.updated_by,
         }
