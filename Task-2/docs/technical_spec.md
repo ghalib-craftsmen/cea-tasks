@@ -182,7 +182,7 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
 
-### 3.4 User Identity — Discord OAuth2
+### 3.4 User Identity
 
 Discord's Interactions API embeds verified user identity directly inside the signed interaction payload. No separate OAuth2 token exchange is required for slash command interactions — the user's identity is established as part of the same request that is already validated by Ed25519 signature verification (§3.1).
 
@@ -255,7 +255,7 @@ Event days are defined in `config/events.json` and can be managed at runtime via
 
 ### 4.3 WFH Monthly Soft Limit
 
-Employees who set their work location to `WFH` are subject to a soft limit of **5 WFH days per calendar month**. Exceeding this limit does **not** block the update — a warning is appended to the ephemeral confirmation instead.
+Employees who set their work location to `WFH` are subject to a soft limit configured via the `WFH_MONTHLY_LIMIT` environment variable (default: `5`). Exceeding this limit does **not** block the update — a warning is appended to the ephemeral confirmation instead.
 
 **Enforcement logic:**
 
@@ -273,7 +273,7 @@ The count includes the record just written, so the warning fires as soon as the 
 
 **Warning message (ephemeral, appended to update confirmation):**
 
-> ⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: 5). Please coordinate with your team lead.
+> ⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {WFH_MONTHLY_LIMIT}). Please coordinate with your team lead.
 
 **Scope and exclusions:**
 
@@ -410,13 +410,13 @@ requirements.txt     — production dependencies
 
 All endpoints are served under the Lambda function URL proxied through API Gateway.
 
-### Discord Endpoints
+#### Discord Endpoints
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord slash command interactions. |
 
-### Discord Slash Commands
+#### Discord Slash Commands
 
 Registered via the Discord Developer Portal. Each command maps to a handler.
 
@@ -472,7 +472,6 @@ The following are explicitly deferred and must not be implemented until a subseq
 | Infrastructure as Code (IaC) | Terraform / CDK configuration requires a stable, tested application before provisioning. |
 | CI/CD pipeline | GitHub Actions deployment workflow depends on IaC being in place first. |
 | AWS Secrets Manager integration | Env vars managed manually for now; Secrets Manager adds operational complexity before the app is validated. |
-| DynamoDB table creation | Table will be provisioned manually or via IaC in a future iteration. |
 | Automated tests | Unit and integration test scaffolding is deferred until the core service layer is stable. |
 
 ---
