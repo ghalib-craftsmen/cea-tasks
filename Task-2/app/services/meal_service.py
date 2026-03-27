@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date as _date
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -240,3 +241,75 @@ def get_user_history(user_id: str) -> list[MealRecord]:
     except ClientError as e:
         logger.error("DynamoDB GSI1 query failed for user_id=%s: %s", user_id, e)
         return []
+
+
+def bulk_meal_update(
+    start_date: str,
+    end_date: str,
+    do_opt_in: bool,
+    user_id: str,
+    updated_by: str,
+    bypass_cutoff: bool = False,
+) -> str:
+    """Apply meal opt-in/out across every day in [start_date, end_date]."""
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
+    if start > end:
+        return "Start date must be on or before end date."
+
+    fn = opt_in if do_opt_in else opt_out
+    updated, skipped = 0, []
+    current = start
+    while current <= end:
+        date_str = str(current)
+        result = fn(date_str, user_id, updated_by=updated_by, bypass_cutoff=bypass_cutoff)
+        if result.startswith("Cannot") or result.startswith("Cut-off"):
+            skipped.append(date_str)
+        else:
+            updated += 1
+        current += timedelta(days=1)
+
+    action = "in" if do_opt_in else "out"
+    msg = f"Opted **{action}** for {updated} day(s) between {start_date} and {end_date}."
+    if skipped:
+        preview = ", ".join(skipped[:3]) + ("…" if len(skipped) > 3 else "")
+        msg += f"\nSkipped {len(skipped)} day(s) past cut-off: {preview}"
+    return msg
+
+
+def bulk_location_update(
+    start_date: str,
+    end_date: str,
+    location: str,
+    user_id: str,
+    updated_by: str,
+    bypass_cutoff: bool = False,
+) -> str:
+    """Set work location across every day in [start_date, end_date]."""
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
+    if start > end:
+        return "Start date must be on or before end date."
+
+    updated, skipped = 0, []
+    current = start
+    while current <= end:
+        date_str = str(current)
+        result = update_location(date_str, user_id, location, updated_by=updated_by, bypass_cutoff=bypass_cutoff)
+        if result.startswith("Cannot") or result.startswith("Cut-off") or result.startswith("Invalid"):
+            skipped.append(date_str)
+        else:
+            updated += 1
+        current += timedelta(days=1)
+
+    msg = f"Location set to **{location.upper()}** for {updated} day(s) between {start_date} and {end_date}."
+    if skipped:
+        preview = ", ".join(skipped[:3]) + ("…" if len(skipped) > 3 else "")
+        msg += f"\nSkipped {len(skipped)} day(s) past cut-off: {preview}"
+    return msg

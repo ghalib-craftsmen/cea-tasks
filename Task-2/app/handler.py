@@ -86,6 +86,24 @@ def _handle_meal_set(interaction: DiscordInteraction, options: list) -> tuple[st
 
 
 
+def _handle_meal_bulk(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    user_id = interaction.get_user().id
+    start_date = _get_option(options, "start_date")
+    end_date = _get_option(options, "end_date")
+    opt_in_val = _get_option(options, "opt_in")
+    if not start_date or not end_date or opt_in_val is None:
+        return _reply("Please provide start_date, end_date, and opt_in.")
+    target_user = _get_option(options, "user")
+    bypass = False
+    if target_user and target_user != user_id:
+        if not _is_team_lead(interaction):
+            return _reply("You do not have permission to bulk-update another user's meal records.")
+        bypass = True
+    else:
+        target_user = user_id
+    return _reply(meal_service.bulk_meal_update(start_date, end_date, opt_in_val, target_user, updated_by=user_id, bypass_cutoff=bypass))
+
+
 def _handle_meal_optout(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     user_id = interaction.get_user().id
     target_date = _get_option(options, "date")
@@ -205,8 +223,27 @@ def _handle_location_override(interaction: DiscordInteraction, options: list) ->
     return _reply(meal_service.update_location(target_date, target_user, location, updated_by=user_id, bypass_cutoff=True))
 
 
+def _handle_location_bulk(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    user_id = interaction.get_user().id
+    start_date = _get_option(options, "start_date")
+    end_date = _get_option(options, "end_date")
+    location = _get_option(options, "location")
+    if not start_date or not end_date or not location:
+        return _reply("Please provide start_date, end_date, and location.")
+    target_user = _get_option(options, "user")
+    bypass = False
+    if target_user and target_user != user_id:
+        if not _is_team_lead(interaction):
+            return _reply("You do not have permission to bulk-update another user's location records.")
+        bypass = True
+    else:
+        target_user = user_id
+    return _reply(meal_service.bulk_location_update(start_date, end_date, location, target_user, updated_by=user_id, bypass_cutoff=bypass))
+
+
 _LOCATION_HANDLERS = {
     "set":      _handle_work_location,
+    "bulk":     _handle_location_bulk,
     "override": _handle_location_override,
 }
 
@@ -214,6 +251,7 @@ _LOCATION_HANDLERS = {
 _MEAL_HANDLERS = {
     "status":      _handle_meal_status,
     "set":         _handle_meal_set,
+    "bulk":        _handle_meal_bulk,
     "optout":      _handle_meal_optout,
     "summary":     _handle_meal_summary,
     "summary-all": _handle_meal_summary_all,

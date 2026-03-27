@@ -68,6 +68,18 @@ COMMANDS = [
                     {"type": _USER, "name": "user", "description": "Target user (Team Lead / Admin only)", "required": False},
                 ],
             },
+            # /meal bulk <start_date> <end_date> <opt_in> [user]
+            {
+                "type": 1,
+                "name": "bulk",
+                "description": "Set meal opt-in/out across a date range. Team Lead/Admin can specify another user.",
+                "options": [
+                    {"type": _STR, "name": "start_date", "description": "Start date (YYYY-MM-DD)", "required": True},
+                    {"type": _STR, "name": "end_date", "description": "End date (YYYY-MM-DD)", "required": True},
+                    {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": True},
+                    {"type": _USER, "name": "user", "description": "Target user (Team Lead / Admin only)", "required": False},
+                ],
+            },
             # /meal optout date
             {
                 "type": 1,
@@ -151,6 +163,27 @@ COMMANDS = [
                             {"name": "WFH", "value": "WFH"},
                         ],
                     },
+                ],
+            },
+            # /location bulk <start_date> <end_date> <location> [user]
+            {
+                "type": 1,
+                "name": "bulk",
+                "description": "Set work location across a date range. Team Lead/Admin can specify another user.",
+                "options": [
+                    {"type": _STR, "name": "start_date", "description": "Start date (YYYY-MM-DD)", "required": True},
+                    {"type": _STR, "name": "end_date", "description": "End date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "location",
+                        "description": "OFFICE or WFH",
+                        "required": True,
+                        "choices": [
+                            {"name": "Office", "value": "OFFICE"},
+                            {"name": "WFH", "value": "WFH"},
+                        ],
+                    },
+                    {"type": _USER, "name": "user", "description": "Target user (Team Lead / Admin only)", "required": False},
                 ],
             },
             {
