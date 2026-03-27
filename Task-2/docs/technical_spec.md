@@ -108,7 +108,7 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All acce
 | User | `USER#<userId>` | `METADATA` | Yes |
 | Identity Mapping | `EXTID#<type>#<value>` | `EXTID#<type>#<value>` | No |
 | Team | `TEAM#<teamId>` | `METADATA` | Yes |
-| Meal Participation | `MEAL#<date>` | `USER#<userId>#<mealType>` | Yes |
+| Meal Participation | `MEAL#<date>` | `USER#<userId>` | Yes |
 | Work Location | `LOC#<date>` | `USER#<userId>` | Yes |
 | Special Day | `SPECIALDAY` | `<date>` | No |
 | Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
@@ -119,7 +119,7 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All acce
 | --- | --- | --- | --- |
 | User | `USERS` | `USER#<userId>` | Get all users |
 | Team | `TEAMS` | `TEAM#<teamId>` | Get all teams |
-| Meal Participation | `USER#<userId>` | `MEAL#<date>#<mealType>` | User's meal history across dates |
+| Meal Participation | `USER#<userId>` | `MEAL#<date>` | User's meal history across dates |
 | Work Location | `USER#<userId>` | `LOC#<date>` | User's location records for a month |
 
 Total GSIs: **1**
@@ -176,7 +176,8 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `ROLE_ADMIN_ID` | Discord role ID for Admin permission level. |
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
 | `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
-| `DEFAULT_CUTOFF_TIME` | Static cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
+| `DEFAULT_CUTOFF_TIME` | Cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
+| `WFH_MONTHLY_LIMIT` | Maximum WFH days allowed per calendar month before a warning is shown (default: `5`) (§4.3). |
 | `COMMAND_LAMBDA_NAME` | Name of the Command Lambda function invoked by the Router Lambda to process business logic. |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
@@ -224,7 +225,7 @@ if now < cutoff_datetime:
     → allow: cut-off has not yet been reached.
 ```
 
-**Admin override:** Users with the `@Admin` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
+**Override:** Users with the `@Admin` role can bypass the cut-off check for any user. `@Team Lead` can bypass it for their own team members. This allows last-minute corrections without a time gate.
 
 ---
 
@@ -232,7 +233,7 @@ if now < cutoff_datetime:
 
 An "Event Meal" is a special catering day (e.g., company anniversary, team lunch). On event days, all employees are **opted in by default** — the kitchen prepares for full headcount unless someone explicitly opts out.
 
-Event days are defined statically in `config/events.json`. The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`.
+Event days are defined in `config/events.json` and can be managed at runtime via `/event update` and `/event delete` (Admin only). The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`.
 
 **Employee opt-out flow:**
 
@@ -261,13 +262,9 @@ Employees who set their work location to `WFH` are subject to a soft limit of **
 ```text
 After a successful WFH location update:
 
-month_prefix = YYYY-MM derived from the target_date
-wfh_count    = count of items in MHP_Table where
-               GSI1PK = USER#<userId>
-               AND GSI1SK begins_with LOC#<month_prefix>
-               AND location == "WFH"   (client-side filter)
+wfh_count = count of WFH location records for the user in the target calendar month
 
-if wfh_count >= WFH_MONTHLY_LIMIT (5):
+if wfh_count >= WFH_MONTHLY_LIMIT:
     → append ephemeral warning to the confirmation message
     → update is NOT blocked
 ```
@@ -280,13 +277,9 @@ The count includes the record just written, so the warning fires as soon as the 
 
 **Scope and exclusions:**
 
-- Applied only when `/meal update` sets `location=WFH`.
-- Not applied to Admin overrides (`/meal override`).
-- The limit is a constant (`5`) defined in `meal_service.py`; no environment variable is required.
-
-**DynamoDB query used for the count:**
-
-`Query GSI1` on `MHP_Table` — `GSI1PK = USER#<userId>`, `GSI1SK begins_with LOC#<YYYY-MM>`. Returns all Work Location items for that user in the target month. Client-side filter then isolates `location == "WFH"` records.
+- Applied only when `/location set` sets `location=WFH`.
+- Not applied when Admin or Team Lead specifies a `user` (override bypass).
+- The limit is configured via the `WFH_MONTHLY_LIMIT` environment variable (default: `5`).
 
 ### 4.4 Headcount Summary — `/headcount` Command
 
@@ -296,19 +289,20 @@ The `/headcount` command is a single top-level command that provides a comprehen
 
 | Role | Scope | Description |
 | --- | --- | --- |
-| `@Admin` | Organization-wide | Headcount and location summary across all users for the requested date with a team breakdown. |
-| `@Team Lead` | Team-wide | Headcount and location summary for the team lead's team members only. |
-| `@everyone` (Employee) | — | No access. Returns an ephemeral permission error. |
+| `@Admin` | Organization-wide | Aggregate headcount summary across all users with team breakdown; or a specific user's record when `user` is provided. |
+| `@Team Lead` | Team-wide | Aggregate headcount summary for own team; or a specific team member's record when `user` is provided. |
+| `@everyone` (Employee) | Own history | Own 30-day meal and location history; or own record for a specific date when `date` is provided. |
 
 **Command signature:**
 
 ```text
-/headcount <date>
+/headcount [date] [user]
 ```
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `date` | String (YYYY-MM-DD) | Yes | The date to generate the headcount summary for. |
+| `date` | String (YYYY-MM-DD) | No | Target date. Required for Team Lead / Admin aggregate view. Omit for Employee 30-day history. |
+| `user` | User mention | No | Team Lead / Admin only. Shows that user's record for the given date instead of aggregate. |
 
 **Response format:**
 
