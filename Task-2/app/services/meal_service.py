@@ -22,7 +22,6 @@ _table = _dynamodb.Table(settings.dynamodb_table)
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
 _deserializer = TypeDeserializer()
-_WFH_MONTHLY_LIMIT = 5
 VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
 
 # Loaded once at module level — captured in SnapStart snapshot
@@ -178,8 +177,8 @@ def update_location(
         msg += "\nYou have been automatically opted **out** of all meals for this day."
         if not bypass_cutoff:
             wfh_count = count_wfh_days_this_month(user_id, date[:7])
-            if wfh_count >= _WFH_MONTHLY_LIMIT:
-                msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {_WFH_MONTHLY_LIMIT}). Please coordinate with your team lead."
+            if wfh_count >= settings.wfh_monthly_limit:
+                msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {settings.wfh_monthly_limit}). Please coordinate with your team lead."
     return msg
 
 
