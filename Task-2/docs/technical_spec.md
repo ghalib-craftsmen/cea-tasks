@@ -146,20 +146,6 @@ Every request from Discord includes two headers that must be validated **before 
 
 This check is called explicitly at the top of the Lambda handler before any routing or business logic executes.
 
-```python
-# Pseudocode — implementation detail, not production code
-def verify_discord_signature(
-    signature: str,  # from X-Signature-Ed25519
-    timestamp: str,  # from X-Signature-Timestamp
-    body: bytes,
-    public_key: str,  # DISCORD_PUBLIC_KEY env var
-) -> None:
-    message = timestamp.encode() + body
-    verify_key = VerifyKey(bytes.fromhex(public_key))
-    verify_key.verify(message, bytes.fromhex(signature))
-    # raises nacl.exceptions.BadSignatureError on failure
-```
-
 ### 3.2 Authorization — Discord Role-Based Access Control
 
 Authorization is enforced at the command handler level based on the Discord roles present in the interaction payload (`member.roles`). No external role store is needed; Discord's role system is the source of truth.
@@ -168,7 +154,7 @@ Authorization is enforced at the command handler level based on the Discord role
 | --- | --- | --- |
 | `@everyone` (Employee) | Standard | Update own meal opt-in, update own work location, view own status. |
 | `@Team Lead` | Elevated | All employee actions + view team headcount summary for any date. |
-| `@Admin` / `@Logistics` | Full | All team lead actions + view org-wide summary, override any employee's record. |
+| `@Admin` | Full | All team lead actions + view org-wide summary, override any employee's record. |
 
 **Authorization flow:**
 
@@ -187,7 +173,7 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
-| `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
+| `ROLE_ADMIN_ID` | Discord role ID for Admin permission level. |
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
 | `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
 | `DEFAULT_CUTOFF_TIME` | Static cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
@@ -246,7 +232,7 @@ if now < cutoff_datetime:
     → allow: cut-off has not yet been reached.
 ```
 
-**Admin override:** Users with the `@Admin` / `@Logistics` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
+**Admin override:** Users with the `@Admin` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
 
 ---
 
@@ -254,38 +240,16 @@ if now < cutoff_datetime:
 
 An "Event Meal" is a special catering day (e.g., company anniversary, team lunch). On event days, all employees are **opted in by default** — the kitchen prepares for full headcount unless someone explicitly opts out.
 
-**Event day setup (static configuration):**
-
-Event days are defined in a static configuration file (`config/events.json`) bundled with the Lambda deployment package. Each entry specifies a date and description. The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1) — no separate per-event deadline is needed.
-
-```json
-[
-  { "date": "2026-03-15", "description": "Company anniversary lunch" },
-  { "date": "2026-06-01", "description": "Mid-year team lunch" }
-]
-```
-
-To add or modify event days, update `config/events.json` and redeploy the Lambda function. The bot can broadcast a one-time notification via a manual `/meal event announce <date>` command (Admin only), or the message can be posted manually.
+Event days are defined statically in `config/events.json`. The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`.
 
 **Employee opt-out flow:**
 
-1. Employee uses `/meal optout <date>` or clicks the "Opt Out" button in the bot's announcement message.
-2. The system checks:
-   - Is the date flagged as an event day? If not → standard opt-in/out logic applies.
-   - Has the opt-out deadline passed? If yes → reject with an ephemeral message.
-3. If valid, the employee's `meal_opt_in` field is set to `false` for that date.
-4. Bot confirms with an ephemeral reply: _"You have opted out of the event meal on {date}."_
+1. Employee uses `/event optout <date>`.
+2. The system checks the date is a configured event day and the cut-off has not passed.
+3. If valid, `meal_opt_in` is set to `false` for that date.
+4. Bot confirms with an ephemeral reply.
 
-**Headcount calculation on event days:**
-
-```text
-total_opted_out  = count of records where meal_opt_in == false for that date
-expected_count   = total_active_employees - total_opted_out
-```
-
-The system does **not** require every employee to explicitly opt in — absence of an opt-out record is treated as opt-in for event days only.
-
-**State transition summary:**
+**State transitions:**
 
 | Scenario | Default State | Employee Action | Resulting State |
 | --- | --- | --- | --- |
@@ -340,7 +304,7 @@ The `/headcount` command is a single top-level command that provides a comprehen
 
 | Role | Scope | Description |
 | --- | --- | --- |
-| `@Admin` / `@Logistics` | Organization-wide | Headcount and location summary across all users for the requested date with a team breakdown. |
+| `@Admin` | Organization-wide | Headcount and location summary across all users for the requested date with a team breakdown. |
 | `@Team Lead` | Team-wide | Headcount and location summary for the team lead's team members only. |
 | `@everyone` (Employee) | — | No access. Returns an ephemeral permission error. |
 
@@ -356,27 +320,35 @@ The `/headcount` command is a single top-level command that provides a comprehen
 
 **Response format:**
 
-The response includes three sections:
+The response includes four sections:
 
-1. **Overall headcount** — Total users opted in vs opted out.
-2. **Meal-type breakdown** — For each valid meal type (`LUNCH`, `SNACKS`, `IFTAR`, `EVENT_DINNER`, `OPTIONAL_DINNER`), the count of users opted in for that specific type. A user is counted as opted in for a meal type if `meal_opt_in == true` AND the meal type is NOT in their `opted_out_meals` list.
-3. **Work location summary** — Count of all users (regardless of opt-in status) by work location (`OFFICE` vs `WFH`).
+1. **Overall total** — Total users opted in vs opted out across the organization (Admin) or team (Team Lead).
+2. **By meal type** — For each valid meal type (`LUNCH`, `SNACKS`, `IFTAR`, `EVENT_DINNER`, `OPTIONAL_DINNER`), the count of users opted in for that specific type. A user is counted as opted in for a meal type if `meal_opt_in == true` AND the meal type is NOT in their `opted_out_meals` list.
+3. **By team** — (Admin only) Breakdown of opted-in count per team. Requires team membership data in DynamoDB.
+4. **Office vs WFH split** — Count of all users (regardless of opt-in status) by work location (`OFFICE` vs `WFH`).
 
 **Example output (Admin):**
 
 ```text
 **Org-wide Headcount for 2026-03-27** *(Event Day)*
 
-**Meal Headcount**
-Opted in: 15 | Opted out: 5
+**Overall**
+Total: 20 | Opted in: 15 | Opted out: 5
+
+**By Meal Type**
   Lunch: 14
   Snacks: 12
   Iftar: 10
   Event Dinner: 15
   Optional Dinner: 8
 
-**Work Location**
-Office: 16 | WFH: 4
+**By Team**
+  Engineering: 8
+  Design: 4
+  Operations: 3
+
+**Office vs WFH**
+  Office: 16 | WFH: 4
 ```
 
 **Example output (Team Lead):**
@@ -384,19 +356,21 @@ Office: 16 | WFH: 4
 ```text
 **Team Headcount for 2026-03-27**
 
-**Meal Headcount**
-Opted in: 5 | Opted out: 1
+**Overall**
+Total: 6 | Opted in: 5 | Opted out: 1
+
+**By Meal Type**
   Lunch: 5
   Snacks: 4
   Iftar: 3
   Event Dinner: 5
   Optional Dinner: 2
 
-**Work Location**
-Office: 5 | WFH: 1
+**Office vs WFH**
+  Office: 5 | WFH: 1
 ```
 
-> **Note:** Team-level filtering requires a team membership mapping (team roster) in DynamoDB. Until that data model is implemented, team leads will see the organization-wide summary.
+> **Note:** Team-level filtering and the "By Team" breakdown require a team membership mapping (team roster) in DynamoDB. Until that data model is implemented, team leads will see the organization-wide summary, and the "By Team" section will be omitted.
 
 ---
 
@@ -472,23 +446,52 @@ All endpoints are served under the Lambda function URL proxied through API Gatew
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord interaction events — slash commands, buttons, select menus. |
-| `GET` | `/health` | None | Health check endpoint for monitoring and load balancer integration. |
+| `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord slash command interactions. |
 
 ### Discord Slash Commands
 
-Registered via the Discord Developer Portal. Each command maps to a handler inside `app/handler.py`.
+Registered via the Discord Developer Portal. Each command maps to a handler.
+
+#### `/meal`
 
 | Command | Permission | Description |
 | --- | --- | --- |
-| `/status [date]` | Employee | Show own meal and location status for a date (defaults to today). |
-| `/meal set <date> [opt_in] [meal_types]` | Employee | Update own meal opt-in/out for a date. Supports per-meal-type selection (lunch, snacks, iftar, event_dinner, optional_dinner). |
-| `/meal override <user> <date> [opt_in] [meal_types]` | Admin/Team Lead | Override any employee's meal record. Bypasses cut-off time. |
-| `/meal event <date> [action]` | Admin | Announce a configured event meal day. |
-| `/location set <date> <location>` | Employee | Set own work location (OFFICE or WFH) for a date. WFH automatically opts out of all meals. |
-| `/location override <user> <date> <location>` | Admin/Team Lead | Override any user's work location. |
-| `/headcount <date>` | Team Lead / Admin | Show daily headcount summary with meal-type breakdown and work location split. Admin sees org-wide; Team Lead sees team-wide (§4.4). |
-| `/history <user>` | Team Lead / Admin | View a user's meal and location history. |
+| `/meal status [user] [date]` | Employee / Team Lead / Admin | Show meal opt-in status for a date (defaults to today). Omitting `user` shows own status. Providing `user` requires Team Lead (own team only) or Admin. |
+| `/meal set <date> [opt_in] [meal_types] [user]` | Employee / Team Lead / Admin | Update meal opt-in/out for a date. Supports per-meal-type selection. Omitting `user` applies to self (cut-off enforced). Providing `user` requires Team Lead (own team only) or Admin (any user); bypasses cut-off. |
+| `/meal bulk <start_date> <end_date> <opt_in> [user]` | Employee / Team Lead / Admin | Set meal opt-in/out across a date range. `user` is optional — Admin/Team Lead can specify another user; employees apply to themselves. |
+
+#### `/location`
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/location status [user] [date]` | Employee / Team Lead / Admin | Show work location for a date (defaults to today). Omitting `user` shows own location. Providing `user` requires Team Lead (own team only) or Admin. |
+| `/location set <date> <location> [user]` | Employee / Team Lead / Admin | Set work location (OFFICE or WFH) for a date. WFH automatically opts out of all meals. Omitting `user` applies to self (cut-off enforced). Providing `user` requires Team Lead (own team only) or Admin (any user); bypasses cut-off. |
+| `/location bulk <start_date> <end_date> <location> [user]` | Employee / Team Lead / Admin | Set work location across a date range. `user` is optional — Admin/Team Lead can specify another user; employees apply to themselves. |
+
+#### Headcount & Team
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/headcount [date] [user]` | Employee / Team Lead / Admin | **Employee:** shows own 30-day meal and location history; providing `date` narrows to that specific date. **Team Lead / Admin:** `date` required — without `user` shows aggregate headcount summary (meal-type breakdown, team split, office/WFH split; Admin org-wide, Team Lead team-wide); with `user` shows that user's record for the date. Team Lead restricted to own team. |
+| `/team-members` | Team Lead / Admin | View team members with their WFH day counts for the current month. |
+
+#### `/wfh-periods`
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/wfh-periods set <start_date> <end_date>` | Admin | Set company-wide WFH schedule across a date range. |
+| `/wfh-periods delete <start_date> <end_date>` | Admin | Delete company-wide WFH schedule for a date range. |
+| `/wfh-periods list` | All | List all company-wide WFH periods within the next 2 months. |
+
+#### `/event`
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the channel. |
+| `/event optout <date>` | Employee | Opt out of an event meal day for a specific date. |
+| `/event list` | All | Show all configured special event days. |
+| `/event update <date>` | Admin | Update an existing event day's configuration. |
+| `/event delete <date>` | Admin | Delete a configured event day. |
 
 ---
 
