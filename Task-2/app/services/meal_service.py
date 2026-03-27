@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import json
 import logging
 from datetime import date as _date
@@ -313,3 +314,34 @@ def bulk_location_update(
         preview = ", ".join(skipped[:3]) + ("…" if len(skipped) > 3 else "")
         msg += f"\nSkipped {len(skipped)} day(s) past cut-off: {preview}"
     return msg
+
+
+def get_monthly_wfh_summary(month_prefix: str) -> dict[str, int]:
+    """Return WFH day counts per user for a given month (YYYY-MM).
+
+    Queries each day's LOC# partition up to today and aggregates counts.
+    Team-scoped filtering is deferred until team membership data exists.
+    """
+    try:
+        year, month = map(int, month_prefix.split("-"))
+    except ValueError:
+        return {}
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    today = _date.today()
+    wfh_counts: dict[str, int] = {}
+
+    for day in range(1, days_in_month + 1):
+        d = _date(year, month, day)
+        if d > today:
+            break
+        try:
+            response = _table.query(KeyConditionExpression=Key("PK").eq(f"LOC#{d}"))
+            for item in response.get("Items", []):
+                if item.get("work_location") == "WFH":
+                    uid = item["user_id"]
+                    wfh_counts[uid] = wfh_counts.get(uid, 0) + 1
+        except ClientError as e:
+            logger.error("DynamoDB query failed for LOC#%s: %s", d, e)
+
+    return wfh_counts

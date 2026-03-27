@@ -381,6 +381,19 @@ def _handle_headcount(interaction: DiscordInteraction, options: list) -> tuple[s
     return _reply("\n".join(lines))
 
 
+def _handle_team_members(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    if not _is_team_lead(interaction):
+        return _reply("You do not have permission to use this command.")
+    month_prefix = str(_date.today())[:7]  # YYYY-MM
+    wfh_counts = meal_service.get_monthly_wfh_summary(month_prefix)
+    if not wfh_counts:
+        return _reply(f"No WFH records found for {month_prefix}.")
+    lines = [f"**Team WFH counts for {month_prefix}**"]
+    for uid, count in sorted(wfh_counts.items(), key=lambda x: x[1], reverse=True):
+        lines.append(f"<@{uid}> — {count} WFH day(s)")
+    return _reply("\n".join(lines))
+
+
 def _handle_special_day(interaction: DiscordInteraction, subcommand: str, options: list) -> tuple[str, bool]:
     if not _is_admin(interaction):
         return _reply("You do not have permission to use this command.")
@@ -432,6 +445,9 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
 
     if command == "headcount":
         return _handle_headcount(interaction, options)
+
+    if command == "team-members":
+        return _handle_team_members(interaction, options)
 
     return _reply("Unknown command.")
 

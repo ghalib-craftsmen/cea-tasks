@@ -253,6 +253,12 @@ COMMANDS = [
             },
         ],
     },
+    # /team-members  (Team Lead / Admin)
+    {
+        "name": "team-members",
+        "description": "[Team Lead / Admin] View team members with their WFH day counts for the current month.",
+        "options": [],
+    },
     # /history <user>  (Team Lead / Admin)
     {
         "name": "history",
