@@ -370,47 +370,29 @@ Total: 6 | Opted in: 5 | Opted out: 1
 ### 5.2 Directory Layout
 
 ```text
-/
-├── app/
-│   ├── __init__.py
-│   ├── handler.py            # Lambda entry point — signature verification + command routing
-│   ├── config.py             # Pydantic Settings class (env var management)
-│   │
-│   ├── services/             # Business logic and DynamoDB interactions
-│   │   ├── __init__.py
-│   │   ├── meal_service.py   # Meal opt-in/out, cut-off enforcement, event meals
-│   │   ├── headcount_service.py  # Headcount aggregation and summary generation
-│   │   └── discord_service.py    # Discord REST API calls (follow-up messages)
-│   │
-│   └── models/               # Pydantic models (request/response schemas)
-│       ├── __init__.py
-│       ├── discord_models.py # Discord interaction payload schemas
-│       └── meal_models.py    # Meal record, event, and cut-off config schemas
-│
-├── config/
-│   └── events.json           # Static list of event meal dates and descriptions
-│
-├── docs/
-│   ├── technical_spec.md     # This document
-│   └── iterations/
-│       └── task-iteration1.md
-│
-├── requirements.txt          # Production dependencies
-├── requirements-dev.txt      # Development/test dependencies
-└── .env.example              # Template for local environment variables
+app/
+  router.py          — request verification & async dispatch
+  handler.py         — command routing & business logic
+  config.py          — environment variable management
+  services/          — business logic modules (meal, headcount, messaging)
+  models/            — data models for bot payloads and DynamoDB records
+config/              — static configuration files
+docs/                — technical spec and iteration notes
+register_commands.py — bot command registration script
+requirements.txt     — production dependencies
 ```
 
 ### 5.3 Module Responsibilities
 
 | Module | Responsibility |
 | --- | --- |
-| `app/handler.py` | Lambda entry point (`handler(event, context)`). Verifies Ed25519 signature, parses the interaction payload, and dispatches to the correct service function by command name. Returns a JSON-serialisable dict to API Gateway. |
+| `app/router.py` | Entry point for incoming requests. Verifies request signature, defers response, and async-invokes the Command Lambda. |
+| `app/handler.py` | Parses the interaction payload and dispatches to the correct service function by command name. |
 | `app/config.py` | Defines `Settings(BaseSettings)` — single source of truth for all env vars. |
 | `app/services/meal_service.py` | Implements cut-off time logic, opt-in/out writes, event meal state transitions. |
-| `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries; computes event day expected counts. |
-| `app/services/discord_service.py` | Sends deferred follow-up messages to Discord via REST after Lambda responds. |
-| `app/models/discord_models.py` | Typed Pydantic models for Discord interaction payloads, member objects, and options. |
-| `app/models/meal_models.py` | Typed Pydantic models for DynamoDB records: `MealRecord`. Also includes `EventConfig` for deserialising `config/events.json`. |
+| `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries and headcount aggregation. |
+| `app/services/discord_service.py` | Sends deferred follow-up messages to the bot platform via REST. |
+| `app/models/` | Data models for bot interaction payloads and DynamoDB records. |
 
 ### 5.4 Dependencies (`requirements.txt`)
 
