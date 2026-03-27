@@ -38,15 +38,22 @@ def _get_option(options: list, name: str) -> Any:
 
 def _handle_meal_status(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     user_id = interaction.get_user().id
+    target_user = _get_option(options, "user")
+    if target_user and target_user != user_id:
+        if not _is_team_lead(interaction):
+            return _reply("You do not have permission to view another user's meal status.")
+    else:
+        target_user = user_id
     target_date = _get_option(options, "date") or str(_date.today())
-    record = meal_service.get_record(target_date, user_id) or MealRecord(date=target_date, user_id=user_id)
+    record = meal_service.get_record(target_date, target_user) or MealRecord(date=target_date, user_id=target_user)
     if not record.meal_opt_in:
         status = "opted out (all meals)"
     elif record.opted_out_meals:
         status = f"opted out of: {', '.join(record.opted_out_meals)}"
     else:
         status = "opted in (all meals)"
-    return _reply(f"**{target_date}** — {status} | Location: {record.work_location}")
+    label = f"<@{target_user}>" if target_user != user_id else "You"
+    return _reply(f"**{target_date}** — {label}: {status} | Location: {record.work_location}")
 
 
 def _collect_meal_types(options: list) -> list[str] | None:
@@ -55,18 +62,26 @@ def _collect_meal_types(options: list) -> list[str] | None:
     return selected or None
 
 
-def _handle_meal_update(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+def _handle_meal_set(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     user_id = interaction.get_user().id
     target_date = _get_option(options, "date")
     if not target_date:
         return _reply("Please provide a date.")
+    target_user = _get_option(options, "user")
+    bypass = False
+    if target_user and target_user != user_id:
+        if not _is_team_lead(interaction):
+            return _reply("You do not have permission to update another user's meal record.")
+        bypass = True
+    else:
+        target_user = user_id
     opt_in_val = _get_option(options, "opt_in")
     meal_types = _collect_meal_types(options)
     if opt_in_val is not None:
         fn = meal_service.opt_in if opt_in_val else meal_service.opt_out
-        return _reply(fn(target_date, user_id, updated_by=user_id, meal_types=meal_types))
+        return _reply(fn(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=bypass))
     if meal_types:
-        return _reply(meal_service.opt_out(target_date, user_id, updated_by=user_id, meal_types=meal_types))
+        return _reply(meal_service.opt_out(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=bypass))
     return _reply("Nothing to update.")
 
 
@@ -198,7 +213,7 @@ _LOCATION_HANDLERS = {
 
 _MEAL_HANDLERS = {
     "status":      _handle_meal_status,
-    "update":      _handle_meal_update,
+    "set":         _handle_meal_set,
     "optout":      _handle_meal_optout,
     "summary":     _handle_meal_summary,
     "summary-all": _handle_meal_summary_all,

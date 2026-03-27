@@ -32,26 +32,31 @@ COMMANDS = [
         "name": "meal",
         "description": "Manage your meal preference",
         "options": [
-            # /meal status [date]
+            # /meal status [user] [date]
             {
                 "type": 1,
                 "name": "status",
-                "description": "Check your meal status for a date",
+                "description": "Check meal status for a date. Team Lead/Admin can specify another user.",
                 "options": [
                     {
                         "type": _STR,
                         "name": "date",
                         "description": "Target date (YYYY-MM-DD). Defaults to today.",
                         "required": False,
-                    }
+                    },
+                    {
+                        "type": _USER,
+                        "name": "user",
+                        "description": "Target user (Team Lead / Admin only)",
+                        "required": False,
+                    },
                 ],
             },
-            # /meal update <date> [opt_in] [lunch] [snacks] [iftar] [event_dinner] [optional_dinner]
-            # No meal types selected = applies to all. Specific types = opt out of only those.
+            # /meal set <date> [opt_in] [meal_types] [user]
             {
                 "type": 1,
-                "name": "update",
-                "description": "Update your meal opt-in/out for a date",
+                "name": "set",
+                "description": "Update meal opt-in/out for a date. Team Lead/Admin can specify another user.",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": False},
@@ -60,6 +65,7 @@ COMMANDS = [
                     {"type": _BOOL, "name": "iftar", "description": "Select Iftar", "required": False},
                     {"type": _BOOL, "name": "event_dinner", "description": "Select Event Dinner", "required": False},
                     {"type": _BOOL, "name": "optional_dinner", "description": "Select Optional Dinner", "required": False},
+                    {"type": _USER, "name": "user", "description": "Target user (Team Lead / Admin only)", "required": False},
                 ],
             },
             # /meal optout date
