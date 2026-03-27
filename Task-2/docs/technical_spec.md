@@ -1,6 +1,6 @@
 # Meal Headcount Planner — Discord Bot Integration
 
-**Version:** 1.3
+**Version:** 1.4
 **Date:** 2026-03-27
 **Status:** Draft
 
@@ -23,16 +23,16 @@ The Meal Headcount Planner (MHP) is an internal tool that helps kitchen/logistic
 
 This specification covers:
 
-- Proposed AWS serverless architecture (not yet deployed via IaC).
+- AWS serverless architecture (implemented; IaC deployment deferred).
 - Cost optimization decisions for each AWS service.
 - Security model for Discord webhook validation, user identity, and role-based authorization.
-- Feature logic for cut-off time enforcement and Event Meal workflows.
+- Feature logic for cut-off time enforcement, event meal workflows, WFH periods, bulk operations, and team headcount.
 - Python project structure, module responsibilities, and dependency definitions.
-- API endpoint definitions for Discord interactions.
+- Discord slash command definitions and permission model.
 
 ---
 
-## 2. Proposed AWS Architecture
+## 2. AWS Architecture
 
 > **Note:** Infrastructure as Code (IaC) and CI/CD pipelines are out of scope for this iteration. This section documents the target architecture to guide future provisioning.
 
@@ -62,7 +62,7 @@ Command Lambda (business logic)
      └──► Discord API (send follow-up response)
 ```
 
-1. A Discord user triggers a slash command or button interaction.
+1. A Discord user triggers a slash command.
 2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
 3. API Gateway proxies the raw request (including signature headers) to the **Router Lambda**.
 4. The Router Lambda:
@@ -79,14 +79,14 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
 | **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint; fast cold-start. SnapStart eliminates cold-start latency. Requires Python 3.12 runtime. |
-| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. Independently deployable and scalable per command group. |
+| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint. SnapStart snapshots the initialized environment and restores it on cold starts, eliminating init latency. Requires Python 3.12 runtime. |
+| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. SnapStart applied on the published function version. Independently deployable per command group. |
 | **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
 ### 2.3 DynamoDB Data Model
 
-Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All 18 access patterns are served without Scans.
+Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All access patterns are served without Scans.
 
 **Table:** `MHP_Table`
 
@@ -516,7 +516,6 @@ Items identified during architecture design that are intentionally queued for la
 - **IaC (Terraform/CDK):** Define all AWS resources (API Gateway, Lambda, DynamoDB, IAM roles) as code for reproducible deployments.
 - **CI/CD (GitHub Actions):** Automate linting, testing, packaging, and Lambda deployment on merge to `main`.
 - **AWS Secrets Manager:** Migrate `DISCORD_BOT_TOKEN` and `DISCORD_PUBLIC_KEY` from environment variables to Secrets Manager with automatic rotation.
-- **Lambda SnapStart:** Enable SnapStart on the published function version (Python 3.12 runtime). AWS takes a snapshot of the initialized execution environment after the first init and restores it on subsequent cold starts, reducing latency to near-warm levels. No scheduled pings, no provisioned concurrency, no additional cost beyond standard invocation pricing.
 - **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics.
 - **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse.
 
