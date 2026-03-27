@@ -152,9 +152,9 @@ Authorization is enforced at the command handler level based on the Discord role
 
 | Role | Permission Level | Allowed Actions |
 | --- | --- | --- |
-| `@everyone` (Employee) | Standard | Update own meal opt-in, update own work location, view own status. |
-| `@Team Lead` | Elevated | All employee actions + view team headcount summary for any date. |
-| `@Admin` | Full | All team lead actions + view org-wide summary, override any employee's record. |
+| `@everyone` (Employee) | Standard | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
+| `@Team Lead` | Elevated | All employee actions + view and update meal/location for own team members. View team headcount summary, team members with WFH counts, and WFH periods. View any team member's history. |
+| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals. Override any user's meal or location record. |
 
 **Authorization flow:**
 
@@ -177,6 +177,7 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
 | `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
 | `DEFAULT_CUTOFF_TIME` | Static cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
+| `COMMAND_LAMBDA_NAME` | Name of the Command Lambda function invoked by the Router Lambda to process business logic. |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
 
@@ -189,17 +190,8 @@ Discord's Interactions API embeds verified user identity directly inside the sig
 | Field | Path in payload | Description |
 | --- | --- | --- |
 | `user_id` | `member.user.id` | Discord's unique, immutable snowflake ID for the user. Used as the primary key in DynamoDB (`USER#{user_id}`). |
-| `username` | `member.user.username` | Display name for bot responses. Not used for authorization decisions. |
 | `roles` | `member.roles` | List of Discord role IDs assigned to the user in the guild. Drives RBAC (§3.2). |
 | `guild_id` | `guild_id` | Confirms the interaction originates from the authorized guild. Requests from other guilds are rejected. |
-
-**Why no separate OAuth2 flow is needed:**
-
-Discord OAuth2 is required when a third-party app needs to act on behalf of a user outside of a guild interaction (e.g., access a user's DMs, read their profile). For slash command bots operating within a guild:
-
-- Discord authenticates the user when they invoke the command.
-- The signed payload (verified in §3.1) guarantees the identity fields have not been tampered with.
-- The `user_id` extracted from the payload is therefore trustworthy without any additional token exchange.
 
 **Guild authorization guard:**
 
