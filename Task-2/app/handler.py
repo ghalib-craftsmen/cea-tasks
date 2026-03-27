@@ -290,6 +290,97 @@ def _handle_meal(interaction: DiscordInteraction, subcommand: str, options: list
     return handler_fn(interaction, options)
 
 
+_MEAL_TYPE_LABELS = {
+    "LUNCH": "Lunch",
+    "SNACKS": "Snacks",
+    "IFTAR": "Iftar",
+    "EVENT_DINNER": "Event Dinner",
+    "OPTIONAL_DINNER": "Optional Dinner",
+}
+
+
+def _format_headcount_summary(summary: dict, title: str) -> str:
+    total = summary["total_opted_in"] + summary["total_opted_out"]
+    event_tag = " *(Event Day)*" if summary.get("is_event_day") else ""
+    lines = [
+        f"**{title}**{event_tag}",
+        "",
+        "**Overall**",
+        f"Total: {total} | Opted in: {summary['total_opted_in']} | Opted out: {summary['total_opted_out']}",
+        "",
+        "**By Meal Type**",
+    ]
+    for mt, label in _MEAL_TYPE_LABELS.items():
+        lines.append(f"  {label}: {summary['by_meal_type'].get(mt, 0)}")
+    lines += [
+        "",
+        "**Office vs WFH**",
+        f"  Office: {summary['office']} | WFH: {summary['wfh']}",
+    ]
+    return "\n".join(lines)
+
+
+def _handle_headcount(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    user_id = interaction.get_user().id
+    target_date = _get_option(options, "date")
+    target_user = _get_option(options, "user")
+
+    if _is_admin(interaction) or _is_team_lead(interaction):
+        if target_user:
+            # Show a specific user's record for the given date
+            if not target_date:
+                return _reply("Please provide a date when specifying a user.")
+            record = meal_service.get_record(target_date, target_user) or MealRecord(date=target_date, user_id=target_user)
+            if not record.meal_opt_in:
+                status = "opted out (all meals)"
+            elif record.opted_out_meals:
+                status = f"opted out of: {', '.join(record.opted_out_meals)}"
+            else:
+                status = "opted in (all meals)"
+            return _reply(f"**{target_date}** — <@{target_user}>: {status} | Location: {record.work_location}")
+
+        if not target_date:
+            return _reply("Please provide a date.")
+        summary = headcount_service.daily_summary(target_date)
+        title = f"Org-wide Headcount for {target_date}" if _is_admin(interaction) else f"Team Headcount for {target_date}"
+        return _reply(_format_headcount_summary(summary, title))
+
+    # Employee: own history
+    if target_user and target_user != user_id:
+        return _reply("You do not have permission to view another user's headcount.")
+
+    if target_date:
+        record = meal_service.get_record(target_date, user_id) or MealRecord(date=target_date, user_id=user_id)
+        if not record.meal_opt_in:
+            status = "opted out (all meals)"
+        elif record.opted_out_meals:
+            status = f"opted out of: {', '.join(record.opted_out_meals)}"
+        else:
+            status = "opted in (all meals)"
+        return _reply(f"**{target_date}** — Meal: {status} | Location: {record.work_location}")
+
+    # 30-day rolling history
+    from datetime import timedelta
+    cutoff = str(_date.today() - timedelta(days=30))
+    records = sorted(
+        [r for r in meal_service.get_user_history(user_id) if r.date >= cutoff],
+        key=lambda r: r.date,
+        reverse=True,
+    )
+    if not records:
+        return _reply("No records found in the last 30 days.")
+    lines = ["**Your meal & location history (last 30 days)**"]
+    for r in records:
+        if not r.meal_opt_in:
+            meal_status = "Opted out (all)"
+        elif r.opted_out_meals:
+            meal_status = f"Out: {', '.join(r.opted_out_meals)}"
+        else:
+            meal_status = "Opted in (all)"
+        lines.append(f"`{r.date}` — Meal: {meal_status} | Location: {r.work_location}")
+    return _reply("\n".join(lines))
+
+
 def _handle_special_day(interaction: DiscordInteraction, subcommand: str, options: list) -> tuple[str, bool]:
     if not _is_admin(interaction):
         return _reply("You do not have permission to use this command.")
@@ -338,6 +429,9 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
 
     if command == "history":
         return _handle_users_history(interaction, options)
+
+    if command == "headcount":
+        return _handle_headcount(interaction, options)
 
     return _reply("Unknown command.")
 

@@ -234,6 +234,25 @@ COMMANDS = [
             },
         ],
     },
+    # /headcount [date] [user]
+    {
+        "name": "headcount",
+        "description": "Headcount summary (Admin/Team Lead) or own 30-day history (Employee)",
+        "options": [
+            {
+                "type": _STR,
+                "name": "date",
+                "description": "Target date (YYYY-MM-DD). Required for Team Lead / Admin aggregate view.",
+                "required": False,
+            },
+            {
+                "type": _USER,
+                "name": "user",
+                "description": "Team Lead / Admin only: show this user's record instead of aggregate.",
+                "required": False,
+            },
+        ],
+    },
     # /history <user>  (Team Lead / Admin)
     {
         "name": "history",
