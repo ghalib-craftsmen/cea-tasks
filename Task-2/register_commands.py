@@ -253,6 +253,37 @@ COMMANDS = [
             },
         ],
     },
+    # /wfh-periods set/delete/list
+    {
+        "name": "wfh-periods",
+        "description": "Manage company-wide WFH schedules",
+        "options": [
+            {
+                "type": 1,
+                "name": "set",
+                "description": "[Admin] Set a company-wide WFH period",
+                "options": [
+                    {"type": _STR, "name": "start_date", "description": "Start date (YYYY-MM-DD)", "required": True},
+                    {"type": _STR, "name": "end_date", "description": "End date (YYYY-MM-DD)", "required": True},
+                ],
+            },
+            {
+                "type": 1,
+                "name": "delete",
+                "description": "[Admin] Delete a company-wide WFH period",
+                "options": [
+                    {"type": _STR, "name": "start_date", "description": "Start date (YYYY-MM-DD)", "required": True},
+                    {"type": _STR, "name": "end_date", "description": "End date (YYYY-MM-DD)", "required": True},
+                ],
+            },
+            {
+                "type": 1,
+                "name": "list",
+                "description": "List all company-wide WFH periods in the next 2 months",
+                "options": [],
+            },
+        ],
+    },
     # /team-members  (Team Lead / Admin)
     {
         "name": "team-members",

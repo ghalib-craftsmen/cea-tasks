@@ -316,6 +316,50 @@ def bulk_location_update(
     return msg
 
 
+def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
+    """Store a company-wide WFH period record in DynamoDB."""
+    try:
+        _table.put_item(Item={
+            "PK": "WFH_PERIOD",
+            "SK": f"{start_date}#{end_date}",
+            "start_date": start_date,
+            "end_date": end_date,
+            "set_by": set_by,
+            "updated_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        })
+        return f"WFH period set from **{start_date}** to **{end_date}**."
+    except ClientError as e:
+        logger.error("Failed to set WFH period %s–%s: %s", start_date, end_date, e)
+        raise
+
+
+def delete_wfh_period(start_date: str, end_date: str) -> str:
+    """Delete a company-wide WFH period record from DynamoDB."""
+    try:
+        _table.delete_item(Key={"PK": "WFH_PERIOD", "SK": f"{start_date}#{end_date}"})
+        return f"WFH period from **{start_date}** to **{end_date}** has been deleted."
+    except ClientError as e:
+        logger.error("Failed to delete WFH period %s–%s: %s", start_date, end_date, e)
+        raise
+
+
+def list_wfh_periods() -> list[dict]:
+    """List company-wide WFH periods that overlap with the next 2 months."""
+    try:
+        today = _date.today()
+        two_months_out = str(today.replace(month=today.month + 2) if today.month <= 10
+                             else today.replace(year=today.year + 1, month=today.month - 10))
+        response = _table.query(KeyConditionExpression=Key("PK").eq("WFH_PERIOD"))
+        items = [
+            item for item in response.get("Items", [])
+            if item["end_date"] >= str(today) and item["start_date"] <= two_months_out
+        ]
+        return sorted(items, key=lambda x: x["start_date"])
+    except ClientError as e:
+        logger.error("Failed to list WFH periods: %s", e)
+        return []
+
+
 def get_monthly_wfh_summary(month_prefix: str) -> dict[str, int]:
     """Return WFH day counts per user for a given month (YYYY-MM).
 

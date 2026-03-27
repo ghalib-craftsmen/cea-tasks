@@ -381,6 +381,32 @@ def _handle_headcount(interaction: DiscordInteraction, options: list) -> tuple[s
     return _reply("\n".join(lines))
 
 
+def _handle_wfh_periods(interaction: DiscordInteraction, subcommand: str, options: list) -> tuple[str, bool]:
+    if subcommand == "list":
+        periods = meal_service.list_wfh_periods()
+        if not periods:
+            return _reply("No company-wide WFH periods scheduled in the next 2 months.")
+        lines = ["**Upcoming WFH Periods**"]
+        for p in periods:
+            lines.append(f"  {p['start_date']} → {p['end_date']}")
+        return _reply("\n".join(lines))
+
+    if not _is_admin(interaction):
+        return _reply("You do not have permission to manage WFH periods.")
+
+    start_date = _get_option(options, "start_date")
+    end_date = _get_option(options, "end_date")
+    if not start_date or not end_date:
+        return _reply("Please provide both start_date and end_date.")
+
+    user_id = interaction.get_user().id
+    if subcommand == "set":
+        return _reply(meal_service.set_wfh_period(start_date, end_date, set_by=user_id))
+    if subcommand == "delete":
+        return _reply(meal_service.delete_wfh_period(start_date, end_date))
+    return _reply("Unknown subcommand.")
+
+
 def _handle_team_members(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     if not _is_team_lead(interaction):
         return _reply("You do not have permission to use this command.")
@@ -448,6 +474,11 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
 
     if command == "team-members":
         return _handle_team_members(interaction, options)
+
+    if command == "wfh-periods":
+        if not subcommand:
+            return _reply("Please specify a subcommand.")
+        return _handle_wfh_periods(interaction, subcommand, sub_options)
 
     return _reply("Unknown command.")
 
