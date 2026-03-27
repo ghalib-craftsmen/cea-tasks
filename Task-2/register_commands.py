@@ -80,69 +80,8 @@ COMMANDS = [
                     {"type": _USER, "name": "user", "description": "Target user (Team Lead / Admin only)", "required": False},
                 ],
             },
-            # /meal optout date
-            {
-                "type": 1,
-                "name": "optout",
-                "description": "Opt out of an event meal day",
-                "options": [
-                    {"type": _STR, "name": "date", "description": "Event date (YYYY-MM-DD)", "required": True}
-                ],
-            },
-            # /meal summary date  (Team Lead)
-            {
-                "type": 1,
-                "name": "summary",
-                "description": "[Team Lead] View headcount and location split for a date",
-                "options": [
-                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True}
-                ],
-            },
-            # /meal summary-all date  (Admin)
-            {
-                "type": 1,
-                "name": "summary-all",
-                "description": "[Admin] View org-wide headcount and location split for a date",
-                "options": [
-                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True}
-                ],
-            },
-            # /meal override user date [opt_in]  (Admin)
-            {
-                "type": 1,
-                "name": "override",
-                "description": "[Admin] Override any user's meal record",
-                "options": [
-                    {"type": _USER, "name": "user", "description": "Target user", "required": True},
-                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
-                    {"type": _BOOL, "name": "opt_in", "description": "Opt in (true) or out (false)", "required": False},
-                    {"type": _BOOL, "name": "lunch", "description": "Select Lunch", "required": False},
-                    {"type": _BOOL, "name": "snacks", "description": "Select Snacks", "required": False},
-                    {"type": _BOOL, "name": "iftar", "description": "Select Iftar", "required": False},
-                    {"type": _BOOL, "name": "event_dinner", "description": "Select Event Dinner", "required": False},
-                    {"type": _BOOL, "name": "optional_dinner", "description": "Select Optional Dinner", "required": False},
-                ],
-            },
-            # /meal event date [action]  (Admin)
-            {
-                "type": 1,
-                "name": "event",
-                "description": "[Admin] Announce a configured event meal day",
-                "options": [
-                    {"type": _STR, "name": "date", "description": "Event date (YYYY-MM-DD)", "required": True},
-                    {
-                        "type": _STR,
-                        "name": "action",
-                        "description": "Action to perform (default: announce)",
-                        "required": False,
-                        "choices": [{"name": "Announce", "value": "announce"}],
-                    },
-                ],
-            },
         ],
     },
-    # /location set <date> <location>
-    # /location override <user> <date> <location>  (Admin)
     {
         "name": "location",
         "description": "Manage work location",
@@ -211,25 +150,6 @@ COMMANDS = [
                         ],
                     },
                     {"type": _USER, "name": "user", "description": "Target user (Team Lead / Admin only)", "required": False},
-                ],
-            },
-            {
-                "type": 1,
-                "name": "override",
-                "description": "[Admin] Override any user's work location",
-                "options": [
-                    {"type": _USER, "name": "user", "description": "Target user", "required": True},
-                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
-                    {
-                        "type": _STR,
-                        "name": "location",
-                        "description": "OFFICE or WFH",
-                        "required": True,
-                        "choices": [
-                            {"name": "Office", "value": "OFFICE"},
-                            {"name": "WFH", "value": "WFH"},
-                        ],
-                    },
                 ],
             },
         ],
@@ -335,29 +255,6 @@ COMMANDS = [
         "name": "team-members",
         "description": "[Team Lead / Admin] View team members with their WFH day counts for the current month.",
         "options": [],
-    },
-    # /history <user>  (Team Lead / Admin)
-    {
-        "name": "history",
-        "description": "View a user's meal and location history",
-        "options": [
-            {"type": _USER, "name": "user", "description": "Target user", "required": True},
-        ],
-    },
-    {
-        "name": "special-day",
-        "description": "View configured special event days",
-        "options": [
-            # /special-day view date  (Admin)
-            {
-                "type": 1,
-                "name": "view",
-                "description": "[Admin] Check whether a date is a special event day",
-                "options": [
-                    {"type": _STR, "name": "date", "description": "Date to check (YYYY-MM-DD)", "required": True}
-                ],
-            }
-        ],
     },
 ]
 

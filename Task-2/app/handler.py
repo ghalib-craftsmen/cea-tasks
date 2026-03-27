@@ -104,104 +104,6 @@ def _handle_meal_bulk(interaction: DiscordInteraction, options: list) -> tuple[s
     return _reply(meal_service.bulk_meal_update(start_date, end_date, opt_in_val, target_user, updated_by=user_id, bypass_cutoff=bypass))
 
 
-def _handle_meal_optout(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    user_id = interaction.get_user().id
-    target_date = _get_option(options, "date")
-    if not target_date:
-        return _reply("Please provide a date.")
-    if not meal_service.is_event_day(target_date):
-        return _reply(f"{target_date} is not an event day. Use `/meal update` or `/location set` to change your meal preference.")
-    return _reply(meal_service.opt_out(target_date, user_id, updated_by=user_id))
-
-
-def _handle_meal_summary(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    if not _is_team_lead(interaction):
-        return _reply("You do not have permission to use this command.")
-    target_date = _get_option(options, "date")
-    if not target_date:
-        return _reply("Please provide a date.")
-    summary = headcount_service.daily_summary(target_date)
-    return _reply(
-        f"**Headcount for {target_date}**\n"
-        f"Opted in: {summary['total_opted_in']} | Opted out: {summary['total_opted_out']}\n"
-        f"Office: {summary['office']} | WFH: {summary['wfh']}"
-    )
-
-
-def _handle_meal_summary_all(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    if not _is_admin(interaction):
-        return _reply("You do not have permission to use this command.")
-    target_date = _get_option(options, "date")
-    if not target_date:
-        return _reply("Please provide a date.")
-    summary = headcount_service.daily_summary(target_date)
-    event_tag = " *(Event Day)*" if summary["is_event_day"] else ""
-    return _reply(
-        f"**Org-wide Headcount for {target_date}**{event_tag}\n"
-        f"Opted in: {summary['total_opted_in']} | Opted out: {summary['total_opted_out']}\n"
-        f"Office: {summary['office']} | WFH: {summary['wfh']}"
-    )
-
-
-def _handle_meal_override(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    if not _is_admin(interaction):
-        return _reply("You do not have permission to use this command.")
-    user_id = interaction.get_user().id
-    target_user = _get_option(options, "user")
-    target_date = _get_option(options, "date")
-    if not target_user or not target_date:
-        return _reply("Please provide both user and date.")
-    opt_in_val = _get_option(options, "opt_in")
-    meal_types = _collect_meal_types(options)
-    msgs = []
-    if opt_in_val is not None:
-        fn = meal_service.opt_in if opt_in_val else meal_service.opt_out
-        msgs.append(fn(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=True))
-    elif meal_types:
-        msgs.append(meal_service.opt_out(target_date, target_user, updated_by=user_id, meal_types=meal_types, bypass_cutoff=True))
-    return _reply("\n".join(msgs) if msgs else "Nothing to update.")
-
-
-def _handle_users_history(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    if not _is_team_lead(interaction):
-        return _reply("You do not have permission to use this command.")
-    target_user = _get_option(options, "user")
-    if not target_user:
-        return _reply("Please provide a user.")
-    records = meal_service.get_user_history(target_user)
-    if not records:
-        return _reply(f"No meal history found for <@{target_user}>.")
-    lines = [f"**History for <@{target_user}>**"]
-    for r in records:
-        if not r.meal_opt_in:
-            meal_status = "Opted out (all)"
-        elif r.opted_out_meals:
-            meal_status = f"Out: {', '.join(r.opted_out_meals)}"
-        else:
-            meal_status = "Opted in (all)"
-        lines.append(f"`{r.date}` — Meal: {meal_status} | Location: {r.work_location}")
-    return _reply("\n".join(lines))
-
-
-def _handle_meal_event(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    action = _get_option(options, "action") or "announce"
-    if action == "announce":
-        if not _is_admin(interaction):
-            return _reply("You do not have permission to use this command.")
-        target_date = _get_option(options, "date")
-        if not target_date:
-            return _reply("Please provide a date.")
-        if not meal_service.is_event_day(target_date):
-            return _reply(f"{target_date} is not configured as an event day.")
-        return _reply(
-            f"**Event Meal Announcement**\n"
-            f"A special event meal is scheduled for **{target_date}**. "
-            f"All employees are opted in by default. Use `/meal optout {target_date}` to opt out before the cut-off.",
-            ephemeral=False,
-        )
-    return _reply("Unknown action.")
-
-
 def _handle_location_status(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     user_id = interaction.get_user().id
     target_user = _get_option(options, "user")
@@ -233,18 +135,6 @@ def _handle_work_location(interaction: DiscordInteraction, options: list) -> tup
     return _reply(meal_service.update_location(target_date, target_user, location, updated_by=user_id, bypass_cutoff=bypass))
 
 
-def _handle_location_override(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
-    if not _is_admin(interaction):
-        return _reply("You do not have permission to use this command.")
-    user_id = interaction.get_user().id
-    target_user = _get_option(options, "user")
-    target_date = _get_option(options, "date")
-    location = _get_option(options, "location")
-    if not target_user or not target_date or not location:
-        return _reply("Please provide user, date, and location.")
-    return _reply(meal_service.update_location(target_date, target_user, location, updated_by=user_id, bypass_cutoff=True))
-
-
 def _handle_location_bulk(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     user_id = interaction.get_user().id
     start_date = _get_option(options, "start_date")
@@ -264,22 +154,16 @@ def _handle_location_bulk(interaction: DiscordInteraction, options: list) -> tup
 
 
 _LOCATION_HANDLERS = {
-    "status":   _handle_location_status,
-    "set":      _handle_work_location,
-    "bulk":     _handle_location_bulk,
-    "override": _handle_location_override,
+    "status": _handle_location_status,
+    "set":    _handle_work_location,
+    "bulk":   _handle_location_bulk,
 }
 
 
 _MEAL_HANDLERS = {
-    "status":      _handle_meal_status,
-    "set":         _handle_meal_set,
-    "bulk":        _handle_meal_bulk,
-    "optout":      _handle_meal_optout,
-    "summary":     _handle_meal_summary,
-    "summary-all": _handle_meal_summary_all,
-    "override":    _handle_meal_override,
-    "event":       _handle_meal_event,
+    "status": _handle_meal_status,
+    "set":    _handle_meal_set,
+    "bulk":   _handle_meal_bulk,
 }
 
 
@@ -466,21 +350,6 @@ def _handle_team_members(interaction: DiscordInteraction, options: list) -> tupl
     return _reply("\n".join(lines))
 
 
-def _handle_special_day(interaction: DiscordInteraction, subcommand: str, options: list) -> tuple[str, bool]:
-    if not _is_admin(interaction):
-        return _reply("You do not have permission to use this command.")
-    if subcommand == "view":
-        target_date = _get_option(options, "date")
-        if not target_date:
-            return _reply("Please provide a date.")
-        events = meal_service._load_events()
-        event = next((e for e in events if e.date == target_date), None)
-        if event:
-            return _reply(f"**{target_date}** is a special event day: _{event.description}_")
-        return _reply(f"**{target_date}** is not a configured special day.")
-    return _reply("Unknown subcommand.")
-
-
 def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
     if not interaction.data:
         return _reply("No interaction data.")
@@ -499,11 +368,6 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
             return _reply("Please specify a subcommand.")
         return _handle_meal(interaction, subcommand, sub_options)
 
-    if command == "special-day":
-        if not subcommand:
-            return _reply("Please specify a subcommand.")
-        return _handle_special_day(interaction, subcommand, sub_options)
-
     if command == "location":
         if not subcommand:
             return _reply("Please specify a subcommand.")
@@ -511,9 +375,6 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
         if not handler_fn:
             return _reply("Unknown subcommand.")
         return handler_fn(interaction, sub_options)
-
-    if command == "history":
-        return _handle_users_history(interaction, options)
 
     if command == "headcount":
         return _handle_headcount(interaction, options)

@@ -35,10 +35,6 @@ def _serialize(item: dict) -> dict:
     return {k: _serializer.serialize(v) for k, v in item.items()}
 
 
-def _load_events() -> list[EventConfig]:
-    return _EVENTS
-
-
 def is_event_day(date: str) -> bool:
     # Fast path: check in-memory JSON events (captured in SnapStart snapshot)
     if any(e.date == date for e in _EVENTS):

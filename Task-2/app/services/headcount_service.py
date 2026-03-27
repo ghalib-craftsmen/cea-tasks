@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.models.meal_models import MealRecord
-from app.services.meal_service import VALID_MEAL_TYPES, get_records_for_date, is_event_day
+from app.services.meal_service import get_records_for_date, is_event_day
 
 _MEAL_TYPE_ORDER = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 

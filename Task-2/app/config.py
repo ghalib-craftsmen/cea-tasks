@@ -27,8 +27,6 @@ class Settings(BaseSettings):
     # WFH soft limit
     wfh_monthly_limit: int = 5
 
-    # Internal API (dashboard) — not used until dashboard is implemented
-    internal_api_key: str = ""
 
 
 settings = Settings()  
