@@ -253,6 +253,52 @@ COMMANDS = [
             },
         ],
     },
+    # /event announce/optout/list/update/delete
+    {
+        "name": "event",
+        "description": "Manage event meal days",
+        "options": [
+            {
+                "type": 1,
+                "name": "announce",
+                "description": "[Admin] Broadcast an announcement for a configured event meal day",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Event date (YYYY-MM-DD)", "required": True},
+                ],
+            },
+            {
+                "type": 1,
+                "name": "optout",
+                "description": "Opt out of an event meal day",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Event date (YYYY-MM-DD)", "required": True},
+                ],
+            },
+            {
+                "type": 1,
+                "name": "list",
+                "description": "Show all configured event days",
+                "options": [],
+            },
+            {
+                "type": 1,
+                "name": "update",
+                "description": "[Admin] Add or update an event day",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Event date (YYYY-MM-DD)", "required": True},
+                    {"type": _STR, "name": "description", "description": "Event description", "required": True},
+                ],
+            },
+            {
+                "type": 1,
+                "name": "delete",
+                "description": "[Admin] Delete a configured event day",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Event date (YYYY-MM-DD)", "required": True},
+                ],
+            },
+        ],
+    },
     # /wfh-periods set/delete/list
     {
         "name": "wfh-periods",

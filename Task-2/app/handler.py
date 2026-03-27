@@ -381,6 +381,52 @@ def _handle_headcount(interaction: DiscordInteraction, options: list) -> tuple[s
     return _reply("\n".join(lines))
 
 
+def _handle_event(interaction: DiscordInteraction, subcommand: str, options: list) -> tuple[str, bool]:
+    if subcommand == "list":
+        events = meal_service.list_events_from_db()
+        if not events:
+            return _reply("No event days are currently configured.")
+        lines = ["**Configured Event Days**"]
+        for e in events:
+            lines.append(f"  `{e['date']}` — {e.get('description', '(no description)')}")
+        return _reply("\n".join(lines))
+
+    if subcommand == "optout":
+        user_id = interaction.get_user().id
+        target_date = _get_option(options, "date")
+        if not target_date:
+            return _reply("Please provide a date.")
+        if not meal_service.is_event_day(target_date):
+            return _reply(f"{target_date} is not a configured event day. Use `/meal set` to change your meal preference.")
+        return _reply(meal_service.opt_out(target_date, user_id, updated_by=user_id))
+
+    if not _is_admin(interaction):
+        return _reply("You do not have permission to use this command.")
+
+    target_date = _get_option(options, "date")
+    if not target_date:
+        return _reply("Please provide a date.")
+
+    if subcommand == "announce":
+        if not meal_service.is_event_day(target_date):
+            return _reply(f"{target_date} is not a configured event day.")
+        return _reply(
+            f"**Event Meal Announcement**\n"
+            f"A special event meal is scheduled for **{target_date}**. "
+            f"All employees are opted in by default. Use `/event optout {target_date}` to opt out before the cut-off.",
+            ephemeral=False,
+        )
+
+    if subcommand == "update":
+        description = _get_option(options, "description") or ""
+        return _reply(meal_service.update_event(target_date, description, set_by=interaction.get_user().id))
+
+    if subcommand == "delete":
+        return _reply(meal_service.delete_event(target_date))
+
+    return _reply("Unknown subcommand.")
+
+
 def _handle_wfh_periods(interaction: DiscordInteraction, subcommand: str, options: list) -> tuple[str, bool]:
     if subcommand == "list":
         periods = meal_service.list_wfh_periods()
@@ -479,6 +525,11 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
         if not subcommand:
             return _reply("Please specify a subcommand.")
         return _handle_wfh_periods(interaction, subcommand, sub_options)
+
+    if command == "event":
+        if not subcommand:
+            return _reply("Please specify a subcommand.")
+        return _handle_event(interaction, subcommand, sub_options)
 
     return _reply("Unknown command.")
 

@@ -40,7 +40,55 @@ def _load_events() -> list[EventConfig]:
 
 
 def is_event_day(date: str) -> bool:
-    return any(e.date == date for e in _EVENTS)
+    # Fast path: check in-memory JSON events (captured in SnapStart snapshot)
+    if any(e.date == date for e in _EVENTS):
+        return True
+    # Slow path: check DynamoDB for runtime-added events
+    try:
+        response = _table.get_item(Key={"PK": "SPECIALDAY", "SK": date})
+        return "Item" in response
+    except ClientError as e:
+        logger.error("Failed to check event day %s in DynamoDB: %s", date, e)
+        return False
+
+
+def list_events_from_db() -> list[dict]:
+    """Return all SPECIALDAY events from DynamoDB, falling back to JSON if none exist."""
+    try:
+        response = _table.query(KeyConditionExpression=Key("PK").eq("SPECIALDAY"))
+        items = response.get("Items", [])
+        if items:
+            return sorted(items, key=lambda x: x["date"])
+    except ClientError as e:
+        logger.error("Failed to query SPECIALDAY events: %s", e)
+    return [{"date": e.date, "description": e.description} for e in _EVENTS]
+
+
+def update_event(date: str, description: str, set_by: str) -> str:
+    """Upsert an event day in DynamoDB."""
+    try:
+        _table.put_item(Item={
+            "PK": "SPECIALDAY",
+            "SK": date,
+            "date": date,
+            "description": description,
+            "set_by": set_by,
+            "updated_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        })
+        return f"Event day **{date}** updated: _{description}_"
+    except ClientError as e:
+        logger.error("Failed to update event %s: %s", date, e)
+        raise
+
+
+def delete_event(date: str) -> str:
+    """Delete an event day from DynamoDB."""
+    try:
+        _table.delete_item(Key={"PK": "SPECIALDAY", "SK": date})
+        return f"Event day **{date}** has been deleted."
+    except ClientError as e:
+        logger.error("Failed to delete event %s: %s", date, e)
+        raise
 
 
 def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
