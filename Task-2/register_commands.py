@@ -147,10 +147,31 @@ COMMANDS = [
         "name": "location",
         "description": "Manage work location",
         "options": [
+            # /location status [user] [date]
+            {
+                "type": 1,
+                "name": "status",
+                "description": "Check work location for a date. Team Lead/Admin can specify another user.",
+                "options": [
+                    {
+                        "type": _STR,
+                        "name": "date",
+                        "description": "Target date (YYYY-MM-DD). Defaults to today.",
+                        "required": False,
+                    },
+                    {
+                        "type": _USER,
+                        "name": "user",
+                        "description": "Target user (Team Lead / Admin only)",
+                        "required": False,
+                    },
+                ],
+            },
+            # /location set <date> <location> [user]
             {
                 "type": 1,
                 "name": "set",
-                "description": "Set your work location for a date (WFH automatically opts you out of all meals)",
+                "description": "Set work location for a date (WFH auto-opts out of all meals). Team Lead/Admin can specify another user.",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {
@@ -162,6 +183,12 @@ COMMANDS = [
                             {"name": "Office", "value": "OFFICE"},
                             {"name": "WFH", "value": "WFH"},
                         ],
+                    },
+                    {
+                        "type": _USER,
+                        "name": "user",
+                        "description": "Target user (Team Lead / Admin only)",
+                        "required": False,
                     },
                 ],
             },

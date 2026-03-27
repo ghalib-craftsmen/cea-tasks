@@ -202,13 +202,35 @@ def _handle_meal_event(interaction: DiscordInteraction, options: list) -> tuple[
     return _reply("Unknown action.")
 
 
+def _handle_location_status(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
+    user_id = interaction.get_user().id
+    target_user = _get_option(options, "user")
+    if target_user and target_user != user_id:
+        if not _is_team_lead(interaction):
+            return _reply("You do not have permission to view another user's location.")
+    else:
+        target_user = user_id
+    target_date = _get_option(options, "date") or str(_date.today())
+    record = meal_service.get_record(target_date, target_user) or MealRecord(date=target_date, user_id=target_user)
+    label = f"<@{target_user}>" if target_user != user_id else "You"
+    return _reply(f"**{target_date}** — {label}: {record.work_location}")
+
+
 def _handle_work_location(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     user_id = interaction.get_user().id
     target_date = _get_option(options, "date")
     location = _get_option(options, "location")
     if not target_date or not location:
         return _reply("Please provide both date and location.")
-    return _reply(meal_service.update_location(target_date, user_id, location, updated_by=user_id))
+    target_user = _get_option(options, "user")
+    bypass = False
+    if target_user and target_user != user_id:
+        if not _is_team_lead(interaction):
+            return _reply("You do not have permission to update another user's location.")
+        bypass = True
+    else:
+        target_user = user_id
+    return _reply(meal_service.update_location(target_date, target_user, location, updated_by=user_id, bypass_cutoff=bypass))
 
 
 def _handle_location_override(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
@@ -242,6 +264,7 @@ def _handle_location_bulk(interaction: DiscordInteraction, options: list) -> tup
 
 
 _LOCATION_HANDLERS = {
+    "status":   _handle_location_status,
     "set":      _handle_work_location,
     "bulk":     _handle_location_bulk,
     "override": _handle_location_override,
