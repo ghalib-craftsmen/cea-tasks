@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import boto3
 from boto3.dynamodb.conditions import Key
-from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
+from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from app.config import settings
@@ -23,7 +23,6 @@ _table = _dynamodb.Table(settings.dynamodb_table)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
-_deserializer = TypeDeserializer()
 _DEFAULT_ACTIVE_MEAL_TYPES = {"LUNCH", "SNACKS"}
 VALID_MEAL_TYPES = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
@@ -179,28 +178,11 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
 
 def get_record(date: str, user_id: str) -> MealRecord | None:
     try:
-        response = _dynamodb.meta.client.batch_get_item(
-            RequestItems={
-                settings.dynamodb_table: {
-                    "Keys": [
-                        {"PK": {"S": f"MEAL#{date}"}, "SK": {"S": f"USER#{user_id}"}},
-                        {"PK": {"S": f"LOC#{date}"}, "SK": {"S": f"USER#{user_id}"}},
-                    ]
-                }
-            }
-        )
-        items = response.get("Responses", {}).get(settings.dynamodb_table, [])
-        meal_item = None
-        loc_item = None
-        for raw in items:
-            item = {k: _deserializer.deserialize(v) for k, v in raw.items()}
-            if item["PK"].startswith("MEAL#"):
-                meal_item = item
-            elif item["PK"].startswith("LOC#"):
-                loc_item = item
+        meal_item = _table.get_item(Key={"PK": f"MEAL#{date}", "SK": f"USER#{user_id}"}).get("Item")
+        loc_item = _table.get_item(Key={"PK": f"LOC#{date}", "SK": f"USER#{user_id}"}).get("Item")
         return MealRecord.from_dynamo_pair(meal_item, loc_item)
     except ClientError as e:
-        logger.error("DynamoDB batch_get_item failed for date=%s user_id=%s: %s", date, user_id, e)
+        logger.error("DynamoDB get_item failed for date=%s user_id=%s: %s", date, user_id, e)
         raise
 
 
