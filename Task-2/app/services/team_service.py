@@ -51,18 +51,6 @@ def create_team(team_id: str, name: str, lead_user_id: str, created_by: str) -> 
         raise
 
 
-def delete_team(team_id: str) -> str:
-    """Delete a team and all its membership records."""
-    try:
-        _table.delete_item(Key={"PK": "TEAM", "SK": team_id})
-        response = _table.query(KeyConditionExpression=Key("PK").eq(f"TEAMMEMBER#{team_id}"))
-        for item in response.get("Items", []):
-            _table.delete_item(Key={"PK": f"TEAMMEMBER#{team_id}", "SK": item["SK"]})
-        return f"Team `{team_id}` and all its memberships have been deleted."
-    except ClientError as e:
-        logger.error("Failed to delete team %s: %s", team_id, e)
-        raise
-
 
 def add_member(team_id: str, user_id: str, added_by: str) -> str:
     """Add a user to a team."""
