@@ -654,10 +654,12 @@ The following are explicitly deferred and must not be implemented until a subseq
 
 | Item | Reason for Deferral |
 | --- | --- |
-| Infrastructure as Code (IaC) | Terraform / CDK configuration requires a stable, tested application before provisioning. |
+| Infrastructure as Code (IaC) | Terraform / CDK configuration requires a stable, tested application before provisioning. Covers both Discord and GChat Lambdas. |
 | CI/CD pipeline | GitHub Actions deployment workflow depends on IaC being in place first. |
 | AWS Secrets Manager integration | Env vars managed manually for now; Secrets Manager adds operational complexity before the app is validated. |
 | Automated tests | Unit and integration test scaffolding is deferred until the core service layer is stable. |
+| Google Workspace group-based role sync | Mapping Google Workspace groups to MHP roles via the Admin SDK adds external dependency; DynamoDB-stored roles are sufficient for this iteration. |
+| Admin UI for managing Google Chat user roles | Role assignment for GChat users is handled directly in DynamoDB for now; a self-service admin command or web UI is deferred. |
 
 ---
 
@@ -665,11 +667,13 @@ The following are explicitly deferred and must not be implemented until a subseq
 
 Items identified during architecture design that are intentionally queued for later iterations:
 
-- **IaC (Terraform/CDK):** Define all AWS resources (API Gateway, Lambda, DynamoDB, IAM roles) as code for reproducible deployments.
+- **IaC (Terraform/CDK):** Define all AWS resources (API Gateway, both Router Lambdas, Command Lambda, DynamoDB, IAM roles) as code for reproducible deployments.
 - **CI/CD (GitHub Actions):** Automate linting, testing, packaging, and Lambda deployment on merge to `main`.
-- **AWS Secrets Manager:** Migrate `DISCORD_BOT_TOKEN` and `DISCORD_PUBLIC_KEY` from environment variables to Secrets Manager with automatic rotation.
-- **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics.
-- **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse.
+- **AWS Secrets Manager:** Migrate bot tokens and public keys (`DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`, GChat credentials) from environment variables to Secrets Manager with automatic rotation.
+- **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics across all three Lambdas.
+- **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse on both platform endpoints.
+- **Google Workspace group sync:** Automatically derive MHP roles from Google Workspace group membership via the Admin SDK, eliminating manual DynamoDB role management for GChat users.
+- **Admin role-set command:** A `/admin role-set <user> <role>` command allowing Admins to manage GChat user roles directly from the bot instead of via DynamoDB.
 
 ---
 
@@ -679,6 +683,10 @@ Items identified during architecture design that are intentionally queued for la
 | --- | --- |
 | Discord Interactions API | <https://discord.com/developers/docs/interactions/receiving-and-responding> |
 | Discord Security — Request Verification | <https://discord.com/developers/docs/interactions/receiving-and-responding#security-and-authorization> |
+| Google Chat — Build a bot | <https://developers.google.com/chat/how-tos/apps-develop> |
+| Google Chat — Slash commands | <https://developers.google.com/chat/how-tos/slash-commands> |
+| Google Chat — Verify requests (JWT) | <https://developers.google.com/chat/how-tos/verify-requests> |
+| Google Auth Python library | <https://google-auth.readthedocs.io/> |
 | AWS Lambda — Graviton2 | <https://aws.amazon.com/blogs/aws/aws-lambda-functions-powered-by-aws-graviton2/> |
 | DynamoDB Single-Table Design | <https://www.alexdebrie.com/posts/dynamodb-single-table/> |
 | PyNaCl Documentation | <https://pynacl.readthedocs.io/> |
