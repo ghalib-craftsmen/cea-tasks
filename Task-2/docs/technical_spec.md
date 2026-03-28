@@ -195,9 +195,13 @@ Total GSIs: **1**
 
 ## 3. Security Model
 
-### 3.1 Request Authentication — Discord Ed25519 Signature Validation
+### 3.1 Request Authentication
 
-Every request from Discord includes two headers that must be validated **before any business logic executes**:
+Each platform uses a different signing mechanism. Verification runs at the top of the respective Router Lambda **before any business logic or routing executes**. A failed verification returns `HTTP 401` immediately.
+
+#### 3.1.1 Discord — Ed25519 Signature Validation
+
+Every request from Discord includes two headers:
 
 | Header | Description |
 | --- | --- |
@@ -211,59 +215,113 @@ Every request from Discord includes two headers that must be validated **before 
 3. If verification fails → return `HTTP 401` immediately, no further processing.
 4. If the timestamp is more than 5 minutes old → return `HTTP 401` (replay attack protection).
 
-This check is called explicitly at the top of the Lambda handler before any routing or business logic executes.
+#### 3.1.2 Google Chat — JWT Bearer Token Verification
 
-### 3.2 Authorization — Discord Role-Based Access Control
+Google Chat signs every outbound request with a service-account-issued JWT, sent as a Bearer token in the `Authorization` header.
 
-Authorization is enforced at the command handler level based on the Discord roles present in the interaction payload (`member.roles`). No external role store is needed; Discord's role system is the source of truth.
+**Validation algorithm:**
 
-| Role | Permission Level | Allowed Actions |
-| --- | --- | --- |
-| `@everyone` (Employee) | Standard | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
-| `@Team Lead` | Elevated | All employee actions + view and update meal/location for own team members. View own team's headcount summary, member list, and WFH periods. View any team member's history. |
-| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals, activate/deactivate meal types per date, manage teams (create, delete, add/remove members). Override any user's meal or location record. |
+1. Extract the Bearer token from the `Authorization: Bearer <token>` header.
+2. Decode and verify the JWT using `google-auth` (`google.oauth2.id_token.verify_oauth2_token` with `google.auth.transport.requests.Request`).
+3. Confirm the `iss` (issuer) claim matches `chat@system.gserviceaccount.com`.
+4. Confirm the `aud` (audience) claim matches the `GCHAT_AUDIENCE` environment variable (the Lambda's public HTTPS URL).
+5. If any check fails → return `HTTP 401` immediately, no further processing.
+
+### 3.2 Authorization — Role-Based Access Control
+
+The permission model is identical across both platforms. The same three permission levels apply; only the mechanism for resolving a user's role differs by platform.
+
+| Permission Level | Allowed Actions |
+| --- | --- |
+| **Employee** (Standard) | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
+| **Team Lead** (Elevated) | All employee actions + view and update meal/location for own team members. View own team's headcount summary, member list, and WFH periods. View any team member's history. |
+| **Admin** (Full) | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals, activate/deactivate meal types per date, manage teams (create, delete, add/remove members). Override any user's meal or location record. |
+
+#### Discord — Guild Role Resolution
+
+Discord embeds the user's guild roles directly in the signed interaction payload. No DynamoDB lookup is needed.
 
 **Authorization flow:**
 
 1. Extract `member.roles` from the validated interaction payload.
-2. Match against configured role IDs (stored as environment variables, e.g., `ROLE_TEAM_LEAD_ID`, `ROLE_ADMIN_ID`).
-3. If the user's roles do not satisfy the required permission level for the invoked command → return an ephemeral error message (visible only to the user).
+2. Match against `ROLE_TEAM_LEAD_ID` and `ROLE_ADMIN_ID` environment variables.
+3. If the user's roles do not satisfy the required permission level → return an ephemeral error (visible only to the user).
+
+#### Google Chat — DynamoDB Role Resolution
+
+Google Chat has no built-in role system. The user's role is stored as a `role` attribute on the `USER#<userId>` `METADATA` item in DynamoDB (§2.3) and is set by an Admin.
+
+**Authorization flow:**
+
+1. Resolve the internal `userId` from the `EXTID#GCHAT#<googleUserId>` identity mapping item.
+2. Fetch the `USER#<userId>` `METADATA` item and read the `role` attribute (`EMPLOYEE` / `TEAM_LEAD` / `ADMIN`).
+3. If no role is set, default to `EMPLOYEE`.
+4. If the resolved role does not satisfy the required permission level → return an error message (visible only to the user).
 
 ### 3.3 Environment Variable Management
 
-Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSettings`), loading values from environment variables. No secrets are hardcoded.
+Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSettings`), loading values from environment variables. No secrets are hardcoded. Variables are grouped by scope: shared, Discord-only, and Google Chat-only.
+
+**Shared (all Lambdas):**
+
+| Variable | Description |
+| --- | --- |
+| `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
+| `AWS_REGION` | AWS region for DynamoDB client (default: `ap-southeast-1`). |
+| `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
+| `DEFAULT_CUTOFF_TIME` | Cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
+| `WFH_MONTHLY_LIMIT` | Maximum WFH days allowed per calendar month before a warning is shown (default: `5`) (§4.4). |
+| `COMMAND_LAMBDA_NAME` | Name of the shared Command Lambda invoked by both Router Lambdas. |
+
+**Discord Router Lambda only:**
 
 | Variable | Description |
 | --- | --- |
 | `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
-| `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
-| `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
-| `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
-| `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
-| `ROLE_ADMIN_ID` | Discord role ID for Admin permission level. |
+| `DISCORD_BOT_TOKEN` | Bot token for sending deferred follow-up messages via Discord REST API. |
+| `DISCORD_APPLICATION_ID` | Discord application ID used to construct the follow-up webhook URL. |
+| `ROLE_TEAM_LEAD_ID` | Discord role ID for the Team Lead permission level. |
+| `ROLE_ADMIN_ID` | Discord role ID for the Admin permission level. |
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
-| `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
-| `DEFAULT_CUTOFF_TIME` | Cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
-| `WFH_MONTHLY_LIMIT` | Maximum WFH days allowed per calendar month before a warning is shown (default: `5`) (§4.3). |
-| `COMMAND_LAMBDA_NAME` | Name of the Command Lambda function invoked by the Router Lambda to process business logic. |
+| `ANNOUNCEMENT_CHANNEL_ID` | Optional. Discord channel ID for `/event announce` broadcast. |
+
+**Google Chat Router Lambda only:**
+
+| Variable | Description |
+| --- | --- |
+| `GCHAT_AUDIENCE` | Expected `aud` claim in Google Chat JWT — set to the Lambda's public HTTPS endpoint URL. |
+| `GCHAT_AUTHORIZED_SPACE` | Google Chat space resource name (e.g. `spaces/XXXXXX`) — interactions from other spaces are rejected (§3.4). |
+| `GCHAT_ANNOUNCEMENT_SPACE` | Optional. Space resource name for `/event announce` broadcast. |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
 
-### 3.4 User Identity
+### 3.4 User Identity & Space/Guild Authorization Guard
 
-Discord's Interactions API embeds verified user identity directly inside the signed interaction payload. No separate OAuth2 token exchange is required for slash command interactions — the user's identity is established as part of the same request that is already validated by Ed25519 signature verification (§3.1).
+#### Discord
 
-**Identity fields available in every interaction payload:**
+Discord's Interactions API embeds verified user identity directly inside the signed interaction payload. No separate OAuth2 token exchange is required.
 
 | Field | Path in payload | Description |
 | --- | --- | --- |
-| `user_id` | `member.user.id` | Discord's unique, immutable snowflake ID for the user. Used as the primary key in DynamoDB (`USER#{user_id}`). |
+| `user_id` | `member.user.id` | Discord's unique, immutable snowflake ID. Used as the internal `userId` in DynamoDB (`USER#<userId>`). |
 | `roles` | `member.roles` | List of Discord role IDs assigned to the user in the guild. Drives RBAC (§3.2). |
-| `guild_id` | `guild_id` | Confirms the interaction originates from the authorized guild. Requests from other guilds are rejected. |
+| `guild_id` | `guild_id` | Confirms the interaction originates from the authorized guild. |
 
-**Guild authorization guard:**
+On every interaction, the handler verifies that `guild_id` matches `AUTHORIZED_GUILD_ID`. Interactions from unauthorized guilds are rejected with `HTTP 401` before any business logic runs.
 
-On every interaction, the handler verifies that `guild_id` matches the `AUTHORIZED_GUILD_ID` environment variable. Interactions from unauthorized guilds are rejected with `HTTP 401` before any business logic runs.
+#### Google Chat
+
+Google Chat embeds the sender's identity in the event payload. Identity is established as part of the same request already validated by JWT verification (§3.1.2).
+
+| Field | Path in payload | Description |
+| --- | --- | --- |
+| `google_user_id` | `message.sender.name` → `users/<googleUserId>` | Google's unique user identifier. Used as the key in the `EXTID#GCHAT#<googleUserId>` identity mapping (§2.3). |
+| `email` | `message.sender.email` | Google account email address. Stored on first interaction for reference. |
+| `space` | `space.name` | Google Chat space resource name. Used for space authorization guard. |
+
+On every interaction, the handler verifies that `space.name` matches `GCHAT_AUTHORIZED_SPACE`. Interactions from unauthorized spaces are rejected with `HTTP 401` before any business logic runs.
+
+**First-interaction auto-registration:** If no `EXTID#GCHAT#<googleUserId>` mapping exists when a user first sends a command, the GChat Router Lambda creates the mapping and a `USER#<userId>` `METADATA` item with `role = EMPLOYEE` automatically.
 
 ---
 
