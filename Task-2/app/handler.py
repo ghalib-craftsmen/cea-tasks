@@ -376,6 +376,17 @@ def _handle_team_members(interaction: DiscordInteraction, options: list) -> tupl
     user_id = interaction.get_user().id
     team_id = _get_option(options, "team_id")
 
+    # Admin with no team_id — list all teams
+    if not team_id and _is_admin(interaction):
+        teams = team_service.list_teams()
+        if not teams:
+            return _reply("No teams configured.")
+        lines = ["**All Teams**"]
+        for t in teams:
+            count = len(team_service.get_team_members(t["team_id"]))
+            lines.append(f"  `{t['team_id']}` — **{t['name']}** | Lead: <@{t['lead_user_id']}> | {count} member(s)")
+        return _reply("\n".join(lines))
+
     if team_id:
         if not _is_admin(interaction):
             return _reply("Only Admins can specify a team. Team Leads see their own team.")
@@ -387,10 +398,15 @@ def _handle_team_members(interaction: DiscordInteraction, options: list) -> tupl
         return _reply("Team not found." if team_id else "You are not assigned to any team.")
 
     members = team_service.get_team_members(team["team_id"])
-    member_lines = "\n".join(f"  <@{uid}>" for uid in members) or "  (no members)"
+    month_prefix = str(_date.today())[:7]
+    wfh_summary = meal_service.get_monthly_wfh_summary(month_prefix)
+    member_lines = "\n".join(
+        f"  <@{uid}> — WFH this month: {wfh_summary.get(uid, 0)}"
+        for uid in members
+    ) or "  (no members)"
     return _reply(
         f"**{team['name']}** (`{team['team_id']}`) — Lead: <@{team['lead_user_id']}>\n"
-        f"Members ({len(members)}):\n{member_lines}"
+        f"Members ({len(members)}) — {month_prefix}:\n{member_lines}"
     )
 
 
