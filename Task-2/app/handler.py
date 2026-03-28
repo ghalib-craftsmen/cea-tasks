@@ -194,8 +194,8 @@ def _format_headcount_summary(summary: dict, title: str) -> str:
         "",
         "**By Meal Type**",
     ]
-    for mt, label in _MEAL_TYPE_LABELS.items():
-        lines.append(f"  {label}: {summary['by_meal_type'].get(mt, 0)}")
+    for mt, count in summary["by_meal_type"].items():
+        lines.append(f"  {_MEAL_TYPE_LABELS.get(mt, mt)}: {count}")
     lines += [
         "",
         "**Office vs WFH**",
@@ -337,6 +337,31 @@ def _handle_wfh_periods(interaction: DiscordInteraction, subcommand: str, option
     return _reply("Unknown subcommand.")
 
 
+def _handle_meal_type(interaction: DiscordInteraction, subcommand: str, options: list) -> tuple[str, bool]:
+    if subcommand == "list":
+        target_date = _get_option(options, "date") or str(_date.today())
+        active = meal_service.get_active_meal_types(target_date)
+        if not active:
+            return _reply(f"No active meal types for **{target_date}**.")
+        labels = [_MEAL_TYPE_LABELS.get(mt, mt) for mt in active]
+        return _reply(f"**Active meal types for {target_date}:** {', '.join(labels)}")
+
+    if not _is_admin(interaction):
+        return _reply("You do not have permission to use this command.")
+
+    target_date = _get_option(options, "date")
+    meal_type = _get_option(options, "meal_type")
+    if not target_date or not meal_type:
+        return _reply("Please provide both date and meal_type.")
+
+    user_id = interaction.get_user().id
+    if subcommand == "activate":
+        return _reply(meal_service.activate_meal_type(target_date, meal_type, set_by=user_id))
+    if subcommand == "deactivate":
+        return _reply(meal_service.deactivate_meal_type(target_date, meal_type))
+    return _reply("Unknown subcommand.")
+
+
 def _handle_team_members(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     if not _is_team_lead(interaction):
         return _reply("You do not have permission to use this command.")
@@ -391,6 +416,11 @@ def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
         if not subcommand:
             return _reply("Please specify a subcommand.")
         return _handle_event(interaction, subcommand, sub_options)
+
+    if command == "meal-type":
+        if not subcommand:
+            return _reply("Please specify a subcommand.")
+        return _handle_meal_type(interaction, subcommand, sub_options)
 
     return _reply("Unknown command.")
 

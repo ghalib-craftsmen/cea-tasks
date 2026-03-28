@@ -256,6 +256,64 @@ COMMANDS = [
         "description": "[Team Lead / Admin] View team members with their WFH day counts for the current month.",
         "options": [],
     },
+    # /meal-type activate/deactivate/list
+    {
+        "name": "meal-type",
+        "description": "Manage active meal types per date",
+        "options": [
+            {
+                "type": 1,
+                "name": "activate",
+                "description": "[Admin] Activate a meal type for a specific date",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "meal_type",
+                        "description": "Meal type to activate",
+                        "required": True,
+                        "choices": [
+                            {"name": "Iftar", "value": "IFTAR"},
+                            {"name": "Event Dinner", "value": "EVENT_DINNER"},
+                            {"name": "Optional Dinner", "value": "OPTIONAL_DINNER"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "type": 1,
+                "name": "deactivate",
+                "description": "[Admin] Deactivate a meal type for a specific date",
+                "options": [
+                    {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
+                    {
+                        "type": _STR,
+                        "name": "meal_type",
+                        "description": "Meal type to deactivate",
+                        "required": True,
+                        "choices": [
+                            {"name": "Iftar", "value": "IFTAR"},
+                            {"name": "Event Dinner", "value": "EVENT_DINNER"},
+                            {"name": "Optional Dinner", "value": "OPTIONAL_DINNER"},
+                        ],
+                    },
+                ],
+            },
+            {
+                "type": 1,
+                "name": "list",
+                "description": "Show active meal types for a date",
+                "options": [
+                    {
+                        "type": _STR,
+                        "name": "date",
+                        "description": "Target date (YYYY-MM-DD). Defaults to today.",
+                        "required": False,
+                    },
+                ],
+            },
+        ],
+    },
 ]
 
 

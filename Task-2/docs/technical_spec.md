@@ -111,6 +111,7 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All acce
 | Meal Participation | `MEAL#<date>` | `USER#<userId>` | Yes |
 | Work Location | `LOC#<date>` | `USER#<userId>` | Yes |
 | Special Day | `SPECIALDAY` | `<date>` | No |
+| Active Meal Type | `ACTIVEMEAL#<date>` | `<meal_type>` | No |
 | Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
 
 **GSI1 overloaded usage:**
@@ -154,7 +155,7 @@ Authorization is enforced at the command handler level based on the Discord role
 | --- | --- | --- |
 | `@everyone` (Employee) | Standard | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
 | `@Team Lead` | Elevated | All employee actions + view and update meal/location for own team members. View team headcount summary, team members with WFH counts, and WFH periods. View any team member's history. |
-| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals. Override any user's meal or location record. |
+| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals, activate/deactivate meal types per date. Override any user's meal or location record. |
 
 **Authorization flow:**
 
@@ -273,6 +274,7 @@ All other meal types are **inactive by default** and must be explicitly activate
 - Only active meal types are shown in the headcount "By Meal Type" breakdown (§4.5) and available for opt-out.
 - Activating a meal type for a date opts all employees in by default; employees may opt out before the cut-off.
 - `EVENT_DINNER` is activated automatically when an Admin configures an event day via `/event update`.
+- Admins activate and deactivate meal types per date using `/meal-type activate` and `/meal-type deactivate`. Active types for any date can be checked with `/meal-type list`.
 
 ---
 
@@ -479,8 +481,16 @@ Registered via the Discord Developer Portal. Each command maps to a handler.
 | `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the channel. |
 | `/event optout <date>` | Employee | Opt out of an event meal day for a specific date. |
 | `/event list` | All | Show all configured special event days. |
-| `/event update <date>` | Admin | Update an existing event day's configuration. |
+| `/event update <date> <description>` | Admin | Add or update an event day. Automatically activates `EVENT_DINNER` for that date. |
 | `/event delete <date>` | Admin | Delete a configured event day. |
+
+#### `/meal-type`
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/meal-type activate <date> <meal_type>` | Admin | Activate a meal type (`IFTAR`, `EVENT_DINNER`, `OPTIONAL_DINNER`) for a specific date. |
+| `/meal-type deactivate <date> <meal_type>` | Admin | Deactivate a meal type for a specific date. `LUNCH` and `SNACKS` cannot be deactivated. |
+| `/meal-type list [date]` | All | Show active meal types for a date (defaults to today). |
 
 ---
 

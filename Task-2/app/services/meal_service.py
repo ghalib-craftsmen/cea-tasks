@@ -25,6 +25,8 @@ _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
 _deserializer = TypeDeserializer()
 VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
+_DEFAULT_ACTIVE_MEAL_TYPES = {"LUNCH", "SNACKS"}
+_MEAL_TYPE_ORDER = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
 # Loaded once at module level — captured in SnapStart snapshot
 with _EVENTS_PATH.open() as _f:
@@ -60,8 +62,65 @@ def list_events_from_db() -> list[dict]:
     return [{"date": e.date, "description": e.description} for e in _EVENTS]
 
 
+def get_active_meal_types(date: str) -> list[str]:
+    """Return active meal types for a date in canonical order.
+
+    LUNCH and SNACKS are always active. EVENT_DINNER is active on event days.
+    All others are active only if an Admin has explicitly activated them in DynamoDB.
+    """
+    active = set(_DEFAULT_ACTIVE_MEAL_TYPES)
+    if is_event_day(date):
+        active.add("EVENT_DINNER")
+    try:
+        response = _table.query(KeyConditionExpression=Key("PK").eq(f"ACTIVEMEAL#{date}"))
+        for item in response.get("Items", []):
+            mt = item.get("SK", "")
+            if mt in VALID_MEAL_TYPES:
+                active.add(mt)
+    except ClientError as e:
+        logger.error("Failed to query active meal types for %s: %s", date, e)
+    return [mt for mt in _MEAL_TYPE_ORDER if mt in active]
+
+
+def activate_meal_type(date: str, meal_type: str, set_by: str) -> str:
+    """Admin: activate a meal type for a specific date."""
+    meal_type = meal_type.upper()
+    if meal_type not in VALID_MEAL_TYPES:
+        return f"Invalid meal type. Valid types: {', '.join(_MEAL_TYPE_ORDER)}"
+    if meal_type in _DEFAULT_ACTIVE_MEAL_TYPES:
+        return f"**{meal_type}** is always active and does not need to be activated."
+    try:
+        _table.put_item(Item={
+            "PK": f"ACTIVEMEAL#{date}",
+            "SK": meal_type,
+            "date": date,
+            "meal_type": meal_type,
+            "set_by": set_by,
+            "updated_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        })
+        return f"**{meal_type}** activated for **{date}**."
+    except ClientError as e:
+        logger.error("Failed to activate meal type %s for %s: %s", meal_type, date, e)
+        raise
+
+
+def deactivate_meal_type(date: str, meal_type: str) -> str:
+    """Admin: deactivate a meal type for a specific date."""
+    meal_type = meal_type.upper()
+    if meal_type not in VALID_MEAL_TYPES:
+        return f"Invalid meal type. Valid types: {', '.join(_MEAL_TYPE_ORDER)}"
+    if meal_type in _DEFAULT_ACTIVE_MEAL_TYPES:
+        return f"**{meal_type}** is always active and cannot be deactivated."
+    try:
+        _table.delete_item(Key={"PK": f"ACTIVEMEAL#{date}", "SK": meal_type})
+        return f"**{meal_type}** deactivated for **{date}**."
+    except ClientError as e:
+        logger.error("Failed to deactivate meal type %s for %s: %s", meal_type, date, e)
+        raise
+
+
 def update_event(date: str, description: str, set_by: str) -> str:
-    """Upsert an event day in DynamoDB."""
+    """Upsert an event day in DynamoDB and auto-activate EVENT_DINNER."""
     try:
         _table.put_item(Item={
             "PK": "SPECIALDAY",
@@ -71,6 +130,7 @@ def update_event(date: str, description: str, set_by: str) -> str:
             "set_by": set_by,
             "updated_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
         })
+        activate_meal_type(date, "EVENT_DINNER", set_by)
         return f"Event day **{date}** updated: _{description}_"
     except ClientError as e:
         logger.error("Failed to update event %s: %s", date, e)
