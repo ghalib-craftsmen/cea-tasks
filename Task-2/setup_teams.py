@@ -1,12 +1,15 @@
 """
-Seed teams into DynamoDB from config/teams.json.
+Set up teams in DynamoDB from config/teams.json.
 
-Uses Discord UserIDs directly — no API resolution needed.
-Replace-mode: re-running syncs membership to match the JSON exactly
-(adds new members, removes members no longer listed).
+Reads team definitions (team_id, name, lead_user_id, members) using Discord
+UserIDs and writes Team + TeamMember records to DynamoDB via team_service.
+
+Run this once after filling in config/teams.json, and re-run whenever the
+team structure changes. Re-runs are safe: existing records are skipped,
+members are added/removed to match the JSON exactly (replace mode).
 
 Usage:
-    python seed_teams.py [--dry-run]
+    python setup_teams.py [--dry-run]
 """
 from __future__ import annotations
 
@@ -68,7 +71,7 @@ def seed(dry_run: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Seed teams into DynamoDB from config/teams.json")
+    parser = argparse.ArgumentParser(description="Set up teams in DynamoDB from config/teams.json")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing to DynamoDB")
     args = parser.parse_args()
     seed(dry_run=args.dry_run)
