@@ -1,7 +1,7 @@
-# Meal Headcount Planner — Discord Bot Integration
+# Meal Headcount Planner — Multi-Platform Bot Integration (Discord + Google Chat)
 
-**Version:** 1.4
-**Date:** 2026-03-27
+**Version:** 2
+**Date:** 2026-03-29
 **Status:** Draft
 
 ---
@@ -10,14 +10,17 @@
 
 ### 1.1 Purpose
 
-This document defines the technical architecture, security model, and feature scope for integrating a Discord bot into the Meal Headcount Planner (MHP) system. It serves as the authoritative reference for implementation decisions during Task 2 and guides future infrastructure provisioning.
+This document defines the technical architecture, security model, and feature scope for integrating both a Discord bot and a Google Chat bot into the Meal Headcount Planner (MHP) system. Both bots run in parallel, share a single DynamoDB table, and expose identical business functionality to users on either platform. It serves as the authoritative reference for implementation decisions during Task 2 and guides future infrastructure provisioning.
 
 ### 1.2 Project Summary
 
 The Meal Headcount Planner (MHP) is an internal tool that helps kitchen/logistics teams accurately predict daily meal counts. Task 2 evolves the system from a standalone web tool into a production-grade platform by adding:
 
-- A **Discord bot** as a self-service input channel for employees.
-- A **serverless AWS backend** using Lambda, API Gateway, and DynamoDB.
+- A **Discord bot** as a self-service input channel for employees on Discord.
+- A **Google Chat bot** as a self-service input channel for employees on Google Chat.
+- A **serverless AWS backend** using Lambda, API Gateway, and DynamoDB, shared by both bots.
+
+All business logic, data storage, and feature behaviour are platform-agnostic. Platform-specific code is limited to request verification, identity resolution, and message delivery.
 
 ### 1.3 Scope of This Document
 
@@ -25,10 +28,10 @@ This specification covers:
 
 - AWS serverless architecture (implemented; IaC deployment deferred).
 - Cost optimization decisions for each AWS service.
-- Security model for Discord webhook validation, user identity, and role-based authorization.
+- Security model for Discord Ed25519 signature validation and Google Chat JWT verification, user identity, and role-based authorization.
 - Feature logic for cut-off time enforcement, event meal workflows, WFH periods, bulk operations, and team headcount.
 - Python project structure, module responsibilities, and dependency definitions.
-- Discord slash command definitions and permission model.
+- Slash command definitions and permission model for both Discord and Google Chat.
 
 ---
 
