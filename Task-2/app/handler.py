@@ -301,12 +301,18 @@ def _handle_event(interaction: DiscordInteraction, subcommand: str, options: lis
     if subcommand == "announce":
         if not meal_service.is_event_day(target_date):
             return _reply(f"{target_date} is not a configured event day.")
-        return _reply(
+        message = (
             f"**Event Meal Announcement**\n"
             f"A special event meal is scheduled for **{target_date}**. "
-            f"All employees are opted in by default. Use `/event optout {target_date}` to opt out before the cut-off.",
-            ephemeral=False,
+            f"All employees are opted in by default. Use `/event optout {target_date}` to opt out before the cut-off."
         )
+        if settings.announcement_channel_id:
+            try:
+                discord_service.send_channel_message(settings.announcement_channel_id, message)
+            except Exception as exc:
+                logger.error("Failed to post event announcement to channel: %s", exc)
+            return _reply(f"Announcement posted to <#{settings.announcement_channel_id}>.")
+        return _reply(message, ephemeral=False)
 
     if subcommand == "update":
         description = _get_option(options, "description") or ""

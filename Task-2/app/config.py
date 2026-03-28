@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # WFH soft limit
     wfh_monthly_limit: int = 5
 
+    # Announcement channel (optional — used by /event announce)
+    announcement_channel_id: str = ""
+
 
 
 settings = Settings()  
