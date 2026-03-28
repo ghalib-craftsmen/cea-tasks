@@ -110,7 +110,7 @@ COMMANDS = [
             {
                 "type": 1,
                 "name": "set",
-                "description": "Set work location for a date (WFH auto-opts out of all meals). Team Lead/Admin can specify another user.",
+                "description": "Set work location. WFH auto-opts out of all meals. Team Lead/Admin can set for self or another user.",
                 "options": [
                     {"type": _STR, "name": "date", "description": "Target date (YYYY-MM-DD)", "required": True},
                     {
