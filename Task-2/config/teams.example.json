@@ -1,0 +1,11 @@
+[
+  {
+    "team_id": 1,
+    "name": "Team Name",
+    "lead_user_id": "DISCORD_USER_ID",
+    "members": [
+      "DISCORD_USER_ID",
+      "DISCORD_USER_ID"
+    ]
+  }
+]
