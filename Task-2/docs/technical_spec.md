@@ -41,6 +41,10 @@ This specification covers:
 
 ### 2.1 Serverless Request Flow
 
+Both platforms follow the same Lambda + DynamoDB pattern. They share the **Command Lambda** and the **DynamoDB table**. Platform-specific code is confined to the Router Lambda layer.
+
+#### Discord Flow
+
 ```text
 Discord User
      │
@@ -48,32 +52,70 @@ Discord User
      ▼
 Discord API
      │
-     │  HTTP POST (signed webhook)
+     │  HTTP POST (Ed25519-signed)  →  POST /interactions
      ▼
 API Gateway (HTTP API)
      │
      │  Proxy integration
      ▼
-Router Lambda (sig verification + routing)
+Discord Router Lambda (Ed25519 verification + routing)
      │
-     │  Invoke
+     │  Invoke (async)
      ▼
 Command Lambda (business logic)
      │
      ├──► DynamoDB (read / write)
      │
-     └──► Discord API (send follow-up response)
+     └──► Discord API (deferred follow-up response)
 ```
 
 1. A Discord user triggers a slash command.
-2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
-3. API Gateway proxies the raw request (including signature headers) to the **Router Lambda**.
-4. The Router Lambda:
+2. Discord sends a signed HTTP POST to `POST /interactions` on the **API Gateway HTTP API**.
+3. API Gateway proxies the raw request (including signature headers) to the **Discord Router Lambda**.
+4. The Discord Router Lambda:
    - Validates the Ed25519 signature (reject immediately if invalid).
-   - Parses the interaction payload and invokes the appropriate **Command Lambda** by command group.
+   - Returns an immediate `HTTP 200` deferred acknowledgement to Discord.
+   - Async-invokes the **Command Lambda** with the interaction payload.
 5. The Command Lambda runs the business logic:
    - Reads from / writes to **DynamoDB**.
-   - Returns a JSON response to Discord (or defers and sends a follow-up).
+   - Posts the result back to Discord via the follow-up webhook.
+
+#### Google Chat Flow
+
+```text
+Google Chat User
+     │
+     │  Slash Command / Message Event
+     ▼
+Google Chat API
+     │
+     │  HTTP POST (JWT-signed)  →  POST /gchat/interactions
+     ▼
+API Gateway (HTTP API)
+     │
+     │  Proxy integration
+     ▼
+GChat Router Lambda (JWT verification + routing)
+     │
+     │  Invoke (async)
+     ▼
+Command Lambda (business logic)          ← same Lambda as Discord
+     │
+     ├──► DynamoDB (read / write)         ← same table as Discord
+     │
+     └──► Google Chat API (async reply via REST)
+```
+
+1. A Google Chat user triggers a slash command in a configured space.
+2. Google Chat sends a JWT-signed HTTP POST to `POST /gchat/interactions` on the **API Gateway HTTP API**.
+3. API Gateway proxies the request to the **GChat Router Lambda**.
+4. The GChat Router Lambda:
+   - Validates the Google-issued JWT bearer token (reject immediately if invalid).
+   - Returns an immediate `HTTP 200` acknowledgement to Google Chat.
+   - Async-invokes the **Command Lambda** with a normalised interaction payload.
+5. The Command Lambda runs the same business logic:
+   - Reads from / writes to **DynamoDB** (shared with Discord).
+   - Posts the result back to Google Chat via the Chat REST API.
 
 ### 2.2 Service Selection & Cost Optimization
 
@@ -81,10 +123,11 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
-| **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint. SnapStart snapshots the initialized environment and restores it on cold starts, eliminating init latency. Requires Python 3.12 runtime. |
-| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. SnapStart applied on the published function version. Independently deployable per command group. |
-| **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
+| **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. Both `/interactions` and `/gchat/interactions` are routes on the same HTTP API. |
+| **Discord Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: Ed25519 verification + routing only | Minimal memory footprint. SnapStart eliminates cold-start latency. Requires Python 3.12 runtime. |
+| **GChat Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: JWT verification + routing only | Same profile as Discord Router. Separate function keeps platform verification code isolated and independently deployable. |
+| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Shared business logic for both platforms | Single function invoked by both Router Lambdas. Higher memory for DynamoDB queries and response construction. Independently deployable. |
+| **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically. Single table shared by both bots — no duplication of data. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
 ### 2.3 DynamoDB Data Model
@@ -118,6 +161,24 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All acce
 | WFH Period | `WFH_PERIOD` | `<startDate>#<endDate>` | No |
 | Active Meal Type | `ACTIVEMEAL#<date>` | `<meal_type>` | No |
 | Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
+
+**Google Chat identity mapping:**
+
+Google Chat does not embed a globally unique immutable user ID in slash command payloads the same way Discord does. The Google Chat sender carries a `name` field (`users/<googleUserId>`) and an `email`. An `EXTID#GCHAT#<googleUserId>` item maps the Google user to the internal `userId` (the `USER#<userId>` PK), following the existing identity mapping pattern.
+
+| Entity | PK | SK | Key attribute |
+| --- | --- | --- | --- |
+| GChat Identity Mapping | `EXTID#GCHAT#<googleUserId>` | `EXTID#GCHAT#<googleUserId>` | `user_id` — internal userId for DynamoDB lookups |
+
+**Role storage for Google Chat users:**
+
+Discord exposes role membership inside the signed interaction payload (`member.roles`), so no role data needs to be stored in DynamoDB for Discord users. Google Chat has no equivalent built-in role system. For Google Chat users, the authorization role (`EMPLOYEE`, `TEAM_LEAD`, or `ADMIN`) is stored as a `role` attribute on the `USER#<userId>` `METADATA` item and set by an Admin. Discord users continue to be authorized via guild roles; this attribute is ignored for Discord interactions.
+
+| Role value | Permission level |
+| --- | --- |
+| `EMPLOYEE` | Standard (default) |
+| `TEAM_LEAD` | Elevated |
+| `ADMIN` | Full |
 
 **GSI1 overloaded usage:**
 
