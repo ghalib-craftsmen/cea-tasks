@@ -250,11 +250,18 @@ COMMANDS = [
             },
         ],
     },
-    # /team-members  (Team Lead / Admin)
+    # /team-members [team_id]  (Team Lead / Admin)
     {
         "name": "team-members",
-        "description": "[Team Lead / Admin] View team members with their WFH day counts for the current month.",
-        "options": [],
+        "description": "[Team Lead / Admin] View members of your team. Admin can specify a team.",
+        "options": [
+            {
+                "type": _STR,
+                "name": "team_id",
+                "description": "Team identifier (Admin only)",
+                "required": False,
+            },
+        ],
     },
     # /meal-type activate/deactivate/list
     {

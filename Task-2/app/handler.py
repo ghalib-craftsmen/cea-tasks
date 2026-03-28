@@ -7,7 +7,7 @@ from typing import Any
 from app.config import settings
 from app.models.discord_models import DiscordInteraction
 from app.models.meal_models import MealRecord
-from app.services import discord_service, headcount_service, meal_service
+from app.services import discord_service, headcount_service, meal_service, team_service
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -224,9 +224,16 @@ def _handle_headcount(interaction: DiscordInteraction, options: list) -> tuple[s
             return _reply(f"**{target_date}** — <@{target_user}>: {status} | Location: {record.work_location}")
 
         if target_date:
-            summary = headcount_service.daily_summary(target_date)
-            title = f"Org-wide Headcount for {target_date}" if _is_admin(interaction) else f"Team Headcount for {target_date}"
-            return _reply(_format_headcount_summary(summary, title))
+            if _is_admin(interaction):
+                summary = headcount_service.daily_summary(target_date)
+                return _reply(_format_headcount_summary(summary, f"Org-wide Headcount for {target_date}"))
+            # Team Lead: scope to their team
+            team = team_service.get_user_team(user_id)
+            if not team:
+                return _reply("You are not assigned to any team. Ask an Admin to add you to a team.")
+            member_ids = team_service.get_team_members(team["team_id"])
+            summary = headcount_service.team_summary(target_date, member_ids)
+            return _reply(_format_headcount_summary(summary, f"Team **{team['name']}** Headcount for {target_date}"))
         # No date and no user — fall through to employee 30-day history
 
     # Employee: own history
@@ -365,14 +372,26 @@ def _handle_meal_type(interaction: DiscordInteraction, subcommand: str, options:
 def _handle_team_members(interaction: DiscordInteraction, options: list) -> tuple[str, bool]:
     if not _is_team_lead(interaction):
         return _reply("You do not have permission to use this command.")
-    month_prefix = str(_date.today())[:7]  # YYYY-MM
-    wfh_counts = meal_service.get_monthly_wfh_summary(month_prefix)
-    if not wfh_counts:
-        return _reply(f"No WFH records found for {month_prefix}.")
-    lines = [f"**Team WFH counts for {month_prefix}**"]
-    for uid, count in sorted(wfh_counts.items(), key=lambda x: x[1], reverse=True):
-        lines.append(f"<@{uid}> — {count} WFH day(s)")
-    return _reply("\n".join(lines))
+
+    user_id = interaction.get_user().id
+    team_id = _get_option(options, "team_id")
+
+    if team_id:
+        if not _is_admin(interaction):
+            return _reply("Only Admins can specify a team. Team Leads see their own team.")
+        team = team_service.get_team(team_id)
+    else:
+        team = team_service.get_user_team(user_id)
+
+    if not team:
+        return _reply("Team not found." if team_id else "You are not assigned to any team.")
+
+    members = team_service.get_team_members(team["team_id"])
+    member_lines = "\n".join(f"  <@{uid}>" for uid in members) or "  (no members)"
+    return _reply(
+        f"**{team['name']}** (`{team['team_id']}`) — Lead: <@{team['lead_user_id']}>\n"
+        f"Members ({len(members)}):\n{member_lines}"
+    )
 
 
 def _route_command(interaction: DiscordInteraction) -> tuple[str, bool]:
