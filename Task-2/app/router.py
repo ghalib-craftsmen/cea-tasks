@@ -91,12 +91,15 @@ def handler(event: dict, context: Any) -> dict:
     if payload.get("type") != _APPLICATION_COMMAND:
         return _err(400, "Unsupported interaction type")
 
-    _lambda_client.invoke(
-        FunctionName=settings.command_lambda_name,
-        InvocationType="Event",
-        Payload=json.dumps(payload).encode(),
-    )
-    logger.info("Dispatched command=%s to %s", payload.get("data", {}).get("name"), settings.command_lambda_name)
+    try:
+        _lambda_client.invoke(
+            FunctionName=settings.command_lambda_name,
+            InvocationType="Event",
+            Payload=json.dumps(payload).encode(),
+        )
+        logger.info("Dispatched command=%s to %s", payload.get("data", {}).get("name"), settings.command_lambda_name)
+    except Exception as e:
+        logger.error("Failed to invoke command lambda: %s", e)
 
     return _ok({
         "type": _DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,

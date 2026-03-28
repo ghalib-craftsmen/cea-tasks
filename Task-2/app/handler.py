@@ -223,11 +223,11 @@ def _handle_headcount(interaction: DiscordInteraction, options: list) -> tuple[s
                 status = "opted in (all meals)"
             return _reply(f"**{target_date}** — <@{target_user}>: {status} | Location: {record.work_location}")
 
-        if not target_date:
-            return _reply("Please provide a date.")
-        summary = headcount_service.daily_summary(target_date)
-        title = f"Org-wide Headcount for {target_date}" if _is_admin(interaction) else f"Team Headcount for {target_date}"
-        return _reply(_format_headcount_summary(summary, title))
+        if target_date:
+            summary = headcount_service.daily_summary(target_date)
+            title = f"Org-wide Headcount for {target_date}" if _is_admin(interaction) else f"Team Headcount for {target_date}"
+            return _reply(_format_headcount_summary(summary, title))
+        # No date and no user — fall through to employee 30-day history
 
     # Employee: own history
     if target_user and target_user != user_id:
@@ -438,4 +438,7 @@ def handler(event: dict, context: Any) -> None:
         logger.error("Unhandled error routing command: %s", exc)
         content, ephemeral = "An unexpected error occurred. Please try again.", True
 
-    discord_service.send_followup(interaction.token, content, ephemeral=ephemeral)
+    try:
+        discord_service.send_followup(interaction.token, content, ephemeral=ephemeral)
+    except Exception as exc:
+        logger.error("Failed to send follow-up to Discord: %s", exc)

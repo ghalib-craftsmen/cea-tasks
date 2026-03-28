@@ -24,9 +24,8 @@ _table = _dynamodb.Table(settings.dynamodb_table)
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
 _deserializer = TypeDeserializer()
-VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
 _DEFAULT_ACTIVE_MEAL_TYPES = {"LUNCH", "SNACKS"}
-_MEAL_TYPE_ORDER = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
+VALID_MEAL_TYPES = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
 # Loaded once at module level — captured in SnapStart snapshot
 with _EVENTS_PATH.open() as _f:
@@ -79,14 +78,14 @@ def get_active_meal_types(date: str) -> list[str]:
                 active.add(mt)
     except ClientError as e:
         logger.error("Failed to query active meal types for %s: %s", date, e)
-    return [mt for mt in _MEAL_TYPE_ORDER if mt in active]
+    return [mt for mt in VALID_MEAL_TYPES if mt in active]
 
 
 def activate_meal_type(date: str, meal_type: str, set_by: str) -> str:
     """Admin: activate a meal type for a specific date."""
     meal_type = meal_type.upper()
     if meal_type not in VALID_MEAL_TYPES:
-        return f"Invalid meal type. Valid types: {', '.join(_MEAL_TYPE_ORDER)}"
+        return f"Invalid meal type. Valid types: {', '.join(VALID_MEAL_TYPES)}"
     if meal_type in _DEFAULT_ACTIVE_MEAL_TYPES:
         return f"**{meal_type}** is always active and does not need to be activated."
     try:
@@ -108,7 +107,7 @@ def deactivate_meal_type(date: str, meal_type: str) -> str:
     """Admin: deactivate a meal type for a specific date."""
     meal_type = meal_type.upper()
     if meal_type not in VALID_MEAL_TYPES:
-        return f"Invalid meal type. Valid types: {', '.join(_MEAL_TYPE_ORDER)}"
+        return f"Invalid meal type. Valid types: {', '.join(VALID_MEAL_TYPES)}"
     if meal_type in _DEFAULT_ACTIVE_MEAL_TYPES:
         return f"**{meal_type}** is always active and cannot be deactivated."
     try:
@@ -451,8 +450,9 @@ def list_wfh_periods() -> list[dict]:
     """List company-wide WFH periods that overlap with the next 2 months."""
     try:
         today = _date.today()
-        two_months_out = str(today.replace(month=today.month + 2) if today.month <= 10
-                             else today.replace(year=today.year + 1, month=today.month - 10))
+        year, month = (today.year, today.month + 2) if today.month <= 10 else (today.year + 1, today.month - 10)
+        last_day = calendar.monthrange(year, month)[1]
+        two_months_out = str(_date(year, month, last_day))
         response = _table.query(KeyConditionExpression=Key("PK").eq("WFH_PERIOD"))
         items = [
             item for item in response.get("Items", [])
