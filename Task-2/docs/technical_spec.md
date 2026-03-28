@@ -521,54 +521,81 @@ Total: 6 | Opted in: 5 | Opted out: 1
 
 ```text
 app/
-  router.py          — request verification & async dispatch
-  handler.py         — command routing & business logic
-  config.py          — environment variable management
-  services/          — business logic modules (meal, headcount, messaging)
-  models/            — data models for bot payloads and DynamoDB records
-config/              — static configuration files
-docs/                — technical spec and iteration notes
-register_commands.py — bot command registration script
-requirements.txt     — production dependencies
+  router.py              — Discord: Ed25519 verification & async dispatch
+  gchat_router.py        — Google Chat: JWT verification & async dispatch
+  handler.py             — shared command routing & business logic
+  config.py              — environment variable management (all platforms)
+  platform/
+    bot_context.py       — platform-neutral BotContext dataclass
+  services/
+    meal_service.py      — cut-off logic, opt-in/out, event meals       [shared]
+    headcount_service.py — DynamoDB headcount aggregation               [shared]
+    team_service.py      — team membership queries                      [shared]
+    discord_service.py   — deferred follow-up & channel messages (Discord)
+    gchat_service.py     — async reply & space messages (Google Chat)
+  models/
+    discord_models.py    — Discord interaction payload models
+    gchat_models.py      — Google Chat event payload models
+    meal_models.py       — DynamoDB record models                       [shared]
+    team_models.py       — team DynamoDB record models                  [shared]
+config/                  — static configuration files
+docs/                    — technical spec and iteration notes
+register_commands.py     — Discord command registration script
+register_gchat_commands.py — Google Chat slash command registration notes
+requirements.txt         — production dependencies
 ```
 
 ### 5.3 Module Responsibilities
 
-| Module | Responsibility |
-| --- | --- |
-| `app/router.py` | Entry point for incoming requests. Verifies request signature, defers response, and async-invokes the Command Lambda. |
-| `app/handler.py` | Parses the interaction payload and dispatches to the correct service function by command name. |
-| `app/config.py` | Defines `Settings(BaseSettings)` — single source of truth for all env vars. |
-| `app/services/meal_service.py` | Implements cut-off time logic, opt-in/out writes, event meal state transitions. |
-| `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries and headcount aggregation. |
-| `app/services/discord_service.py` | Sends deferred follow-up messages to the bot platform via REST. |
-| `app/models/` | Data models for bot interaction payloads and DynamoDB records. |
+| Module | Platform | Responsibility |
+| --- | --- | --- |
+| `app/router.py` | Discord | Entry point for Discord interactions. Verifies Ed25519 signature, returns deferred ACK, async-invokes the Command Lambda. |
+| `app/gchat_router.py` | Google Chat | Entry point for Google Chat events. Verifies JWT bearer token, returns `HTTP 200` ACK, async-invokes the same Command Lambda. |
+| `app/handler.py` | Shared | Receives a `BotContext` from either router. Dispatches to the correct service function by command name. Builds the response string. |
+| `app/platform/bot_context.py` | Shared | Defines `BotContext` — a platform-neutral dataclass holding `user_id`, `role`, `platform`, `token`/`space`, and parsed command options. Both routers normalise their payloads into this before invoking the handler. |
+| `app/config.py` | Shared | Defines `Settings(BaseSettings)` — single source of truth for all env vars across both platforms. |
+| `app/services/meal_service.py` | Shared | Cut-off time logic, opt-in/out DynamoDB writes, event meal state transitions. |
+| `app/services/headcount_service.py` | Shared | Queries DynamoDB for daily/team summaries and headcount aggregation. |
+| `app/services/team_service.py` | Shared | Team membership lookups and team management operations. |
+| `app/services/discord_service.py` | Discord | Sends deferred follow-up messages and channel announcements via the Discord REST API. |
+| `app/services/gchat_service.py` | Google Chat | Sends async replies and space announcements via the Google Chat REST API. |
+| `app/models/discord_models.py` | Discord | Pydantic models for Discord interaction payloads (`DiscordInteraction`, `DiscordMember`, etc.). |
+| `app/models/gchat_models.py` | Google Chat | Pydantic models for Google Chat event payloads (`GChatEvent`, `GChatSender`, `GChatSlashCommand`, etc.). |
+| `app/models/meal_models.py` | Shared | DynamoDB record models for meal participation and work location. |
+| `app/models/team_models.py` | Shared | DynamoDB record models for teams and team membership. |
 
 ### 5.4 Dependencies (`requirements.txt`)
 
-| Package | Purpose |
-| --- | --- |
-| `boto3` | AWS SDK — DynamoDB client for all read/write operations. |
-| `pydantic` | Data validation and serialisation for request/response models. |
-| `pydantic-settings` | `BaseSettings` support for environment variable loading. |
-| `pynacl` | Ed25519 signature verification for Discord request authentication. |
-| `python-dotenv` | Loads `.env` file during local development (no-op in Lambda). |
+| Package | Platform | Purpose |
+| --- | --- | --- |
+| `boto3` | Shared | AWS SDK — DynamoDB client for all read/write operations. |
+| `pydantic` | Shared | Data validation and serialisation for request/response models. |
+| `pydantic-settings` | Shared | `BaseSettings` support for environment variable loading. |
+| `pynacl` | Discord | Ed25519 signature verification for Discord request authentication. |
+| `google-auth` | Google Chat | JWT bearer token verification for Google Chat request authentication. |
+| `python-dotenv` | Shared | Loads `.env` file during local development (no-op in Lambda). |
 
 ---
 
 ### 5.5 API Endpoints
 
-All endpoints are served under the Lambda function URL proxied through API Gateway.
+All endpoints are served under the same API Gateway HTTP API. Each platform has its own path and Router Lambda.
 
-#### Discord Endpoints
+#### HTTP Endpoints
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord slash command interactions. |
+| Method | Path | Router Lambda | Auth | Description |
+| --- | --- | --- | --- | --- |
+| `POST` | `/interactions` | Discord Router | Ed25519 signature (§3.1.1) | Receives all Discord slash command interactions. |
+| `POST` | `/gchat/interactions` | GChat Router | Google JWT (§3.1.2) | Receives all Google Chat slash command events. |
+| `GET` | `/health` | Discord Router | None | Health check — returns `{"status": "ok"}`. |
 
-#### Discord Slash Commands
+---
 
-Registered via the Discord Developer Portal. Each command maps to a handler.
+#### Slash Commands
+
+Both platforms expose the same command set. Discord commands are registered via the Discord Developer Portal; Google Chat commands are configured in the Google Cloud Console under the app's configuration. The command names, parameters, and permission requirements are identical.
+
+> **User reference parameter:** On Discord the `user` parameter is a user mention (resolved to a Discord snowflake ID). On Google Chat it is a plain text Google user ID or email. In both cases the handler resolves the value to the internal `userId` via the identity mapping before any service call.
 
 #### `/meal`
 
@@ -605,7 +632,7 @@ Registered via the Discord Developer Portal. Each command maps to a handler.
 
 | Command | Permission | Description |
 | --- | --- | --- |
-| `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the channel. |
+| `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the configured channel/space. |
 | `/event optout <date>` | Employee | Opt out of an event meal day for a specific date. |
 | `/event list` | All | Show all configured special event days. |
 | `/event update <date> <description>` | Admin | Add or update an event day. Automatically activates `EVENT_DINNER` for that date. |
