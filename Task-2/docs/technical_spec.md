@@ -238,22 +238,45 @@ Event days are defined in `config/events.json` and can be managed at runtime via
 **Employee opt-out flow:**
 
 1. Employee uses `/event optout <date>`.
-2. The system checks the date is a configured event day and the cut-off has not passed.
-3. If valid, `meal_opt_in` is set to `false` for that date.
-4. Bot confirms with an ephemeral reply.
+2. System verifies `<date>` is a configured event day — if not, responds with an ephemeral error.
+3. System checks the cut-off time has not passed for `<date>` — if passed, responds with an ephemeral error.
+4. If both checks pass, `meal_opt_in` is set to `false` for that date.
+5. Bot confirms the opt-out with an ephemeral reply.
 
 **State transitions:**
 
-| Scenario | Default State | Employee Action | Resulting State |
+| Scenario | Current State | Employee Action | Resulting State |
 | --- | --- | --- | --- |
 | Regular day | `meal_opt_in = true` | Opt out | `meal_opt_in = false` |
-| Regular day | `meal_opt_in = false` | Opt in | `meal_opt_in = true` |
-| Event meal day | Implicit opt-in (no record) | Opt out | `meal_opt_in = false` |
+| Regular day | `meal_opt_in = false` | Re-opt in | `meal_opt_in = true` |
+| Event meal day | `meal_opt_in = true` | Opt out | `meal_opt_in = false` |
 | Event meal day | `meal_opt_in = false` | Re-opt in (before deadline) | `meal_opt_in = true` |
 
 ---
 
-### 4.3 WFH Monthly Soft Limit
+### 4.3 Meal Type Activation
+
+Every working day has two meal types active by default: **Lunch** and **Snacks**. These are always available and do not require Admin activation.
+
+All other meal types are **inactive by default** and must be explicitly activated by an Admin for specific dates:
+
+| Meal Type | Key | Default | When Activated |
+| --- | --- | --- | --- |
+| Lunch | `LUNCH` | Always active | — |
+| Snacks | `SNACKS` | Always active | — |
+| Iftar | `IFTAR` | Inactive | Admin activates for Ramadan period |
+| Event Dinner | `EVENT_DINNER` | Inactive | Admin activates as needed |
+| Optional Dinner | `OPTIONAL_DINNER` | Inactive | Admin activates as needed |
+
+**Rules:**
+
+- Only active meal types are shown in the headcount "By Meal Type" breakdown (§4.5) and available for opt-out.
+- Activating a meal type for a date opts all employees in by default; employees may opt out before the cut-off.
+- `EVENT_DINNER` is activated automatically when an Admin configures an event day via `/event update`.
+
+---
+
+### 4.4 WFH Monthly Soft Limit
 
 Employees who set their work location to `WFH` are subject to a soft limit configured via the `WFH_MONTHLY_LIMIT` environment variable (default: `5`). Exceeding this limit does **not** block the update — a warning is appended to the ephemeral confirmation instead.
 
@@ -281,7 +304,7 @@ The count includes the record just written, so the warning fires as soon as the 
 - Not applied when Admin or Team Lead specifies a `user` (override bypass).
 - The limit is configured via the `WFH_MONTHLY_LIMIT` environment variable (default: `5`).
 
-### 4.4 Headcount Summary — `/headcount` Command
+### 4.5 Headcount Summary — `/headcount` Command
 
 The `/headcount` command is a single top-level command that provides a comprehensive daily headcount view scoped by role.
 
@@ -309,7 +332,7 @@ The `/headcount` command is a single top-level command that provides a comprehen
 The response includes four sections:
 
 1. **Overall total** — Total users opted in vs opted out across the organization (Admin) or team (Team Lead).
-2. **By meal type** — For each valid meal type (`LUNCH`, `SNACKS`, `IFTAR`, `EVENT_DINNER`, `OPTIONAL_DINNER`), the count of users opted in for that specific type. A user is counted as opted in for a meal type if `meal_opt_in == true` AND the meal type is NOT in their `opted_out_meals` list.
+2. **By meal type** — For each **active** meal type on that date (§4.3), the count of users opted in for that specific type. A user is counted as opted in for a meal type if `meal_opt_in == true` AND the meal type is NOT in their `opted_out_meals` list. Inactive meal types are omitted from the breakdown.
 3. **By team** — (Admin only) Breakdown of opted-in count per team. Requires team membership data in DynamoDB.
 4. **Office vs WFH split** — Count of all users (regardless of opt-in status) by work location (`OFFICE` vs `WFH`).
 
@@ -324,9 +347,7 @@ Total: 20 | Opted in: 15 | Opted out: 5
 **By Meal Type**
   Lunch: 14
   Snacks: 12
-  Iftar: 10
   Event Dinner: 15
-  Optional Dinner: 8
 
 **By Team**
   Engineering: 8
@@ -336,6 +357,8 @@ Total: 20 | Opted in: 15 | Opted out: 5
 **Office vs WFH**
   Office: 16 | WFH: 4
 ```
+
+> On a regular day only Lunch and Snacks appear. Event Dinner appears because this is a configured event day. Iftar and Optional Dinner are omitted as they are not active on this date.
 
 **Example output (Team Lead):**
 
@@ -348,9 +371,7 @@ Total: 6 | Opted in: 5 | Opted out: 1
 **By Meal Type**
   Lunch: 5
   Snacks: 4
-  Iftar: 3
   Event Dinner: 5
-  Optional Dinner: 2
 
 **Office vs WFH**
   Office: 5 | WFH: 1
