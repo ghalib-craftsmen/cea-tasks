@@ -155,7 +155,10 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
     now = datetime.now(tz)
     today = now.date()
 
-    target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    try:
+        target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
 
     if target <= today:
         return f"Cannot update records for today or a past date."
