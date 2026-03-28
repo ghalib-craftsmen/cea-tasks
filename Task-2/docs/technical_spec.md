@@ -327,6 +327,9 @@ On every interaction, the handler verifies that `space.name` matches `GCHAT_AUTH
 
 ## 4. Feature Specification
 
+> All features in this section are available on both Discord and Google Chat. The business logic, DynamoDB reads/writes, and cut-off enforcement are fully platform-agnostic. Platform differences are limited to how commands are invoked (§5.5) and how responses are delivered (§5.3). Where this section references role names (Admin, Team Lead, Employee), these map to Discord guild roles on Discord and to the DynamoDB-stored `role` attribute on Google Chat (§3.2).
+> **Terminology note:** "Ephemeral reply" means a response visible only to the invoking user. On Discord this is a native ephemeral message flag. On Google Chat this is a private message reply within the space, which has the same user-scoped visibility.
+
 ### 4.1 Cut-off Time
 
 The cut-off time is the daily deadline after which no more meal changes are accepted for the next working day. It is a single static value applied uniformly to every working day, configured via the `DEFAULT_CUTOFF_TIME` environment variable (default: `00:00`, midnight before the meal date).
@@ -350,7 +353,7 @@ if now < cutoff_datetime:
     → allow: cut-off has not yet been reached.
 ```
 
-**Override:** Users with the `@Admin` role can bypass the cut-off check for any user. `@Team Lead` can bypass it for their own team members. This allows last-minute corrections without a time gate.
+**Override:** Admin users can bypass the cut-off check for any user. Team Leads can bypass it for their own team members. This allows last-minute corrections without a time gate.
 
 ---
 
@@ -358,7 +361,7 @@ if now < cutoff_datetime:
 
 An "Event Meal" is a special catering day (e.g., company anniversary, team lunch). On event days, all employees are **opted in by default** — the kitchen prepares for full headcount unless someone explicitly opts out.
 
-Event days are defined in `config/events.json` and can be managed at runtime via `/event update` and `/event delete` (Admin only). The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`.
+Event days are defined in `config/events.json` and can be managed at runtime via `/event update` and `/event delete` (Admin only). The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`. On Discord the announcement is posted to `ANNOUNCEMENT_CHANNEL_ID`; on Google Chat it is posted to `GCHAT_ANNOUNCEMENT_SPACE`. If neither is configured the confirmation is sent as an ephemeral reply to the Admin only.
 
 **Employee opt-out flow:**
 
@@ -438,9 +441,9 @@ The `/headcount` command is a single top-level command that provides a comprehen
 
 | Role | Scope | Description |
 | --- | --- | --- |
-| `@Admin` | Organization-wide | Aggregate headcount summary across all users with team breakdown; or a specific user's record when `user` is provided. |
-| `@Team Lead` | Team-wide | Aggregate headcount summary for own team; or a specific team member's record when `user` is provided. |
-| `@everyone` (Employee) | Own history | Own 30-day meal and location history; or own record for a specific date when `date` is provided. |
+| Admin | Organization-wide | Aggregate headcount summary across all users with team breakdown; or a specific user's record when `user` is provided. |
+| Team Lead | Team-wide | Aggregate headcount summary for own team; or a specific team member's record when `user` is provided. |
+| Employee | Own history | Own 30-day meal and location history; or own record for a specific date when `date` is provided. |
 
 **Command signature:**
 
