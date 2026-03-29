@@ -1,7 +1,7 @@
 # Meal Headcount Planner — Discord Bot Integration
 
-**Version:** 1.2
-**Date:** 2026-03-13
+**Version:** 1.4
+**Date:** 2026-03-27
 **Status:** Draft
 
 ---
@@ -18,22 +18,21 @@ The Meal Headcount Planner (MHP) is an internal tool that helps kitchen/logistic
 
 - A **Discord bot** as a self-service input channel for employees.
 - A **serverless AWS backend** using Lambda, API Gateway, and DynamoDB.
-- A **structured web dashboard** with real-time updates and component-based UI.
 
 ### 1.3 Scope of This Document
 
 This specification covers:
 
-- Proposed AWS serverless architecture (not yet deployed via IaC).
+- AWS serverless architecture (implemented; IaC deployment deferred).
 - Cost optimization decisions for each AWS service.
 - Security model for Discord webhook validation, user identity, and role-based authorization.
-- Feature logic for cut-off time enforcement and Event Meal workflows.
+- Feature logic for cut-off time enforcement, event meal workflows, WFH periods, bulk operations, and team headcount.
 - Python project structure, module responsibilities, and dependency definitions.
-- API endpoint definitions for both Discord interactions and the backend REST API.
+- Discord slash command definitions and permission model.
 
 ---
 
-## 2. Proposed AWS Architecture
+## 2. AWS Architecture
 
 > **Note:** Infrastructure as Code (IaC) and CI/CD pipelines are out of scope for this iteration. This section documents the target architecture to guide future provisioning.
 
@@ -63,7 +62,7 @@ Command Lambda (business logic)
      └──► Discord API (send follow-up response)
 ```
 
-1. A Discord user triggers a slash command or button interaction.
+1. A Discord user triggers a slash command.
 2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
 3. API Gateway proxies the raw request (including signature headers) to the **Router Lambda**.
 4. The Router Lambda:
@@ -80,14 +79,14 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
 | **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint; fast cold-start. SnapStart eliminates cold-start latency. Requires Python 3.12 runtime. |
-| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. Independently deployable and scalable per command group. |
+| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint. SnapStart snapshots the initialized environment and restores it on cold starts, eliminating init latency. Requires Python 3.12 runtime. |
+| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. SnapStart applied on the published function version. Independently deployable per command group. |
 | **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
 ### 2.3 DynamoDB Data Model
 
-Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All 18 access patterns are served without Scans.
+Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All access patterns are served without Scans.
 
 **Table:** `MHP_Table`
 
@@ -109,7 +108,7 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All 18 a
 | User | `USER#<userId>` | `METADATA` | Yes |
 | Identity Mapping | `EXTID#<type>#<value>` | `EXTID#<type>#<value>` | No |
 | Team | `TEAM#<teamId>` | `METADATA` | Yes |
-| Meal Participation | `MEAL#<date>` | `USER#<userId>#<mealType>` | Yes |
+| Meal Participation | `MEAL#<date>` | `USER#<userId>` | Yes |
 | Work Location | `LOC#<date>` | `USER#<userId>` | Yes |
 | Special Day | `SPECIALDAY` | `<date>` | No |
 | Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
@@ -120,7 +119,7 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All 18 a
 | --- | --- | --- | --- |
 | User | `USERS` | `USER#<userId>` | Get all users |
 | Team | `TEAMS` | `TEAM#<teamId>` | Get all teams |
-| Meal Participation | `USER#<userId>` | `MEAL#<date>#<mealType>` | User's meal history across dates |
+| Meal Participation | `USER#<userId>` | `MEAL#<date>` | User's meal history across dates |
 | Work Location | `USER#<userId>` | `LOC#<date>` | User's location records for a month |
 
 Total GSIs: **1**
@@ -147,29 +146,15 @@ Every request from Discord includes two headers that must be validated **before 
 
 This check is called explicitly at the top of the Lambda handler before any routing or business logic executes.
 
-```python
-# Pseudocode — implementation detail, not production code
-def verify_discord_signature(
-    signature: str,  # from X-Signature-Ed25519
-    timestamp: str,  # from X-Signature-Timestamp
-    body: bytes,
-    public_key: str,  # DISCORD_PUBLIC_KEY env var
-) -> None:
-    message = timestamp.encode() + body
-    verify_key = VerifyKey(bytes.fromhex(public_key))
-    verify_key.verify(message, bytes.fromhex(signature))
-    # raises nacl.exceptions.BadSignatureError on failure
-```
-
 ### 3.2 Authorization — Discord Role-Based Access Control
 
 Authorization is enforced at the command handler level based on the Discord roles present in the interaction payload (`member.roles`). No external role store is needed; Discord's role system is the source of truth.
 
 | Role | Permission Level | Allowed Actions |
 | --- | --- | --- |
-| `@everyone` (Employee) | Standard | Update own meal opt-in, update own work location, view own status. |
-| `@Team Lead` | Elevated | All employee actions + view team headcount summary for any date. |
-| `@Admin` / `@Logistics` | Full | All team lead actions + view org-wide summary, override any employee's record. |
+| `@everyone` (Employee) | Standard | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
+| `@Team Lead` | Elevated | All employee actions + view and update meal/location for own team members. View team headcount summary, team members with WFH counts, and WFH periods. View any team member's history. |
+| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals. Override any user's meal or location record. |
 
 **Authorization flow:**
 
@@ -188,15 +173,16 @@ Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSetting
 | `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
 | `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
 | `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
-| `ROLE_ADMIN_ID` | Discord role ID for Admin/Logistics permission level. |
+| `ROLE_ADMIN_ID` | Discord role ID for Admin permission level. |
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
 | `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
-| `DEFAULT_CUTOFF_TIME` | Static cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
-| `INTERNAL_API_KEY` | Bearer token required by the backend REST API endpoints consumed by the dashboard (§5.5). |
+| `DEFAULT_CUTOFF_TIME` | Cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
+| `WFH_MONTHLY_LIMIT` | Maximum WFH days allowed per calendar month before a warning is shown (default: `5`) (§4.3). |
+| `COMMAND_LAMBDA_NAME` | Name of the Command Lambda function invoked by the Router Lambda to process business logic. |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
 
-### 3.4 User Identity — Discord OAuth2
+### 3.4 User Identity
 
 Discord's Interactions API embeds verified user identity directly inside the signed interaction payload. No separate OAuth2 token exchange is required for slash command interactions — the user's identity is established as part of the same request that is already validated by Ed25519 signature verification (§3.1).
 
@@ -205,17 +191,8 @@ Discord's Interactions API embeds verified user identity directly inside the sig
 | Field | Path in payload | Description |
 | --- | --- | --- |
 | `user_id` | `member.user.id` | Discord's unique, immutable snowflake ID for the user. Used as the primary key in DynamoDB (`USER#{user_id}`). |
-| `username` | `member.user.username` | Display name for bot responses. Not used for authorization decisions. |
 | `roles` | `member.roles` | List of Discord role IDs assigned to the user in the guild. Drives RBAC (§3.2). |
 | `guild_id` | `guild_id` | Confirms the interaction originates from the authorized guild. Requests from other guilds are rejected. |
-
-**Why no separate OAuth2 flow is needed:**
-
-Discord OAuth2 is required when a third-party app needs to act on behalf of a user outside of a guild interaction (e.g., access a user's DMs, read their profile). For slash command bots operating within a guild:
-
-- Discord authenticates the user when they invoke the command.
-- The signed payload (verified in §3.1) guarantees the identity fields have not been tampered with.
-- The `user_id` extracted from the payload is therefore trustworthy without any additional token exchange.
 
 **Guild authorization guard:**
 
@@ -248,7 +225,7 @@ if now < cutoff_datetime:
     → allow: cut-off has not yet been reached.
 ```
 
-**Admin override:** Users with the `@Admin` / `@Logistics` role can bypass the cut-off check entirely. This allows last-minute corrections without a time gate.
+**Override:** Users with the `@Admin` role can bypass the cut-off check for any user. `@Team Lead` can bypass it for their own team members. This allows last-minute corrections without a time gate.
 
 ---
 
@@ -256,64 +233,61 @@ if now < cutoff_datetime:
 
 An "Event Meal" is a special catering day (e.g., company anniversary, team lunch). On event days, all employees are **opted in by default** — the kitchen prepares for full headcount unless someone explicitly opts out.
 
-**Event day setup (static configuration):**
-
-Event days are defined in a static configuration file (`config/events.json`) bundled with the Lambda deployment package. Each entry specifies a date and description. The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1) — no separate per-event deadline is needed.
-
-```json
-[
-  { "date": "2026-03-15", "description": "Company anniversary lunch" },
-  { "date": "2026-06-01", "description": "Mid-year team lunch" }
-]
-```
-
-To add or modify event days, update `config/events.json` and redeploy the Lambda function. The bot can broadcast a one-time notification via a manual `/meal event announce <date>` command (Admin only), or the message can be posted manually.
+Event days are defined in `config/events.json` and can be managed at runtime via `/event update` and `/event delete` (Admin only). The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`.
 
 **Employee opt-out flow:**
 
-1. Employee uses `/meal optout <date>` or clicks the "Opt Out" button in the bot's announcement message.
-2. The system checks:
-   - Is the date flagged as an event day? If not → standard opt-in/out logic applies.
-   - Has the opt-out deadline passed? If yes → reject with an ephemeral message.
-3. If valid, the employee's `meal_opt_in` field is set to `false` for that date.
-4. Bot confirms with an ephemeral reply: _"You have opted out of the event meal on {date}."_
+1. Employee uses `/event optout <date>`.
+2. System verifies `<date>` is a configured event day — if not, responds with an ephemeral error.
+3. System checks the cut-off time has not passed for `<date>` — if passed, responds with an ephemeral error.
+4. If both checks pass, `meal_opt_in` is set to `false` for that date.
+5. Bot confirms the opt-out with an ephemeral reply.
 
-**Headcount calculation on event days:**
+**State transitions:**
 
-```text
-total_opted_out  = count of records where meal_opt_in == false for that date
-expected_count   = total_active_employees - total_opted_out
-```
-
-The system does **not** require every employee to explicitly opt in — absence of an opt-out record is treated as opt-in for event days only.
-
-**State transition summary:**
-
-| Scenario | Default State | Employee Action | Resulting State |
+| Scenario | Current State | Employee Action | Resulting State |
 | --- | --- | --- | --- |
 | Regular day | `meal_opt_in = true` | Opt out | `meal_opt_in = false` |
-| Regular day | `meal_opt_in = false` | Opt in | `meal_opt_in = true` |
-| Event meal day | Implicit opt-in (no record) | Opt out | `meal_opt_in = false` |
+| Regular day | `meal_opt_in = false` | Re-opt in | `meal_opt_in = true` |
+| Event meal day | `meal_opt_in = true` | Opt out | `meal_opt_in = false` |
 | Event meal day | `meal_opt_in = false` | Re-opt in (before deadline) | `meal_opt_in = true` |
 
 ---
 
-### 4.3 WFH Monthly Soft Limit
+### 4.3 Meal Type Activation
 
-Employees who set their work location to `WFH` are subject to a soft limit of **5 WFH days per calendar month**. Exceeding this limit does **not** block the update — a warning is appended to the ephemeral confirmation instead.
+Every working day has two meal types active by default: **Lunch** and **Snacks**. These are always available and do not require Admin activation.
+
+All other meal types are **inactive by default** and must be explicitly activated by an Admin for specific dates:
+
+| Meal Type | Key | Default | When Activated |
+| --- | --- | --- | --- |
+| Lunch | `LUNCH` | Always active | — |
+| Snacks | `SNACKS` | Always active | — |
+| Iftar | `IFTAR` | Inactive | Admin activates for Ramadan period |
+| Event Dinner | `EVENT_DINNER` | Inactive | Admin activates as needed |
+| Optional Dinner | `OPTIONAL_DINNER` | Inactive | Admin activates as needed |
+
+**Rules:**
+
+- Only active meal types are shown in the headcount "By Meal Type" breakdown (§4.5) and available for opt-out.
+- Activating a meal type for a date opts all employees in by default; employees may opt out before the cut-off.
+- `EVENT_DINNER` is activated automatically when an Admin configures an event day via `/event update`.
+
+---
+
+### 4.4 WFH Monthly Soft Limit
+
+Employees who set their work location to `WFH` are subject to a soft limit configured via the `WFH_MONTHLY_LIMIT` environment variable (default: `5`). Exceeding this limit does **not** block the update — a warning is appended to the ephemeral confirmation instead.
 
 **Enforcement logic:**
 
 ```text
 After a successful WFH location update:
 
-month_prefix = YYYY-MM derived from the target_date
-wfh_count    = count of items in MHP_Table where
-               GSI1PK = USER#<userId>
-               AND GSI1SK begins_with LOC#<month_prefix>
-               AND location == "WFH"   (client-side filter)
+wfh_count = count of WFH location records for the user in the target calendar month
 
-if wfh_count >= WFH_MONTHLY_LIMIT (5):
+if wfh_count >= WFH_MONTHLY_LIMIT:
     → append ephemeral warning to the confirmation message
     → update is NOT blocked
 ```
@@ -322,17 +296,88 @@ The count includes the record just written, so the warning fires as soon as the 
 
 **Warning message (ephemeral, appended to update confirmation):**
 
-> ⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: 5). Please coordinate with your team lead.
+> ⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {WFH_MONTHLY_LIMIT}). Please coordinate with your team lead.
 
 **Scope and exclusions:**
 
-- Applied only when `/meal update` sets `location=WFH`.
-- Not applied to Admin overrides (`/meal override`).
-- The limit is a constant (`5`) defined in `meal_service.py`; no environment variable is required.
+- Applied only when `/location set` sets `location=WFH`.
+- Not applied when Admin or Team Lead specifies a `user` (override bypass).
+- The limit is configured via the `WFH_MONTHLY_LIMIT` environment variable (default: `5`).
 
-**DynamoDB query used for the count:**
+### 4.5 Headcount Summary — `/headcount` Command
 
-`Query GSI1` on `MHP_Table` — `GSI1PK = USER#<userId>`, `GSI1SK begins_with LOC#<YYYY-MM>`. Returns all Work Location items for that user in the target month. Client-side filter then isolates `location == "WFH"` records.
+The `/headcount` command is a single top-level command that provides a comprehensive daily headcount view scoped by role.
+
+**Access control:**
+
+| Role | Scope | Description |
+| --- | --- | --- |
+| `@Admin` | Organization-wide | Aggregate headcount summary across all users with team breakdown; or a specific user's record when `user` is provided. |
+| `@Team Lead` | Team-wide | Aggregate headcount summary for own team; or a specific team member's record when `user` is provided. |
+| `@everyone` (Employee) | Own history | Own 30-day meal and location history; or own record for a specific date when `date` is provided. |
+
+**Command signature:**
+
+```text
+/headcount [date] [user]
+```
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `date` | String (YYYY-MM-DD) | No | Target date. Required for Team Lead / Admin aggregate view. Omit for Employee 30-day history. |
+| `user` | User mention | No | Team Lead / Admin only. Shows that user's record for the given date instead of aggregate. |
+
+**Response format:**
+
+The response includes four sections:
+
+1. **Overall total** — Total users opted in vs opted out across the organization (Admin) or team (Team Lead).
+2. **By meal type** — For each **active** meal type on that date (§4.3), the count of users opted in for that specific type. A user is counted as opted in for a meal type if `meal_opt_in == true` AND the meal type is NOT in their `opted_out_meals` list. Inactive meal types are omitted from the breakdown.
+3. **By team** — (Admin only) Breakdown of opted-in count per team. Requires team membership data in DynamoDB.
+4. **Office vs WFH split** — Count of all users (regardless of opt-in status) by work location (`OFFICE` vs `WFH`).
+
+**Example output (Admin):**
+
+```text
+**Org-wide Headcount for 2026-03-27** *(Event Day)*
+
+**Overall**
+Total: 20 | Opted in: 15 | Opted out: 5
+
+**By Meal Type**
+  Lunch: 14
+  Snacks: 12
+  Event Dinner: 15
+
+**By Team**
+  Engineering: 8
+  Design: 4
+  Operations: 3
+
+**Office vs WFH**
+  Office: 16 | WFH: 4
+```
+
+> On a regular day only Lunch and Snacks appear. Event Dinner appears because this is a configured event day. Iftar and Optional Dinner are omitted as they are not active on this date.
+
+**Example output (Team Lead):**
+
+```text
+**Team Headcount for 2026-03-27**
+
+**Overall**
+Total: 6 | Opted in: 5 | Opted out: 1
+
+**By Meal Type**
+  Lunch: 5
+  Snacks: 4
+  Event Dinner: 5
+
+**Office vs WFH**
+  Office: 5 | WFH: 1
+```
+
+> **Note:** Team-level filtering and the "By Team" breakdown require a team membership mapping (team roster) in DynamoDB. Until that data model is implemented, team leads will see the organization-wide summary, and the "By Team" section will be omitted.
 
 ---
 
@@ -346,47 +391,29 @@ The count includes the record just written, so the warning fires as soon as the 
 ### 5.2 Directory Layout
 
 ```text
-/
-├── app/
-│   ├── __init__.py
-│   ├── handler.py            # Lambda entry point — signature verification + command routing
-│   ├── config.py             # Pydantic Settings class (env var management)
-│   │
-│   ├── services/             # Business logic and DynamoDB interactions
-│   │   ├── __init__.py
-│   │   ├── meal_service.py   # Meal opt-in/out, cut-off enforcement, event meals
-│   │   ├── headcount_service.py  # Headcount aggregation and summary generation
-│   │   └── discord_service.py    # Discord REST API calls (follow-up messages)
-│   │
-│   └── models/               # Pydantic models (request/response schemas)
-│       ├── __init__.py
-│       ├── discord_models.py # Discord interaction payload schemas
-│       └── meal_models.py    # Meal record, event, and cut-off config schemas
-│
-├── config/
-│   └── events.json           # Static list of event meal dates and descriptions
-│
-├── docs/
-│   ├── technical_spec.md     # This document
-│   └── iterations/
-│       └── task-iteration1.md
-│
-├── requirements.txt          # Production dependencies
-├── requirements-dev.txt      # Development/test dependencies
-└── .env.example              # Template for local environment variables
+app/
+  router.py          — request verification & async dispatch
+  handler.py         — command routing & business logic
+  config.py          — environment variable management
+  services/          — business logic modules (meal, headcount, messaging)
+  models/            — data models for bot payloads and DynamoDB records
+config/              — static configuration files
+docs/                — technical spec and iteration notes
+register_commands.py — bot command registration script
+requirements.txt     — production dependencies
 ```
 
 ### 5.3 Module Responsibilities
 
 | Module | Responsibility |
 | --- | --- |
-| `app/handler.py` | Lambda entry point (`handler(event, context)`). Verifies Ed25519 signature, parses the interaction payload, and dispatches to the correct service function by command name. Returns a JSON-serialisable dict to API Gateway. |
+| `app/router.py` | Entry point for incoming requests. Verifies request signature, defers response, and async-invokes the Command Lambda. |
+| `app/handler.py` | Parses the interaction payload and dispatches to the correct service function by command name. |
 | `app/config.py` | Defines `Settings(BaseSettings)` — single source of truth for all env vars. |
 | `app/services/meal_service.py` | Implements cut-off time logic, opt-in/out writes, event meal state transitions. |
-| `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries; computes event day expected counts. |
-| `app/services/discord_service.py` | Sends deferred follow-up messages to Discord via REST after Lambda responds. |
-| `app/models/discord_models.py` | Typed Pydantic models for Discord interaction payloads, member objects, and options. |
-| `app/models/meal_models.py` | Typed Pydantic models for DynamoDB records: `MealRecord`. Also includes `EventConfig` for deserialising `config/events.json`. |
+| `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries and headcount aggregation. |
+| `app/services/discord_service.py` | Sends deferred follow-up messages to the bot platform via REST. |
+| `app/models/` | Data models for bot interaction payloads and DynamoDB records. |
 
 ### 5.4 Dependencies (`requirements.txt`)
 
@@ -404,40 +431,56 @@ The count includes the record just written, so the warning fires as soon as the 
 
 All endpoints are served under the Lambda function URL proxied through API Gateway.
 
-### Discord Endpoints
+#### Discord Endpoints
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord interaction events — slash commands, buttons, select menus. |
-| `GET` | `/health` | None | Health check endpoint for monitoring and load balancer integration. |
+| `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord slash command interactions. |
 
-### Discord Slash Commands
+#### Discord Slash Commands
 
-Registered via the Discord Developer Portal. Each command maps to a handler inside `app/handler.py`.
+Registered via the Discord Developer Portal. Each command maps to a handler.
+
+#### `/meal`
 
 | Command | Permission | Description |
 | --- | --- | --- |
-| `/meal status [date]` | Employee | Show own meal opt-in and work location for a date (defaults to today). |
-| `/meal update` | Employee | Update own meal opt-in or meal type for a date. |
-| `/meal location <date> <location>` | Employee | Set own work location (OFFICE or WFH) for a date. |
-| `/meal optout <date>` | Employee | Opt out of an event meal for a specific date. |
-| `/meal summary <date>` | Team Lead | Show team headcount summary for a date. |
-| `/meal summary-all <date>` | Admin | Show org-wide headcount summary for a date. |
-| `/meal override <user> <date>` | Admin | Override any employee's meal record. |
-| `/meal event announce <date>` | Admin | Broadcast the event meal announcement for a pre-configured event day. |
-| `/special-day view <date>` | Admin / Logistics | View the special-day configuration for a specific date (read-only; days are configured statically). |
+| `/meal status [user] [date]` | Employee / Team Lead / Admin | Show meal opt-in status for a date (defaults to today). Omitting `user` shows own status. Providing `user` requires Team Lead (own team only) or Admin. |
+| `/meal set <date> [opt_in] [meal_types] [user]` | Employee / Team Lead / Admin | Update meal opt-in/out for a date. Supports per-meal-type selection. Omitting `user` applies to self (cut-off enforced). Providing `user` requires Team Lead (own team only) or Admin (any user); bypasses cut-off. |
+| `/meal bulk <start_date> <end_date> <opt_in> [user]` | Employee / Team Lead / Admin | Set meal opt-in/out across a date range. `user` is optional — Admin/Team Lead can specify another user; employees apply to themselves. |
 
-### Backend REST API Endpoints
+#### `/location`
 
-Consumed by the web dashboard frontend, served under `/api/v1`. All require `Authorization: Bearer <INTERNAL_API_KEY>` and are not exposed to Discord.
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/location status [user] [date]` | Employee / Team Lead / Admin | Show work location for a date (defaults to today). Omitting `user` shows own location. Providing `user` requires Team Lead (own team only) or Admin. |
+| `/location set <date> <location> [user]` | Employee / Team Lead / Admin | Set work location (OFFICE or WFH) for a date. WFH automatically opts out of all meals. Omitting `user` applies to self (cut-off enforced). Providing `user` requires Team Lead (own team only) or Admin (any user); bypasses cut-off. |
+| `/location bulk <start_date> <end_date> <location> [user]` | Employee / Team Lead / Admin | Set work location across a date range. `user` is optional — Admin/Team Lead can specify another user; employees apply to themselves. |
 
-| Method | Path | Permission | Description |
-| --- | --- | --- | --- |
-| `GET` | `/api/v1/meals/{date}` | Admin / Team Lead | Get all meal records for a date. Supports `?team_id=` filter. |
-| `GET` | `/api/v1/meals/{date}/{user_id}` | Admin / Team Lead | Get a single user's meal record for a date. |
-| `PUT` | `/api/v1/meals/{date}/{user_id}` | Admin | Create or update a meal record for a user on a date. |
-| `GET` | `/api/v1/headcount/{date}` | Admin | Org-wide headcount summary for a date. |
-| `GET` | `/api/v1/headcount/{date}/teams/{team_id}` | Team Lead | Team-level headcount summary for a date. |
+#### Headcount & Team
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/headcount [date] [user]` | Employee / Team Lead / Admin | **Employee:** shows own 30-day meal and location history; providing `date` narrows to that specific date. **Team Lead / Admin:** `date` required — without `user` shows aggregate headcount summary (meal-type breakdown, team split, office/WFH split; Admin org-wide, Team Lead team-wide); with `user` shows that user's record for the date. Team Lead restricted to own team. |
+| `/team-members` | Team Lead / Admin | View team members with their WFH day counts for the current month. |
+
+#### `/wfh-periods`
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/wfh-periods set <start_date> <end_date>` | Admin | Set company-wide WFH schedule across a date range. |
+| `/wfh-periods delete <start_date> <end_date>` | Admin | Delete company-wide WFH schedule for a date range. |
+| `/wfh-periods list` | All | List all company-wide WFH periods within the next 2 months. |
+
+#### `/event`
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the channel. |
+| `/event optout <date>` | Employee | Opt out of an event meal day for a specific date. |
+| `/event list` | All | Show all configured special event days. |
+| `/event update <date>` | Admin | Update an existing event day's configuration. |
+| `/event delete <date>` | Admin | Delete a configured event day. |
 
 ---
 
@@ -450,9 +493,7 @@ The following are explicitly deferred and must not be implemented until a subseq
 | Infrastructure as Code (IaC) | Terraform / CDK configuration requires a stable, tested application before provisioning. |
 | CI/CD pipeline | GitHub Actions deployment workflow depends on IaC being in place first. |
 | AWS Secrets Manager integration | Env vars managed manually for now; Secrets Manager adds operational complexity before the app is validated. |
-| DynamoDB table creation | Table will be provisioned manually or via IaC in a future iteration. |
 | Automated tests | Unit and integration test scaffolding is deferred until the core service layer is stable. |
-| Web dashboard changes | Dashboard updates are tracked separately under the FE track of this sprint. |
 
 ---
 
@@ -463,8 +504,6 @@ Items identified during architecture design that are intentionally queued for la
 - **IaC (Terraform/CDK):** Define all AWS resources (API Gateway, Lambda, DynamoDB, IAM roles) as code for reproducible deployments.
 - **CI/CD (GitHub Actions):** Automate linting, testing, packaging, and Lambda deployment on merge to `main`.
 - **AWS Secrets Manager:** Migrate `DISCORD_BOT_TOKEN` and `DISCORD_PUBLIC_KEY` from environment variables to Secrets Manager with automatic rotation.
-- **DynamoDB Streams → async processing:** Trigger a secondary Lambda on record changes to push live updates to the web dashboard without polling.
-- **Lambda SnapStart:** Enable SnapStart on the published function version (Python 3.12 runtime). AWS takes a snapshot of the initialized execution environment after the first init and restores it on subsequent cold starts, reducing latency to near-warm levels. No scheduled pings, no provisioned concurrency, no additional cost beyond standard invocation pricing.
 - **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics.
 - **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse.
 
