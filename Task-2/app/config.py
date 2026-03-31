@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Announcement channel (optional — used by /event announce)
     announcement_channel_id: str = ""
 
+    # Google Chat
+    gchat_audience: str = ""
+    gchat_authorized_space: str = ""
+    gchat_announcement_space: str = ""
 
 
-settings = Settings()  
+settings = Settings()

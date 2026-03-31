@@ -2,5 +2,6 @@ boto3
 pydantic
 pydantic-settings
 pynacl
+google-auth
 python-dotenv
 tzdata
