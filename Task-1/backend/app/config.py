@@ -19,7 +19,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["*"]
 CORS_ALLOW_HEADERS = ["*"]
 
-UVICORN_HOST = "127.0.0.1"
+UVICORN_HOST = os.getenv("UVICORN_HOST", "127.0.0.1")
 UVICORN_PORT = 8000
 
 # Scheduling: how many days ahead employees can plan meals/locations
