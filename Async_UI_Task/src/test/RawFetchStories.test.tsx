@@ -15,13 +15,13 @@ const mockStory: HNStory = {
 
 describe("RawFetchStories", () => {
   it("shows loading skeleton initially", () => {
-    global.fetch = vi.fn().mockReturnValue(new Promise(() => {}));
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(() => {})));
     render(<RawFetchStories query="" onStoryClick={vi.fn()} />);
     expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
   });
 
   it("shows stories after successful fetch", async () => {
-    global.fetch = vi.fn()
+    vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve([1]),
@@ -29,7 +29,7 @@ describe("RawFetchStories", () => {
       .mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockStory),
-      } as unknown as Response);
+      } as unknown as Response));
 
     render(<RawFetchStories query="" onStoryClick={vi.fn()} />);
     await waitFor(() =>
@@ -38,7 +38,7 @@ describe("RawFetchStories", () => {
   });
 
   it("shows error state on fetch failure", async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
     render(<RawFetchStories query="" onStoryClick={vi.fn()} />);
     await waitFor(() =>
       expect(screen.getByText("Something went wrong")).toBeInTheDocument()
@@ -46,17 +46,18 @@ describe("RawFetchStories", () => {
   });
 
   it("uses search endpoint when query is provided", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ hits: [] }),
     } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<RawFetchStories query="react" onStoryClick={vi.fn()} />);
     await waitFor(() =>
       expect(screen.getByText("No stories found")).toBeInTheDocument()
     );
 
-    const url = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain("hn.algolia.com");
     expect(url).toContain("react");
   });

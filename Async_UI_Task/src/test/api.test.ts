@@ -24,10 +24,10 @@ const mockAlgoliaHit: AlgoliaStory = {
 
 describe("fetchStory", () => {
   it("returns a story on success", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockStory),
-    } as unknown as Response);
+    } as unknown as Response));
 
     const story = await fetchStory(1);
     expect(story.id).toBe(1);
@@ -35,19 +35,19 @@ describe("fetchStory", () => {
   });
 
   it("throws on non-ok response", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,
       status: 404,
-    } as unknown as Response);
+    } as unknown as Response));
 
     await expect(fetchStory(1)).rejects.toThrow("404");
   });
 
   it("throws when story is null", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(null),
-    } as unknown as Response);
+    } as unknown as Response));
 
     await expect(fetchStory(1)).rejects.toThrow("not found");
   });
@@ -55,7 +55,7 @@ describe("fetchStory", () => {
 
 describe("fetchTopStories", () => {
   it("fetches IDs then fetches each story", async () => {
-    global.fetch = vi.fn()
+    vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve([1, 2]),
@@ -63,7 +63,7 @@ describe("fetchTopStories", () => {
       .mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockStory),
-      } as unknown as Response);
+      } as unknown as Response));
 
     const stories = await fetchTopStories(2);
     expect(stories.length).toBeGreaterThanOrEqual(1);
@@ -71,7 +71,7 @@ describe("fetchTopStories", () => {
 
   it("filters out non-story types", async () => {
     const jobItem = { ...mockStory, type: "job" as const };
-    global.fetch = vi.fn()
+    vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve([1]),
@@ -79,7 +79,7 @@ describe("fetchTopStories", () => {
       .mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(jobItem),
-      } as unknown as Response);
+      } as unknown as Response));
 
     const stories = await fetchTopStories(1);
     expect(stories).toHaveLength(0);
@@ -88,10 +88,10 @@ describe("fetchTopStories", () => {
 
 describe("searchStories", () => {
   it("returns normalized stories from Algolia", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ hits: [mockAlgoliaHit] }),
-    } as unknown as Response);
+    } as unknown as Response));
 
     const results = await searchStories("hello");
     expect(results).toHaveLength(1);
@@ -100,10 +100,10 @@ describe("searchStories", () => {
   });
 
   it("throws on failed search", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
-    } as unknown as Response);
+    } as unknown as Response));
 
     await expect(searchStories("test")).rejects.toThrow("500");
   });
