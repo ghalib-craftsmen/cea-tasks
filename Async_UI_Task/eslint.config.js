@@ -3,10 +3,11 @@ import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
-export default tseslint.config(
+export default [
   { ignores: ["dist", "coverage"] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": reactHooks,
@@ -19,5 +20,5 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
     },
-  }
-);
+  },
+];
