@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import SearchBar from "../components/SearchBar";
 import RawFetchStories from "../components/RawFetchStories";
 import ReactQueryStories from "../components/ReactQueryStories";
@@ -9,9 +9,15 @@ type Mode = "raw" | "rq";
 
 function HomePage() {
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<Mode>("rq");
   const debouncedQuery = useDebounce(query, 300);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const mode: Mode = searchParams.get("mode") === "raw" ? "raw" : "rq";
+
+  function setMode(m: Mode) {
+    setSearchParams({ mode: m }, { replace: true });
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -54,12 +60,12 @@ function HomePage() {
       {mode === "rq" ? (
         <ReactQueryStories
           query={debouncedQuery}
-          onStoryClick={(id) => navigate(`/item/${id}`)}
+          onStoryClick={(id) => navigate(`/item/${id}?mode=${mode}`)}
         />
       ) : (
         <RawFetchStories
           query={debouncedQuery}
-          onStoryClick={(id) => navigate(`/item/${id}`)}
+          onStoryClick={(id) => navigate(`/item/${id}?mode=${mode}`)}
         />
       )}
     </div>
