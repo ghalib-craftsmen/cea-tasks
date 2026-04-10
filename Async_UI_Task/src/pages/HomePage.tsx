@@ -1,117 +1,66 @@
-import { useEffect, useReducer, useCallback, useState, useRef } from "react";
-import type { HNStory } from "../types/hn";
-import { fetchTopStories, searchStories } from "../api/hn";
-import StoryCard from "../components/StoryCard";
-import SkeletonCard from "../components/SkeletonCard";
-import ErrorMessage from "../components/ErrorMessage";
-import EmptyState from "../components/EmptyState";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 import SearchBar from "../components/SearchBar";
+import RawFetchStories from "../components/RawFetchStories";
+import ReactQueryStories from "../components/ReactQueryStories";
+import useDebounce from "../hooks/useDebounce";
 
-type State =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "success"; stories: HNStory[] };
-
-type Action =
-  | { type: "FETCH_START" }
-  | { type: "FETCH_SUCCESS"; stories: HNStory[] }
-  | { type: "FETCH_ERROR"; message: string };
-
-function reducer(_: State, action: Action): State {
-  switch (action.type) {
-    case "FETCH_START":
-      return { status: "loading" };
-    case "FETCH_SUCCESS":
-      return { status: "success", stories: action.stories };
-    case "FETCH_ERROR":
-      return { status: "error", message: action.message };
-  }
-}
+type Mode = "raw" | "rq";
 
 function HomePage() {
-  const [state, dispatch] = useReducer(reducer, { status: "loading" });
   const [query, setQuery] = useState("");
-  const abortRef = useRef<AbortController | null>(null);
-
-  const loadStories = useCallback(() => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    dispatch({ type: "FETCH_START" });
-
-    fetchTopStories(20, controller.signal)
-      .then((stories) => dispatch({ type: "FETCH_SUCCESS", stories }))
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        const message =
-          err instanceof Error ? err.message : "Unexpected error occurred";
-        dispatch({ type: "FETCH_ERROR", message });
-      });
-  }, []);
-
-  useEffect(() => {
-    loadStories();
-    return () => abortRef.current?.abort();
-  }, [loadStories]);
-
-  useEffect(() => {
-    if (!query.trim()) return;
-
-    const timer = setTimeout(() => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      dispatch({ type: "FETCH_START" });
-
-      searchStories(query.trim(), controller.signal)
-        .then((stories) => dispatch({ type: "FETCH_SUCCESS", stories }))
-        .catch((err: unknown) => {
-          if (err instanceof Error && err.name === "AbortError") return;
-          const message =
-            err instanceof Error ? err.message : "Unexpected error occurred";
-          dispatch({ type: "FETCH_ERROR", message });
-        });
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  useEffect(() => {
-    if (query.trim() === "") loadStories();
-  }, [query, loadStories]);
+  const [mode, setMode] = useState<Mode>("rq");
+  const debouncedQuery = useDebounce(query, 300);
+  const navigate = useNavigate();
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Top Stories</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold text-gray-900">Top Stories</h1>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+          <button
+            onClick={() => setMode("rq")}
+            className={`px-3 py-1.5 transition-colors ${
+              mode === "rq"
+                ? "bg-orange-500 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            React Query
+          </button>
+          <button
+            onClick={() => setMode("raw")}
+            className={`px-3 py-1.5 border-l border-gray-200 transition-colors ${
+              mode === "raw"
+                ? "bg-orange-500 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            Raw Fetch
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-4 text-xs text-gray-400">
+        {mode === "rq"
+          ? "React Query — cached results load instantly on repeat visits"
+          : "Raw Fetch — always refetches, no caching"}
+      </div>
 
       <div className="mb-6">
         <SearchBar value={query} onChange={setQuery} />
       </div>
 
-      {state.status === "loading" && (
-        <div className="space-y-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      )}
-
-      {state.status === "error" && (
-        <ErrorMessage message={state.message} onRetry={loadStories} />
-      )}
-
-      {state.status === "success" && state.stories.length === 0 && (
-        <EmptyState />
-      )}
-
-      {state.status === "success" && state.stories.length > 0 && (
-        <div className="space-y-3">
-          {state.stories.map((story) => (
-            <StoryCard key={story.id} story={story} onClick={() => {}} />
-          ))}
-        </div>
+      {mode === "rq" ? (
+        <ReactQueryStories
+          query={debouncedQuery}
+          onStoryClick={(id) => navigate(`/item/${id}`)}
+        />
+      ) : (
+        <RawFetchStories
+          query={debouncedQuery}
+          onStoryClick={(id) => navigate(`/item/${id}`)}
+        />
       )}
     </div>
   );
