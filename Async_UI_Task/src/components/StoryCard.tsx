@@ -51,7 +51,7 @@ function StoryCard({ story, onClick }: Props) {
           {domain && (
             <p className="text-xs text-gray-400 mt-0.5 truncate">{domain}</p>
           )}
-          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
             <span>{story.score} pts</span>
             <span>by {story.by}</span>
             <span>{story.descendants ?? 0} comments</span>

@@ -17,10 +17,10 @@ function ItemPage() {
   const { data: story, isLoading, isError, error, refetch } = useStory(storyId);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
+    <div className="max-w-2xl mx-auto px-4 py-5">
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-6 transition-colors"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-6 min-h-[44px] transition-colors"
       >
         ← Back
       </button>
@@ -42,7 +42,7 @@ function ItemPage() {
 
       {story && (
         <div>
-          <h1 className="text-lg font-bold text-gray-900 leading-snug mb-3">
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 leading-snug mb-3">
             {story.title}
           </h1>
 
@@ -57,7 +57,7 @@ function ItemPage() {
             </a>
           )}
 
-          <div className="flex flex-wrap gap-4 mt-4 text-sm text-gray-500 border-t border-gray-100 pt-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 text-sm text-gray-500 border-t border-gray-100 pt-4">
             <span>
               <span className="font-medium text-gray-700">{story.score}</span> points
             </span>
@@ -70,16 +70,14 @@ function ItemPage() {
             </span>
           </div>
 
-          {story.url && (
-            <a
-              href={`https://news.ycombinator.com/item?id=${story.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block mt-6 px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-            >
-              View discussion on HN
-            </a>
-          )}
+          <a
+            href={`https://news.ycombinator.com/item?id=${story.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block mt-6 px-4 py-2.5 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            View discussion on Hacker News
+          </a>
         </div>
       )}
     </div>

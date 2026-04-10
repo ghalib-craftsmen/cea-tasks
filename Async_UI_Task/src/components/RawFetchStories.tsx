@@ -73,7 +73,7 @@ function RawFetchStories({ query, onStoryClick }: Props) {
       : "network";
 
   return (
-    <div className="rounded-lg border border-orange-200 p-4 bg-orange-50/30">
+    <div>
       <FetchStatusBadge state={badgeState} elapsedMs={elapsedMs ?? 0} />
       <StoryList
         stories={state.status === "success" ? state.stories : undefined}

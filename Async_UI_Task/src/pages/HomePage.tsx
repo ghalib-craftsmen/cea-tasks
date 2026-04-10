@@ -20,26 +20,36 @@ function HomePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-gray-900">Top Stories</h1>
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Top Stories
+          </h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {mode === "rq"
+              ? "Cached - revisit any query instantly"
+              : "Raw fetch - always hits the network"}
+          </p>
+        </div>
+
+        <div className="flex items-center bg-gray-100 rounded-xl p-1 w-fit">
           <button
             onClick={() => setMode("rq")}
-            className={`px-3 py-1.5 transition-colors ${
+            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all ${
               mode === "rq"
-                ? "bg-orange-500 text-white"
-                : "bg-white text-gray-600 hover:bg-gray-50"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
             }`}
           >
             React Query
           </button>
           <button
             onClick={() => setMode("raw")}
-            className={`px-3 py-1.5 border-l border-gray-200 transition-colors ${
+            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all ${
               mode === "raw"
-                ? "bg-orange-500 text-white"
-                : "bg-white text-gray-600 hover:bg-gray-50"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
             }`}
           >
             Raw Fetch
@@ -47,13 +57,7 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="mb-4 text-xs text-gray-400">
-        {mode === "rq"
-          ? "React Query — cached results load instantly on repeat visits"
-          : "Raw Fetch — always refetches, no caching"}
-      </div>
-
-      <div className="mb-6">
+      <div className="mb-5">
         <SearchBar value={query} onChange={setQuery} />
       </div>
 

@@ -37,7 +37,7 @@ function ReactQueryStories({ query, onStoryClick }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-blue-200 p-4 bg-blue-50/30">
+    <div>
       <FetchStatusBadge state={badgeState} elapsedMs={elapsedMs ?? 0} />
       <StoryList
         stories={stories}
