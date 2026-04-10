@@ -19,8 +19,3 @@ export interface AlgoliaStory {
   num_comments: number;
 }
 
-export interface AlgoliaSearchResult {
-  hits: AlgoliaStory[];
-  nbHits: number;
-  query: string;
-}
