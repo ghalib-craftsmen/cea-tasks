@@ -405,7 +405,10 @@ def _handle_team_members(interaction: DiscordInteraction, options: list) -> tupl
 
     members = team_service.get_team_members(team["team_id"])
     month_prefix = str(_date.today())[:7]
-    wfh_summary = meal_service.get_monthly_wfh_summary(month_prefix)
+    try:
+        wfh_summary = meal_service.get_monthly_wfh_summary(month_prefix)
+    except RuntimeError:
+        return _reply("Failed to retrieve WFH data. Please try again later.")
     member_lines = "\n".join(
         f"  <@{uid}> — WFH this month: {wfh_summary.get(uid, 0)}"
         for uid in members

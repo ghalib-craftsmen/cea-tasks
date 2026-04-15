@@ -487,5 +487,6 @@ def get_monthly_wfh_summary(month_prefix: str) -> dict[str, int]:
                     wfh_counts[uid] = wfh_counts.get(uid, 0) + 1
         except ClientError as e:
             logger.error("DynamoDB query failed for LOC#%s: %s", d, e)
+            raise RuntimeError(f"Failed to fetch WFH data for {d}") from e
 
     return wfh_counts
