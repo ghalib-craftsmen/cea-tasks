@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
+_client = boto3.client("dynamodb", region_name=settings.aws_region)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
@@ -138,8 +139,20 @@ def update_event(date: str, description: str, set_by: str) -> str:
 def delete_event(date: str) -> str:
     """Delete an event day from DynamoDB."""
     try:
-        _table.delete_item(Key={"PK": "SPECIALDAY", "SK": date})
-        deactivate_meal_type(date, "EVENT_DINNER")
+        _client.transact_write_items(TransactItems=[
+            {
+                "Delete": {
+                    "TableName": settings.dynamodb_table,
+                    "Key": {"PK": {"S": "SPECIALDAY"}, "SK": {"S": date}},
+                }
+            },
+            {
+                "Delete": {
+                    "TableName": settings.dynamodb_table,
+                    "Key": {"PK": {"S": f"ACTIVEMEAL#{date}"}, "SK": {"S": "EVENT_DINNER"}},
+                }
+            },
+        ])
         return f"Event day **{date}** has been deleted."
     except ClientError as e:
         logger.error("Failed to delete event %s: %s", date, e)
