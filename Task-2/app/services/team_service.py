@@ -14,39 +14,51 @@ logger = logging.getLogger(__name__)
 
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
+_client = boto3.client("dynamodb", region_name=settings.aws_region)
 
 
 def create_team(team_id: str, name: str, lead_user_id: str, created_by: str) -> str:
     """Create a new team and add the lead as its first member."""
     try:
         now = datetime.now(ZoneInfo(settings.timezone)).isoformat()
-        _table.put_item(
-            Item={
-                "PK": "TEAM",
-                "SK": team_id,
-                "team_id": team_id,
-                "name": name,
-                "lead_user_id": lead_user_id,
-                "created_by": created_by,
-                "created_at": now,
+        _client.transact_write_items(TransactItems=[
+            {
+                "Put": {
+                    "TableName": settings.dynamodb_table,
+                    "Item": {
+                        "PK": {"S": "TEAM"},
+                        "SK": {"S": team_id},
+                        "team_id": {"S": team_id},
+                        "name": {"S": name},
+                        "lead_user_id": {"S": lead_user_id},
+                        "created_by": {"S": created_by},
+                        "created_at": {"S": now},
+                    },
+                    "ConditionExpression": "attribute_not_exists(SK)",
+                },
             },
-            ConditionExpression="attribute_not_exists(SK)",
-        )
-        # Add lead as a member of their own team
-        _table.put_item(Item={
-            "PK": f"TEAMMEMBER#{team_id}",
-            "SK": f"USER#{lead_user_id}",
-            "GSI1PK": f"USER#{lead_user_id}",
-            "GSI1SK": f"TEAMMEMBER#{team_id}",
-            "team_id": team_id,
-            "user_id": lead_user_id,
-            "added_by": created_by,
-            "added_at": now,
-        })
+            {
+                "Put": {
+                    "TableName": settings.dynamodb_table,
+                    "Item": {
+                        "PK": {"S": f"TEAMMEMBER#{team_id}"},
+                        "SK": {"S": f"USER#{lead_user_id}"},
+                        "GSI1PK": {"S": f"USER#{lead_user_id}"},
+                        "GSI1SK": {"S": f"TEAMMEMBER#{team_id}"},
+                        "team_id": {"S": team_id},
+                        "user_id": {"S": lead_user_id},
+                        "added_by": {"S": created_by},
+                        "added_at": {"S": now},
+                    },
+                },
+            },
+        ])
         return f"Team **{name}** (`{team_id}`) created with <@{lead_user_id}> as lead."
     except ClientError as e:
-        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            return f"Team `{team_id}` already exists."
+        if e.response["Error"]["Code"] == "TransactionCanceledException":
+            reasons = e.response.get("CancellationReasons", [])
+            if reasons and reasons[0].get("Code") == "ConditionalCheckFailed":
+                return f"Team `{team_id}` already exists."
         logger.error("Failed to create team %s: %s", team_id, e)
         raise
 
