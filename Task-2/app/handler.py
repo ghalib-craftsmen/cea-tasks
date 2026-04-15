@@ -43,7 +43,7 @@ def _discord_to_bot_context(interaction: DiscordInteraction) -> BotContext:
         raw_options = list(interaction.data.options)
         if raw_options and raw_options[0].type == 1:
             subcommand = raw_options[0].name
-            raw_options = list(raw_options[0].options)
+            raw_options = list(raw_options[0].options or [])
         options = {opt.name: opt.value for opt in raw_options}
 
     return BotContext(
