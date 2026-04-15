@@ -1,7 +1,7 @@
-# Meal Headcount Planner — Discord Bot Integration
+# Meal Headcount Planner — Multi-Platform Bot Integration (Discord + Google Chat)
 
-**Version:** 1.4
-**Date:** 2026-03-27
+**Version:** 2
+**Date:** 2026-03-29
 **Status:** Draft
 
 ---
@@ -10,14 +10,17 @@
 
 ### 1.1 Purpose
 
-This document defines the technical architecture, security model, and feature scope for integrating a Discord bot into the Meal Headcount Planner (MHP) system. It serves as the authoritative reference for implementation decisions during Task 2 and guides future infrastructure provisioning.
+This document defines the technical architecture, security model, and feature scope for integrating both a Discord bot and a Google Chat bot into the Meal Headcount Planner (MHP) system. Both bots run in parallel, share a single DynamoDB table, and expose identical business functionality to users on either platform. It serves as the authoritative reference for implementation decisions during Task 2 and guides future infrastructure provisioning.
 
 ### 1.2 Project Summary
 
 The Meal Headcount Planner (MHP) is an internal tool that helps kitchen/logistics teams accurately predict daily meal counts. Task 2 evolves the system from a standalone web tool into a production-grade platform by adding:
 
-- A **Discord bot** as a self-service input channel for employees.
-- A **serverless AWS backend** using Lambda, API Gateway, and DynamoDB.
+- A **Discord bot** as a self-service input channel for employees on Discord.
+- A **Google Chat bot** as a self-service input channel for employees on Google Chat.
+- A **serverless AWS backend** using Lambda, API Gateway, and DynamoDB, shared by both bots.
+
+All business logic, data storage, and feature behaviour are platform-agnostic. Platform-specific code is limited to request verification, identity resolution, and message delivery.
 
 ### 1.3 Scope of This Document
 
@@ -25,10 +28,10 @@ This specification covers:
 
 - AWS serverless architecture (implemented; IaC deployment deferred).
 - Cost optimization decisions for each AWS service.
-- Security model for Discord webhook validation, user identity, and role-based authorization.
+- Security model for Discord Ed25519 signature validation and Google Chat JWT verification, user identity, and role-based authorization.
 - Feature logic for cut-off time enforcement, event meal workflows, WFH periods, bulk operations, and team headcount.
 - Python project structure, module responsibilities, and dependency definitions.
-- Discord slash command definitions and permission model.
+- Slash command definitions and permission model for both Discord and Google Chat.
 
 ---
 
@@ -38,6 +41,10 @@ This specification covers:
 
 ### 2.1 Serverless Request Flow
 
+Both platforms follow the same Lambda + DynamoDB pattern. They share the **Command Lambda** and the **DynamoDB table**. Platform-specific code is confined to the Router Lambda layer.
+
+#### Discord Flow
+
 ```text
 Discord User
      │
@@ -45,32 +52,70 @@ Discord User
      ▼
 Discord API
      │
-     │  HTTP POST (signed webhook)
+     │  HTTP POST (Ed25519-signed)  →  POST /interactions
      ▼
 API Gateway (HTTP API)
      │
      │  Proxy integration
      ▼
-Router Lambda (sig verification + routing)
+Discord Router Lambda (Ed25519 verification + routing)
      │
-     │  Invoke
+     │  Invoke (async)
      ▼
 Command Lambda (business logic)
      │
      ├──► DynamoDB (read / write)
      │
-     └──► Discord API (send follow-up response)
+     └──► Discord API (deferred follow-up response)
 ```
 
 1. A Discord user triggers a slash command.
-2. Discord sends a signed HTTP POST to the **API Gateway HTTP API** endpoint.
-3. API Gateway proxies the raw request (including signature headers) to the **Router Lambda**.
-4. The Router Lambda:
+2. Discord sends a signed HTTP POST to `POST /interactions` on the **API Gateway HTTP API**.
+3. API Gateway proxies the raw request (including signature headers) to the **Discord Router Lambda**.
+4. The Discord Router Lambda:
    - Validates the Ed25519 signature (reject immediately if invalid).
-   - Parses the interaction payload and invokes the appropriate **Command Lambda** by command group.
+   - Returns an immediate `HTTP 200` deferred acknowledgement to Discord.
+   - Async-invokes the **Command Lambda** with the interaction payload.
 5. The Command Lambda runs the business logic:
    - Reads from / writes to **DynamoDB**.
-   - Returns a JSON response to Discord (or defers and sends a follow-up).
+   - Posts the result back to Discord via the follow-up webhook.
+
+#### Google Chat Flow
+
+```text
+Google Chat User
+     │
+     │  Slash Command / Message Event
+     ▼
+Google Chat API
+     │
+     │  HTTP POST (JWT-signed)  →  POST /gchat/interactions
+     ▼
+API Gateway (HTTP API)
+     │
+     │  Proxy integration
+     ▼
+GChat Router Lambda (JWT verification + routing)
+     │
+     │  Invoke (async)
+     ▼
+Command Lambda (business logic)          ← same Lambda as Discord
+     │
+     ├──► DynamoDB (read / write)         ← same table as Discord
+     │
+     └──► Google Chat API (async reply via REST)
+```
+
+1. A Google Chat user triggers a slash command in a configured space.
+2. Google Chat sends a JWT-signed HTTP POST to `POST /gchat/interactions` on the **API Gateway HTTP API**.
+3. API Gateway proxies the request to the **GChat Router Lambda**.
+4. The GChat Router Lambda:
+   - Validates the Google-issued JWT bearer token (reject immediately if invalid).
+   - Returns an immediate `HTTP 200` acknowledgement to Google Chat.
+   - Async-invokes the **Command Lambda** with a normalised interaction payload.
+5. The Command Lambda runs the same business logic:
+   - Reads from / writes to **DynamoDB** (shared with Discord).
+   - Posts the result back to Google Chat via the Chat REST API.
 
 ### 2.2 Service Selection & Cost Optimization
 
@@ -78,10 +123,11 @@ All service choices minimize cost for low-to-medium usage internal tooling with 
 
 | Service | Tier / Config | Cost Decision | Impact |
 | --- | --- | --- | --- |
-| **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. |
-| **Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: signature verification + routing only | Minimal memory footprint. SnapStart snapshots the initialized environment and restores it on cold starts, eliminating init latency. Requires Python 3.12 runtime. |
-| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Business logic per command group | Higher memory allocation for DynamoDB queries and response construction. SnapStart applied on the published function version. Independently deployable per command group. |
-| **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically with bursty morning headcount traffic. |
+| **API Gateway** | HTTP API | HTTP API over REST API | ~70% cheaper per request; REST-only features (transformation, usage plans) are not needed. Both `/interactions` and `/gchat/interactions` are routes on the same HTTP API. |
+| **Discord Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: Ed25519 verification + routing only | Minimal memory footprint. SnapStart eliminates cold-start latency. Requires Python 3.12 runtime. |
+| **GChat Router Lambda** | `arm64`, 256 MB, SnapStart enabled | Lightweight: JWT verification + routing only | Same profile as Discord Router. Separate function keeps platform verification code isolated and independently deployable. |
+| **Command Lambda** | `arm64`, 512 MB, SnapStart enabled | Shared business logic for both platforms | Single function invoked by both Router Lambdas. Higher memory for DynamoDB queries and response construction. Independently deployable. |
+| **DynamoDB** | On-Demand capacity | No provisioned capacity | Zero cost at rest; scales automatically. Single table shared by both bots — no duplication of data. |
 | **CloudWatch Logs** | 60-day retention | Minimal log retention | Prevents unbounded storage accumulation; sufficient for operational debugging. |
 
 ### 2.3 DynamoDB Data Model
@@ -116,6 +162,24 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All acce
 | Active Meal Type | `ACTIVEMEAL#<date>` | `<meal_type>` | No |
 | Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
 
+**Google Chat identity mapping:**
+
+Google Chat does not embed a globally unique immutable user ID in slash command payloads the same way Discord does. The Google Chat sender carries a `name` field (`users/<googleUserId>`) and an `email`. An `EXTID#GCHAT#<googleUserId>` item maps the Google user to the internal `userId` (the `USER#<userId>` PK), following the existing identity mapping pattern.
+
+| Entity | PK | SK | Key attribute |
+| --- | --- | --- | --- |
+| GChat Identity Mapping | `EXTID#GCHAT#<googleUserId>` | `EXTID#GCHAT#<googleUserId>` | `user_id` — internal userId for DynamoDB lookups |
+
+**Role storage for Google Chat users:**
+
+Discord exposes role membership inside the signed interaction payload (`member.roles`), so no role data needs to be stored in DynamoDB for Discord users. Google Chat has no equivalent built-in role system. For Google Chat users, the authorization role (`EMPLOYEE`, `TEAM_LEAD`, or `ADMIN`) is stored as a `role` attribute on the `USER#<userId>` `METADATA` item and set by an Admin. Discord users continue to be authorized via guild roles; this attribute is ignored for Discord interactions.
+
+| Role value | Permission level |
+| --- | --- |
+| `EMPLOYEE` | Standard (default) |
+| `TEAM_LEAD` | Elevated |
+| `ADMIN` | Full |
+
 **GSI1 overloaded usage:**
 
 | Entity | GSI1PK | GSI1SK | Serves |
@@ -131,9 +195,13 @@ Total GSIs: **1**
 
 ## 3. Security Model
 
-### 3.1 Request Authentication — Discord Ed25519 Signature Validation
+### 3.1 Request Authentication
 
-Every request from Discord includes two headers that must be validated **before any business logic executes**:
+Each platform uses a different signing mechanism. Verification runs at the top of the respective Router Lambda **before any business logic or routing executes**. A failed verification returns `HTTP 401` immediately.
+
+#### 3.1.1 Discord — Ed25519 Signature Validation
+
+Every request from Discord includes two headers:
 
 | Header | Description |
 | --- | --- |
@@ -147,63 +215,120 @@ Every request from Discord includes two headers that must be validated **before 
 3. If verification fails → return `HTTP 401` immediately, no further processing.
 4. If the timestamp is more than 5 minutes old → return `HTTP 401` (replay attack protection).
 
-This check is called explicitly at the top of the Lambda handler before any routing or business logic executes.
+#### 3.1.2 Google Chat — JWT Bearer Token Verification
 
-### 3.2 Authorization — Discord Role-Based Access Control
+Google Chat signs every outbound request with a service-account-issued JWT, sent as a Bearer token in the `Authorization` header.
 
-Authorization is enforced at the command handler level based on the Discord roles present in the interaction payload (`member.roles`). No external role store is needed; Discord's role system is the source of truth.
+**Validation algorithm:**
 
-| Role | Permission Level | Allowed Actions |
-| --- | --- | --- |
-| `@everyone` (Employee) | Standard | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
-| `@Team Lead` | Elevated | All employee actions + view and update meal/location for own team members. View own team's headcount summary, member list, and WFH periods. View any team member's history. |
-| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals, activate/deactivate meal types per date, manage teams (create, delete, add/remove members). Override any user's meal or location record. |
+1. Extract the Bearer token from the `Authorization: Bearer <token>` header.
+2. Decode and verify the JWT using `google-auth` (`google.oauth2.id_token.verify_oauth2_token` with `google.auth.transport.requests.Request`).
+3. Confirm the `iss` (issuer) claim matches `chat@system.gserviceaccount.com`.
+4. Confirm the `aud` (audience) claim matches the `GCHAT_AUDIENCE` environment variable (the Lambda's public HTTPS URL).
+5. If any check fails → return `HTTP 401` immediately, no further processing.
+
+### 3.2 Authorization — Role-Based Access Control
+
+The permission model is identical across both platforms. The same three permission levels apply; only the mechanism for resolving a user's role differs by platform.
+
+| Permission Level | Allowed Actions |
+| --- | --- |
+| **Employee** (Standard) | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
+| **Team Lead** (Elevated) | All employee actions + view and update meal/location for own team members. View own team's headcount summary, member list, and WFH periods. View any team member's history. |
+| **Admin** (Full) | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals, activate/deactivate meal types per date, manage teams (create, delete, add/remove members). Override any user's meal or location record. |
+
+#### Discord — Guild Role Resolution
+
+Discord embeds the user's guild roles directly in the signed interaction payload. No DynamoDB lookup is needed.
 
 **Authorization flow:**
 
 1. Extract `member.roles` from the validated interaction payload.
-2. Match against configured role IDs (stored as environment variables, e.g., `ROLE_TEAM_LEAD_ID`, `ROLE_ADMIN_ID`).
-3. If the user's roles do not satisfy the required permission level for the invoked command → return an ephemeral error message (visible only to the user).
+2. Match against `ROLE_TEAM_LEAD_ID` and `ROLE_ADMIN_ID` environment variables.
+3. If the user's roles do not satisfy the required permission level → return an ephemeral error (visible only to the user).
+
+#### Google Chat — DynamoDB Role Resolution
+
+Google Chat has no built-in role system. The user's role is stored as a `role` attribute on the `USER#<userId>` `METADATA` item in DynamoDB (§2.3) and is set by an Admin.
+
+**Authorization flow:**
+
+1. Resolve the internal `userId` from the `EXTID#GCHAT#<googleUserId>` identity mapping item.
+2. Fetch the `USER#<userId>` `METADATA` item and read the `role` attribute (`EMPLOYEE` / `TEAM_LEAD` / `ADMIN`).
+3. If no role is set, default to `EMPLOYEE`.
+4. If the resolved role does not satisfy the required permission level → return an error message (visible only to the user).
 
 ### 3.3 Environment Variable Management
 
-Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSettings`), loading values from environment variables. No secrets are hardcoded.
+Sensitive configuration is managed via a `Settings` class (Pydantic `BaseSettings`), loading values from environment variables. No secrets are hardcoded. Variables are grouped by scope: shared, Discord-only, and Google Chat-only.
+
+**Shared (all Lambdas):**
+
+| Variable | Description |
+| --- | --- |
+| `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
+| `AWS_REGION` | AWS region for DynamoDB client (default: `ap-southeast-1`). |
+| `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
+| `DEFAULT_CUTOFF_TIME` | Cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
+| `WFH_MONTHLY_LIMIT` | Maximum WFH days allowed per calendar month before a warning is shown (default: `5`) (§4.4). |
+| `COMMAND_LAMBDA_NAME` | Name of the shared Command Lambda invoked by both Router Lambdas. |
+
+**Discord Router Lambda only:**
 
 | Variable | Description |
 | --- | --- |
 | `DISCORD_PUBLIC_KEY` | Discord application's Ed25519 public key for signature verification. |
-| `DISCORD_BOT_TOKEN` | Bot token for sending follow-up messages via Discord REST API. |
-| `DYNAMODB_TABLE` | Single DynamoDB table name (default: `MHP_Table`). |
-| `AWS_REGION` | AWS region for DynamoDB client (defaults to `ap-southeast-1`). |
-| `ROLE_TEAM_LEAD_ID` | Discord role ID for Team Lead permission level. |
-| `ROLE_ADMIN_ID` | Discord role ID for Admin permission level. |
+| `DISCORD_BOT_TOKEN` | Bot token for sending deferred follow-up messages via Discord REST API. |
+| `DISCORD_APPLICATION_ID` | Discord application ID used to construct the follow-up webhook URL. |
+| `ROLE_TEAM_LEAD_ID` | Discord role ID for the Team Lead permission level. |
+| `ROLE_ADMIN_ID` | Discord role ID for the Admin permission level. |
 | `AUTHORIZED_GUILD_ID` | Discord guild (server) ID — interactions from other guilds are rejected (§3.4). |
-| `TIMEZONE` | IANA timezone for cut-off time evaluation (default: `Asia/Dhaka`) (§4.1). |
-| `DEFAULT_CUTOFF_TIME` | Cut-off time applied to every working day (default: `00:00`, midnight before the meal date) (§4.1). |
-| `WFH_MONTHLY_LIMIT` | Maximum WFH days allowed per calendar month before a warning is shown (default: `5`) (§4.3). |
-| `COMMAND_LAMBDA_NAME` | Name of the Command Lambda function invoked by the Router Lambda to process business logic. |
+| `ANNOUNCEMENT_CHANNEL_ID` | Optional. Discord channel ID for `/event announce` broadcast. |
+
+**Google Chat Router Lambda only:**
+
+| Variable | Description |
+| --- | --- |
+| `GCHAT_AUDIENCE` | Expected `aud` claim in Google Chat JWT — set to the Lambda's public HTTPS endpoint URL. |
+| `GCHAT_AUTHORIZED_SPACE` | Google Chat space resource name (e.g. `spaces/XXXXXX`) — interactions from other spaces are rejected (§3.4). |
+| `GCHAT_ANNOUNCEMENT_SPACE` | Optional. Space resource name for `/event announce` broadcast. |
 
 > In this iteration, these variables are set manually in the Lambda console or a local `.env` file. IaC-managed Secrets Manager integration is deferred to a future iteration.
 
-### 3.4 User Identity
+### 3.4 User Identity & Space/Guild Authorization Guard
 
-Discord's Interactions API embeds verified user identity directly inside the signed interaction payload. No separate OAuth2 token exchange is required for slash command interactions — the user's identity is established as part of the same request that is already validated by Ed25519 signature verification (§3.1).
+#### Discord
 
-**Identity fields available in every interaction payload:**
+Discord's Interactions API embeds verified user identity directly inside the signed interaction payload. No separate OAuth2 token exchange is required.
 
 | Field | Path in payload | Description |
 | --- | --- | --- |
-| `user_id` | `member.user.id` | Discord's unique, immutable snowflake ID for the user. Used as the primary key in DynamoDB (`USER#{user_id}`). |
+| `user_id` | `member.user.id` | Discord's unique, immutable snowflake ID. Used as the internal `userId` in DynamoDB (`USER#<userId>`). |
 | `roles` | `member.roles` | List of Discord role IDs assigned to the user in the guild. Drives RBAC (§3.2). |
-| `guild_id` | `guild_id` | Confirms the interaction originates from the authorized guild. Requests from other guilds are rejected. |
+| `guild_id` | `guild_id` | Confirms the interaction originates from the authorized guild. |
 
-**Guild authorization guard:**
+On every interaction, the handler verifies that `guild_id` matches `AUTHORIZED_GUILD_ID`. Interactions from unauthorized guilds are rejected with `HTTP 401` before any business logic runs.
 
-On every interaction, the handler verifies that `guild_id` matches the `AUTHORIZED_GUILD_ID` environment variable. Interactions from unauthorized guilds are rejected with `HTTP 401` before any business logic runs.
+#### Google Chat
+
+Google Chat embeds the sender's identity in the event payload. Identity is established as part of the same request already validated by JWT verification (§3.1.2).
+
+| Field | Path in payload | Description |
+| --- | --- | --- |
+| `google_user_id` | `message.sender.name` → `users/<googleUserId>` | Google's unique user identifier. Used as the key in the `EXTID#GCHAT#<googleUserId>` identity mapping (§2.3). |
+| `email` | `message.sender.email` | Google account email address. Stored on first interaction for reference. |
+| `space` | `space.name` | Google Chat space resource name. Used for space authorization guard. |
+
+On every interaction, the handler verifies that `space.name` matches `GCHAT_AUTHORIZED_SPACE`. Interactions from unauthorized spaces are rejected with `HTTP 401` before any business logic runs.
+
+**First-interaction auto-registration:** If no `EXTID#GCHAT#<googleUserId>` mapping exists when a user first sends a command, the GChat Router Lambda creates the mapping and a `USER#<userId>` `METADATA` item with `role = EMPLOYEE` automatically.
 
 ---
 
 ## 4. Feature Specification
+
+> All features in this section are available on both Discord and Google Chat. The business logic, DynamoDB reads/writes, and cut-off enforcement are fully platform-agnostic. Platform differences are limited to how commands are invoked (§5.5) and how responses are delivered (§5.3). Where this section references role names (Admin, Team Lead, Employee), these map to Discord guild roles on Discord and to the DynamoDB-stored `role` attribute on Google Chat (§3.2).
+> **Terminology note:** "Ephemeral reply" means a response visible only to the invoking user. On Discord this is a native ephemeral message flag. On Google Chat this is a private message reply within the space, which has the same user-scoped visibility.
 
 ### 4.1 Cut-off Time
 
@@ -228,7 +353,7 @@ if now < cutoff_datetime:
     → allow: cut-off has not yet been reached.
 ```
 
-**Override:** Users with the `@Admin` role can bypass the cut-off check for any user. `@Team Lead` can bypass it for their own team members. This allows last-minute corrections without a time gate.
+**Override:** Admin users can bypass the cut-off check for any user. Team Leads can bypass it for their own team members. This allows last-minute corrections without a time gate.
 
 ---
 
@@ -236,7 +361,7 @@ if now < cutoff_datetime:
 
 An "Event Meal" is a special catering day (e.g., company anniversary, team lunch). On event days, all employees are **opted in by default** — the kitchen prepares for full headcount unless someone explicitly opts out.
 
-Event days are defined in `config/events.json` and can be managed at runtime via `/event update` and `/event delete` (Admin only). The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`.
+Event days are defined in `config/events.json` and can be managed at runtime via `/event update` and `/event delete` (Admin only). The opt-out deadline follows the same `DEFAULT_CUTOFF_TIME` rule as regular days (§4.1). An Admin can broadcast a one-time announcement via `/event announce <date>`. On Discord the announcement is posted to `ANNOUNCEMENT_CHANNEL_ID`; on Google Chat it is posted to `GCHAT_ANNOUNCEMENT_SPACE`. If neither is configured the confirmation is sent as an ephemeral reply to the Admin only.
 
 **Employee opt-out flow:**
 
@@ -316,9 +441,9 @@ The `/headcount` command is a single top-level command that provides a comprehen
 
 | Role | Scope | Description |
 | --- | --- | --- |
-| `@Admin` | Organization-wide | Aggregate headcount summary across all users with team breakdown; or a specific user's record when `user` is provided. |
-| `@Team Lead` | Team-wide | Aggregate headcount summary for own team; or a specific team member's record when `user` is provided. |
-| `@everyone` (Employee) | Own history | Own 30-day meal and location history; or own record for a specific date when `date` is provided. |
+| Admin | Organization-wide | Aggregate headcount summary across all users with team breakdown; or a specific user's record when `user` is provided. |
+| Team Lead | Team-wide | Aggregate headcount summary for own team; or a specific team member's record when `user` is provided. |
+| Employee | Own history | Own 30-day meal and location history; or own record for a specific date when `date` is provided. |
 
 **Command signature:**
 
@@ -396,54 +521,81 @@ Total: 6 | Opted in: 5 | Opted out: 1
 
 ```text
 app/
-  router.py          — request verification & async dispatch
-  handler.py         — command routing & business logic
-  config.py          — environment variable management
-  services/          — business logic modules (meal, headcount, messaging)
-  models/            — data models for bot payloads and DynamoDB records
-config/              — static configuration files
-docs/                — technical spec and iteration notes
-register_commands.py — bot command registration script
-requirements.txt     — production dependencies
+  router.py              — Discord: Ed25519 verification & async dispatch
+  gchat_router.py        — Google Chat: JWT verification & async dispatch
+  handler.py             — shared command routing & business logic
+  config.py              — environment variable management (all platforms)
+  platform/
+    bot_context.py       — platform-neutral BotContext dataclass
+  services/
+    meal_service.py      — cut-off logic, opt-in/out, event meals       [shared]
+    headcount_service.py — DynamoDB headcount aggregation               [shared]
+    team_service.py      — team membership queries                      [shared]
+    discord_service.py   — deferred follow-up & channel messages (Discord)
+    gchat_service.py     — async reply & space messages (Google Chat)
+  models/
+    discord_models.py    — Discord interaction payload models
+    gchat_models.py      — Google Chat event payload models
+    meal_models.py       — DynamoDB record models                       [shared]
+    team_models.py       — team DynamoDB record models                  [shared]
+config/                  — static configuration files
+docs/                    — technical spec and iteration notes
+register_commands.py     — Discord command registration script
+register_gchat_commands.py — Google Chat slash command registration notes
+requirements.txt         — production dependencies
 ```
 
 ### 5.3 Module Responsibilities
 
-| Module | Responsibility |
-| --- | --- |
-| `app/router.py` | Entry point for incoming requests. Verifies request signature, defers response, and async-invokes the Command Lambda. |
-| `app/handler.py` | Parses the interaction payload and dispatches to the correct service function by command name. |
-| `app/config.py` | Defines `Settings(BaseSettings)` — single source of truth for all env vars. |
-| `app/services/meal_service.py` | Implements cut-off time logic, opt-in/out writes, event meal state transitions. |
-| `app/services/headcount_service.py` | Queries DynamoDB for daily/team summaries and headcount aggregation. |
-| `app/services/discord_service.py` | Sends deferred follow-up messages to the bot platform via REST. |
-| `app/models/` | Data models for bot interaction payloads and DynamoDB records. |
+| Module | Platform | Responsibility |
+| --- | --- | --- |
+| `app/router.py` | Discord | Entry point for Discord interactions. Verifies Ed25519 signature, returns deferred ACK, async-invokes the Command Lambda. |
+| `app/gchat_router.py` | Google Chat | Entry point for Google Chat events. Verifies JWT bearer token, returns `HTTP 200` ACK, async-invokes the same Command Lambda. |
+| `app/handler.py` | Shared | Receives a `BotContext` from either router. Dispatches to the correct service function by command name. Builds the response string. |
+| `app/platform/bot_context.py` | Shared | Defines `BotContext` — a platform-neutral dataclass holding `user_id`, `role`, `platform`, `token`/`space`, and parsed command options. Both routers normalise their payloads into this before invoking the handler. |
+| `app/config.py` | Shared | Defines `Settings(BaseSettings)` — single source of truth for all env vars across both platforms. |
+| `app/services/meal_service.py` | Shared | Cut-off time logic, opt-in/out DynamoDB writes, event meal state transitions. |
+| `app/services/headcount_service.py` | Shared | Queries DynamoDB for daily/team summaries and headcount aggregation. |
+| `app/services/team_service.py` | Shared | Team membership lookups and team management operations. |
+| `app/services/discord_service.py` | Discord | Sends deferred follow-up messages and channel announcements via the Discord REST API. |
+| `app/services/gchat_service.py` | Google Chat | Sends async replies and space announcements via the Google Chat REST API. |
+| `app/models/discord_models.py` | Discord | Pydantic models for Discord interaction payloads (`DiscordInteraction`, `DiscordMember`, etc.). |
+| `app/models/gchat_models.py` | Google Chat | Pydantic models for Google Chat event payloads (`GChatEvent`, `GChatSender`, `GChatSlashCommand`, etc.). |
+| `app/models/meal_models.py` | Shared | DynamoDB record models for meal participation and work location. |
+| `app/models/team_models.py` | Shared | DynamoDB record models for teams and team membership. |
 
 ### 5.4 Dependencies (`requirements.txt`)
 
-| Package | Purpose |
-| --- | --- |
-| `boto3` | AWS SDK — DynamoDB client for all read/write operations. |
-| `pydantic` | Data validation and serialisation for request/response models. |
-| `pydantic-settings` | `BaseSettings` support for environment variable loading. |
-| `pynacl` | Ed25519 signature verification for Discord request authentication. |
-| `python-dotenv` | Loads `.env` file during local development (no-op in Lambda). |
+| Package | Platform | Purpose |
+| --- | --- | --- |
+| `boto3` | Shared | AWS SDK — DynamoDB client for all read/write operations. |
+| `pydantic` | Shared | Data validation and serialisation for request/response models. |
+| `pydantic-settings` | Shared | `BaseSettings` support for environment variable loading. |
+| `pynacl` | Discord | Ed25519 signature verification for Discord request authentication. |
+| `google-auth` | Google Chat | JWT bearer token verification for Google Chat request authentication. |
+| `python-dotenv` | Shared | Loads `.env` file during local development (no-op in Lambda). |
 
 ---
 
 ### 5.5 API Endpoints
 
-All endpoints are served under the Lambda function URL proxied through API Gateway.
+All endpoints are served under the same API Gateway HTTP API. Each platform has its own path and Router Lambda.
 
-#### Discord Endpoints
+#### HTTP Endpoints
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| `POST` | `/interactions` | Ed25519 signature (§3.1) | Receives all Discord slash command interactions. |
+| Method | Path | Router Lambda | Auth | Description |
+| --- | --- | --- | --- | --- |
+| `POST` | `/interactions` | Discord Router | Ed25519 signature (§3.1.1) | Receives all Discord slash command interactions. |
+| `POST` | `/gchat/interactions` | GChat Router | Google JWT (§3.1.2) | Receives all Google Chat slash command events. |
+| `GET` | `/health` | Discord Router | None | Health check — returns `{"status": "ok"}`. |
 
-#### Discord Slash Commands
+---
 
-Registered via the Discord Developer Portal. Each command maps to a handler.
+#### Slash Commands
+
+Both platforms expose the same command set. Discord commands are registered via the Discord Developer Portal; Google Chat commands are configured in the Google Cloud Console under the app's configuration. The command names, parameters, and permission requirements are identical.
+
+> **User reference parameter:** On Discord the `user` parameter is a user mention (resolved to a Discord snowflake ID). On Google Chat it is a plain text Google user ID or email. In both cases the handler resolves the value to the internal `userId` via the identity mapping before any service call.
 
 #### `/meal`
 
@@ -480,7 +632,7 @@ Registered via the Discord Developer Portal. Each command maps to a handler.
 
 | Command | Permission | Description |
 | --- | --- | --- |
-| `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the channel. |
+| `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the configured channel/space. |
 | `/event optout <date>` | Employee | Opt out of an event meal day for a specific date. |
 | `/event list` | All | Show all configured special event days. |
 | `/event update <date> <description>` | Admin | Add or update an event day. Automatically activates `EVENT_DINNER` for that date. |
@@ -502,10 +654,12 @@ The following are explicitly deferred and must not be implemented until a subseq
 
 | Item | Reason for Deferral |
 | --- | --- |
-| Infrastructure as Code (IaC) | Terraform / CDK configuration requires a stable, tested application before provisioning. |
+| Infrastructure as Code (IaC) | Terraform / CDK configuration requires a stable, tested application before provisioning. Covers both Discord and GChat Lambdas. |
 | CI/CD pipeline | GitHub Actions deployment workflow depends on IaC being in place first. |
 | AWS Secrets Manager integration | Env vars managed manually for now; Secrets Manager adds operational complexity before the app is validated. |
 | Automated tests | Unit and integration test scaffolding is deferred until the core service layer is stable. |
+| Google Workspace group-based role sync | Mapping Google Workspace groups to MHP roles via the Admin SDK adds external dependency; DynamoDB-stored roles are sufficient for this iteration. |
+| Admin UI for managing Google Chat user roles | Role assignment for GChat users is handled directly in DynamoDB for now; a self-service admin command or web UI is deferred. |
 
 ---
 
@@ -513,11 +667,13 @@ The following are explicitly deferred and must not be implemented until a subseq
 
 Items identified during architecture design that are intentionally queued for later iterations:
 
-- **IaC (Terraform/CDK):** Define all AWS resources (API Gateway, Lambda, DynamoDB, IAM roles) as code for reproducible deployments.
+- **IaC (Terraform/CDK):** Define all AWS resources (API Gateway, both Router Lambdas, Command Lambda, DynamoDB, IAM roles) as code for reproducible deployments.
 - **CI/CD (GitHub Actions):** Automate linting, testing, packaging, and Lambda deployment on merge to `main`.
-- **AWS Secrets Manager:** Migrate `DISCORD_BOT_TOKEN` and `DISCORD_PUBLIC_KEY` from environment variables to Secrets Manager with automatic rotation.
-- **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics.
-- **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse.
+- **AWS Secrets Manager:** Migrate bot tokens and public keys (`DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`, GChat credentials) from environment variables to Secrets Manager with automatic rotation.
+- **Structured logging (AWS Powertools):** Replace raw `print`/`logging` calls with `aws_lambda_powertools` for structured JSON logs, tracing (X-Ray), and metrics across all three Lambdas.
+- **Rate limiting:** Add per-user request throttling at the API Gateway level to prevent abuse on both platform endpoints.
+- **Google Workspace group sync:** Automatically derive MHP roles from Google Workspace group membership via the Admin SDK, eliminating manual DynamoDB role management for GChat users.
+- **Admin role-set command:** A `/admin role-set <user> <role>` command allowing Admins to manage GChat user roles directly from the bot instead of via DynamoDB.
 
 ---
 
@@ -527,6 +683,10 @@ Items identified during architecture design that are intentionally queued for la
 | --- | --- |
 | Discord Interactions API | <https://discord.com/developers/docs/interactions/receiving-and-responding> |
 | Discord Security — Request Verification | <https://discord.com/developers/docs/interactions/receiving-and-responding#security-and-authorization> |
+| Google Chat — Build a bot | <https://developers.google.com/chat/how-tos/apps-develop> |
+| Google Chat — Slash commands | <https://developers.google.com/chat/how-tos/slash-commands> |
+| Google Chat — Verify requests (JWT) | <https://developers.google.com/chat/how-tos/verify-requests> |
+| Google Auth Python library | <https://google-auth.readthedocs.io/> |
 | AWS Lambda — Graviton2 | <https://aws.amazon.com/blogs/aws/aws-lambda-functions-powered-by-aws-graviton2/> |
 | DynamoDB Single-Table Design | <https://www.alexdebrie.com/posts/dynamodb-single-table/> |
 | PyNaCl Documentation | <https://pynacl.readthedocs.io/> |
