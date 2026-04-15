@@ -107,10 +107,13 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All acce
 | --- | --- | --- | --- |
 | User | `USER#<userId>` | `METADATA` | Yes |
 | Identity Mapping | `EXTID#<type>#<value>` | `EXTID#<type>#<value>` | No |
-| Team | `TEAM#<teamId>` | `METADATA` | Yes |
+| Team | `TEAM` | `<teamId>` | No |
+| Team Membership | `TEAMMEMBER#<teamId>` | `USER#<userId>` | Yes |
 | Meal Participation | `MEAL#<date>` | `USER#<userId>` | Yes |
 | Work Location | `LOC#<date>` | `USER#<userId>` | Yes |
 | Special Day | `SPECIALDAY` | `<date>` | No |
+| WFH Period | `WFH_PERIOD` | `<startDate>#<endDate>` | No |
+| Active Meal Type | `ACTIVEMEAL#<date>` | `<meal_type>` | No |
 | Headcount Summary | `SUMMARY#<date>` | `SUMMARY` | No |
 
 **GSI1 overloaded usage:**
@@ -118,9 +121,9 @@ Single-table design using `MHP_Table` with one overloaded GSI (`GSI1`). All acce
 | Entity | GSI1PK | GSI1SK | Serves |
 | --- | --- | --- | --- |
 | User | `USERS` | `USER#<userId>` | Get all users |
-| Team | `TEAMS` | `TEAM#<teamId>` | Get all teams |
 | Meal Participation | `USER#<userId>` | `MEAL#<date>` | User's meal history across dates |
 | Work Location | `USER#<userId>` | `LOC#<date>` | User's location records for a month |
+| Team Membership | `USER#<userId>` | `TEAMMEMBER#<teamId>` | Look up which team a user belongs to |
 
 Total GSIs: **1**
 
@@ -153,8 +156,8 @@ Authorization is enforced at the command handler level based on the Discord role
 | Role | Permission Level | Allowed Actions |
 | --- | --- | --- |
 | `@everyone` (Employee) | Standard | View and update own meal opt-in and work location. Bulk update own meal/location across date ranges. Opt out of event meals. View company-wide WFH periods and event days. View own headcount history. |
-| `@Team Lead` | Elevated | All employee actions + view and update meal/location for own team members. View team headcount summary, team members with WFH counts, and WFH periods. View any team member's history. |
-| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals. Override any user's meal or location record. |
+| `@Team Lead` | Elevated | All employee actions + view and update meal/location for own team members. View own team's headcount summary, member list, and WFH periods. View any team member's history. |
+| `@Admin` | Full | All team lead actions (org-wide scope) + manage event days, manage WFH periods, announce event meals, activate/deactivate meal types per date, manage teams (create, delete, add/remove members). Override any user's meal or location record. |
 
 **Authorization flow:**
 
@@ -273,6 +276,7 @@ All other meal types are **inactive by default** and must be explicitly activate
 - Only active meal types are shown in the headcount "By Meal Type" breakdown (§4.5) and available for opt-out.
 - Activating a meal type for a date opts all employees in by default; employees may opt out before the cut-off.
 - `EVENT_DINNER` is activated automatically when an Admin configures an event day via `/event update`.
+- Admins activate and deactivate meal types per date using `/meal-type activate` and `/meal-type deactivate`. Active types for any date can be checked with `/meal-type list`.
 
 ---
 
@@ -461,8 +465,8 @@ Registered via the Discord Developer Portal. Each command maps to a handler.
 
 | Command | Permission | Description |
 | --- | --- | --- |
-| `/headcount [date] [user]` | Employee / Team Lead / Admin | **Employee:** shows own 30-day meal and location history; providing `date` narrows to that specific date. **Team Lead / Admin:** `date` required — without `user` shows aggregate headcount summary (meal-type breakdown, team split, office/WFH split; Admin org-wide, Team Lead team-wide); with `user` shows that user's record for the date. Team Lead restricted to own team. |
-| `/team-members` | Team Lead / Admin | View team members with their WFH day counts for the current month. |
+| `/headcount [date] [user]` | Employee / Team Lead / Admin | **Employee:** shows own 30-day meal and location history; providing `date` narrows to that specific date. **Team Lead:** `date` required — shows team-scoped headcount summary (meal-type breakdown, office/WFH split) for their DynamoDB-assigned team; with `user` shows that member's record. **Admin:** same as Team Lead but org-wide; with `user` shows any user's record. |
+| `/team-members [team_id]` | Team Lead / Admin | **Team Lead:** shows own team's member list (no argument needed). **Admin:** optionally provide `team_id` to view any team's member list. |
 
 #### `/wfh-periods`
 
@@ -479,8 +483,16 @@ Registered via the Discord Developer Portal. Each command maps to a handler.
 | `/event announce <date>` | Admin | Broadcast an announcement for a configured event meal day to the channel. |
 | `/event optout <date>` | Employee | Opt out of an event meal day for a specific date. |
 | `/event list` | All | Show all configured special event days. |
-| `/event update <date>` | Admin | Update an existing event day's configuration. |
+| `/event update <date> <description>` | Admin | Add or update an event day. Automatically activates `EVENT_DINNER` for that date. |
 | `/event delete <date>` | Admin | Delete a configured event day. |
+
+#### `/meal-type`
+
+| Command | Permission | Description |
+| --- | --- | --- |
+| `/meal-type activate <date> <meal_type>` | Admin | Activate a meal type (`IFTAR`, `EVENT_DINNER`, `OPTIONAL_DINNER`) for a specific date. |
+| `/meal-type deactivate <date> <meal_type>` | Admin | Deactivate a meal type for a specific date. `LUNCH` and `SNACKS` cannot be deactivated. |
+| `/meal-type list [date]` | All | Show active meal types for a date (defaults to today). |
 
 ---
 

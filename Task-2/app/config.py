@@ -22,10 +22,14 @@ class Settings(BaseSettings):
 
     # Timezone & Cut-off
     timezone: str = "Asia/Dhaka"
-    default_cutoff_time: str = "00:00"
+    default_cutoff_time: str = "23:00"
 
-    # Internal API (dashboard) — not used until dashboard is implemented
-    internal_api_key: str = ""
+    # WFH soft limit
+    wfh_monthly_limit: int = 5
+
+    # Announcement channel (optional — used by /event announce)
+    announcement_channel_id: str = ""
+
 
 
 settings = Settings()  

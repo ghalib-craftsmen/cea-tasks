@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import calendar
 import json
 import logging
+from datetime import date as _date
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import boto3
 from boto3.dynamodb.conditions import Key
-from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
+from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from app.config import settings
@@ -18,12 +20,12 @@ logger = logging.getLogger(__name__)
 
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
+_client = boto3.client("dynamodb", region_name=settings.aws_region)
 
 _EVENTS_PATH = Path(__file__).parent.parent.parent / "config" / "events.json"
 _serializer = TypeSerializer()
-_deserializer = TypeDeserializer()
-_WFH_MONTHLY_LIMIT = 5
-VALID_MEAL_TYPES = {"LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"}
+_DEFAULT_ACTIVE_MEAL_TYPES = {"LUNCH", "SNACKS"}
+VALID_MEAL_TYPES = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
 # Loaded once at module level — captured in SnapStart snapshot
 with _EVENTS_PATH.open() as _f:
@@ -34,12 +36,127 @@ def _serialize(item: dict) -> dict:
     return {k: _serializer.serialize(v) for k, v in item.items()}
 
 
-def _load_events() -> list[EventConfig]:
-    return _EVENTS
-
-
 def is_event_day(date: str) -> bool:
-    return any(e.date == date for e in _EVENTS)
+    # Fast path: check in-memory JSON events (captured in SnapStart snapshot)
+    if any(e.date == date for e in _EVENTS):
+        return True
+    # Slow path: check DynamoDB for runtime-added events
+    try:
+        response = _table.get_item(Key={"PK": "SPECIALDAY", "SK": date})
+        return "Item" in response
+    except ClientError as e:
+        logger.error("Failed to check event day %s in DynamoDB: %s", date, e)
+        return False
+
+
+def list_events_from_db() -> list[dict]:
+    """Return all SPECIALDAY events from DynamoDB, falling back to JSON if none exist."""
+    try:
+        response = _table.query(KeyConditionExpression=Key("PK").eq("SPECIALDAY"))
+        items = response.get("Items", [])
+        if items:
+            return sorted(items, key=lambda x: x["date"])
+    except ClientError as e:
+        logger.error("Failed to query SPECIALDAY events: %s", e)
+    return [{"date": e.date, "description": e.description} for e in _EVENTS]
+
+
+def get_active_meal_types(date: str) -> list[str]:
+    """Return active meal types for a date in canonical order.
+
+    LUNCH and SNACKS are always active. EVENT_DINNER is active on event days.
+    All others are active only if an Admin has explicitly activated them in DynamoDB.
+    """
+    active = set(_DEFAULT_ACTIVE_MEAL_TYPES)
+    if is_event_day(date):
+        active.add("EVENT_DINNER")
+    try:
+        response = _table.query(KeyConditionExpression=Key("PK").eq(f"ACTIVEMEAL#{date}"))
+        for item in response.get("Items", []):
+            mt = item.get("SK", "")
+            if mt in VALID_MEAL_TYPES:
+                active.add(mt)
+    except ClientError as e:
+        logger.error("Failed to query active meal types for %s: %s", date, e)
+    return [mt for mt in VALID_MEAL_TYPES if mt in active]
+
+
+def activate_meal_type(date: str, meal_type: str, set_by: str) -> str:
+    """Admin: activate a meal type for a specific date."""
+    meal_type = meal_type.upper()
+    if meal_type not in VALID_MEAL_TYPES:
+        return f"Invalid meal type. Valid types: {', '.join(VALID_MEAL_TYPES)}"
+    if meal_type in _DEFAULT_ACTIVE_MEAL_TYPES:
+        return f"**{meal_type}** is always active and does not need to be activated."
+    try:
+        _table.put_item(Item={
+            "PK": f"ACTIVEMEAL#{date}",
+            "SK": meal_type,
+            "date": date,
+            "meal_type": meal_type,
+            "set_by": set_by,
+            "updated_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        })
+        return f"**{meal_type}** activated for **{date}**."
+    except ClientError as e:
+        logger.error("Failed to activate meal type %s for %s: %s", meal_type, date, e)
+        raise
+
+
+def deactivate_meal_type(date: str, meal_type: str) -> str:
+    """Admin: deactivate a meal type for a specific date."""
+    meal_type = meal_type.upper()
+    if meal_type not in VALID_MEAL_TYPES:
+        return f"Invalid meal type. Valid types: {', '.join(VALID_MEAL_TYPES)}"
+    if meal_type in _DEFAULT_ACTIVE_MEAL_TYPES:
+        return f"**{meal_type}** is always active and cannot be deactivated."
+    try:
+        _table.delete_item(Key={"PK": f"ACTIVEMEAL#{date}", "SK": meal_type})
+        return f"**{meal_type}** deactivated for **{date}**."
+    except ClientError as e:
+        logger.error("Failed to deactivate meal type %s for %s: %s", meal_type, date, e)
+        raise
+
+
+def update_event(date: str, description: str, set_by: str) -> str:
+    """Upsert an event day in DynamoDB and auto-activate EVENT_DINNER."""
+    try:
+        _table.put_item(Item={
+            "PK": "SPECIALDAY",
+            "SK": date,
+            "date": date,
+            "description": description,
+            "set_by": set_by,
+            "updated_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        })
+        activate_meal_type(date, "EVENT_DINNER", set_by)
+        return f"Event day **{date}** updated: _{description}_"
+    except ClientError as e:
+        logger.error("Failed to update event %s: %s", date, e)
+        raise
+
+
+def delete_event(date: str) -> str:
+    """Delete an event day from DynamoDB."""
+    try:
+        _client.transact_write_items(TransactItems=[
+            {
+                "Delete": {
+                    "TableName": settings.dynamodb_table,
+                    "Key": {"PK": {"S": "SPECIALDAY"}, "SK": {"S": date}},
+                }
+            },
+            {
+                "Delete": {
+                    "TableName": settings.dynamodb_table,
+                    "Key": {"PK": {"S": f"ACTIVEMEAL#{date}"}, "SK": {"S": "EVENT_DINNER"}},
+                }
+            },
+        ])
+        return f"Event day **{date}** has been deleted."
+    except ClientError as e:
+        logger.error("Failed to delete event %s: %s", date, e)
+        raise
 
 
 def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
@@ -51,7 +168,10 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
     now = datetime.now(tz)
     today = now.date()
 
-    target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    try:
+        target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
 
     if target <= today:
         return f"Cannot update records for today or a past date."
@@ -72,28 +192,11 @@ def check_cutoff(target_date: str, bypass: bool = False) -> str | None:
 
 def get_record(date: str, user_id: str) -> MealRecord | None:
     try:
-        response = _dynamodb.meta.client.batch_get_item(
-            RequestItems={
-                settings.dynamodb_table: {
-                    "Keys": [
-                        {"PK": {"S": f"MEAL#{date}"}, "SK": {"S": f"USER#{user_id}"}},
-                        {"PK": {"S": f"LOC#{date}"}, "SK": {"S": f"USER#{user_id}"}},
-                    ]
-                }
-            }
-        )
-        items = response.get("Responses", {}).get(settings.dynamodb_table, [])
-        meal_item = None
-        loc_item = None
-        for raw in items:
-            item = {k: _deserializer.deserialize(v) for k, v in raw.items()}
-            if item["PK"].startswith("MEAL#"):
-                meal_item = item
-            elif item["PK"].startswith("LOC#"):
-                loc_item = item
+        meal_item = _table.get_item(Key={"PK": f"MEAL#{date}", "SK": f"USER#{user_id}"}).get("Item")
+        loc_item = _table.get_item(Key={"PK": f"LOC#{date}", "SK": f"USER#{user_id}"}).get("Item")
         return MealRecord.from_dynamo_pair(meal_item, loc_item)
     except ClientError as e:
-        logger.error("DynamoDB batch_get_item failed for date=%s user_id=%s: %s", date, user_id, e)
+        logger.error("DynamoDB get_item failed for date=%s user_id=%s: %s", date, user_id, e)
         raise
 
 
@@ -178,8 +281,8 @@ def update_location(
         msg += "\nYou have been automatically opted **out** of all meals for this day."
         if not bypass_cutoff:
             wfh_count = count_wfh_days_this_month(user_id, date[:7])
-            if wfh_count >= _WFH_MONTHLY_LIMIT:
-                msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {_WFH_MONTHLY_LIMIT}). Please coordinate with your team lead."
+            if wfh_count >= settings.wfh_monthly_limit:
+                msg += f"\n⚠️ You have used {wfh_count} WFH day(s) this month (soft limit: {settings.wfh_monthly_limit}). Please coordinate with your team lead."
     return msg
 
 
@@ -241,3 +344,162 @@ def get_user_history(user_id: str) -> list[MealRecord]:
     except ClientError as e:
         logger.error("DynamoDB GSI1 query failed for user_id=%s: %s", user_id, e)
         return []
+
+
+def bulk_meal_update(
+    start_date: str,
+    end_date: str,
+    do_opt_in: bool,
+    user_id: str,
+    updated_by: str,
+    bypass_cutoff: bool = False,
+) -> str:
+    """Apply meal opt-in/out across every day in [start_date, end_date]."""
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
+    if start > end:
+        return "Start date must be on or before end date."
+
+    fn = opt_in if do_opt_in else opt_out
+    updated, skipped = 0, []
+    current = start
+    while current <= end:
+        date_str = str(current)
+        result = fn(date_str, user_id, updated_by=updated_by, bypass_cutoff=bypass_cutoff)
+        if result.startswith("Cannot") or result.startswith("Cut-off"):
+            skipped.append(date_str)
+        else:
+            updated += 1
+        current += timedelta(days=1)
+
+    action = "in" if do_opt_in else "out"
+    msg = f"Opted **{action}** for {updated} day(s) between {start_date} and {end_date}."
+    if skipped:
+        preview = ", ".join(skipped[:3]) + ("…" if len(skipped) > 3 else "")
+        msg += f"\nSkipped {len(skipped)} day(s) past cut-off: {preview}"
+    return msg
+
+
+def bulk_location_update(
+    start_date: str,
+    end_date: str,
+    location: str,
+    user_id: str,
+    updated_by: str,
+    bypass_cutoff: bool = False,
+) -> str:
+    """Set work location across every day in [start_date, end_date]."""
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
+    if start > end:
+        return "Start date must be on or before end date."
+
+    updated, skipped = 0, []
+    current = start
+    while current <= end:
+        date_str = str(current)
+        result = update_location(date_str, user_id, location, updated_by=updated_by, bypass_cutoff=bypass_cutoff)
+        if result.startswith("Cannot") or result.startswith("Cut-off") or result.startswith("Invalid"):
+            skipped.append(date_str)
+        else:
+            updated += 1
+        current += timedelta(days=1)
+
+    msg = f"Location set to **{location.upper()}** for {updated} day(s) between {start_date} and {end_date}."
+    if skipped:
+        preview = ", ".join(skipped[:3]) + ("…" if len(skipped) > 3 else "")
+        msg += f"\nSkipped {len(skipped)} day(s) past cut-off: {preview}"
+    return msg
+
+
+def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
+    """Store a company-wide WFH period record in DynamoDB."""
+    try:
+        datetime.strptime(start_date, "%Y-%m-%d")
+        datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
+    try:
+        _table.put_item(Item={
+            "PK": "WFH_PERIOD",
+            "SK": f"{start_date}#{end_date}",
+            "start_date": start_date,
+            "end_date": end_date,
+            "set_by": set_by,
+            "updated_at": datetime.now(ZoneInfo(settings.timezone)).isoformat(),
+        })
+        return f"WFH period set from **{start_date}** to **{end_date}**."
+    except ClientError as e:
+        logger.error("Failed to set WFH period %s–%s: %s", start_date, end_date, e)
+        raise
+
+
+def delete_wfh_period(start_date: str, end_date: str) -> str:
+    """Delete a company-wide WFH period record from DynamoDB."""
+    try:
+        datetime.strptime(start_date, "%Y-%m-%d")
+        datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
+    try:
+        _table.delete_item(Key={"PK": "WFH_PERIOD", "SK": f"{start_date}#{end_date}"})
+        return f"WFH period from **{start_date}** to **{end_date}** has been deleted."
+    except ClientError as e:
+        logger.error("Failed to delete WFH period %s–%s: %s", start_date, end_date, e)
+        raise
+
+
+def list_wfh_periods() -> list[dict]:
+    """List company-wide WFH periods that overlap with the next 2 months."""
+    try:
+        today = _date.today()
+        year, month = (today.year, today.month + 2) if today.month <= 10 else (today.year + 1, today.month - 10)
+        last_day = calendar.monthrange(year, month)[1]
+        two_months_out = str(_date(year, month, last_day))
+        response = _table.query(KeyConditionExpression=Key("PK").eq("WFH_PERIOD"))
+        items = [
+            item for item in response.get("Items", [])
+            if item["end_date"] >= str(today) and item["start_date"] <= two_months_out
+        ]
+        return sorted(items, key=lambda x: x["start_date"])
+    except ClientError as e:
+        logger.error("Failed to list WFH periods: %s", e)
+        return []
+
+
+def get_monthly_wfh_summary(month_prefix: str) -> dict[str, int]:
+    """Return WFH day counts per user for a given month (YYYY-MM).
+
+    Queries each day's LOC# partition up to today and aggregates counts.
+    Team-scoped filtering is deferred until team membership data exists.
+    """
+    try:
+        year, month = map(int, month_prefix.split("-"))
+    except ValueError:
+        return {}
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    today = _date.today()
+    wfh_counts: dict[str, int] = {}
+
+    for day in range(1, days_in_month + 1):
+        d = _date(year, month, day)
+        if d > today:
+            break
+        try:
+            response = _table.query(KeyConditionExpression=Key("PK").eq(f"LOC#{d}"))
+            for item in response.get("Items", []):
+                if item.get("work_location") == "WFH":
+                    uid = item["user_id"]
+                    wfh_counts[uid] = wfh_counts.get(uid, 0) + 1
+        except ClientError as e:
+            logger.error("DynamoDB query failed for LOC#%s: %s", d, e)
+            raise RuntimeError(f"Failed to fetch WFH data for {d}") from e
+
+    return wfh_counts
