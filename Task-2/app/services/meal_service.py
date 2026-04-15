@@ -139,6 +139,7 @@ def delete_event(date: str) -> str:
     """Delete an event day from DynamoDB."""
     try:
         _table.delete_item(Key={"PK": "SPECIALDAY", "SK": date})
+        deactivate_meal_type(date, "EVENT_DINNER")
         return f"Event day **{date}** has been deleted."
     except ClientError as e:
         logger.error("Failed to delete event %s: %s", date, e)
@@ -407,6 +408,11 @@ def bulk_location_update(
 def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
     """Store a company-wide WFH period record in DynamoDB."""
     try:
+        datetime.strptime(start_date, "%Y-%m-%d")
+        datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
+    try:
         _table.put_item(Item={
             "PK": "WFH_PERIOD",
             "SK": f"{start_date}#{end_date}",
@@ -423,6 +429,11 @@ def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
 
 def delete_wfh_period(start_date: str, end_date: str) -> str:
     """Delete a company-wide WFH period record from DynamoDB."""
+    try:
+        datetime.strptime(start_date, "%Y-%m-%d")
+        datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD."
     try:
         _table.delete_item(Key={"PK": "WFH_PERIOD", "SK": f"{start_date}#{end_date}"})
         return f"WFH period from **{start_date}** to **{end_date}** has been deleted."
