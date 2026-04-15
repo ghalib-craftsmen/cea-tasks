@@ -53,13 +53,7 @@ def _authorized_request(url: str, payload: dict, method: str = "POST") -> None:
         raise
 
 
-def send_reply(space: str, content: str) -> None:
-    """Send a text message reply to a Google Chat space."""
-    url = f"{_CHAT_API_BASE}/{space}/messages"
-    _authorized_request(url, {"text": content})
-
-
-def send_announcement(space: str, content: str) -> None:
-    """Post a broadcast announcement to a Google Chat space."""
+def send_message(space: str, content: str) -> None:
+    """Send a text message to a Google Chat space."""
     url = f"{_CHAT_API_BASE}/{space}/messages"
     _authorized_request(url, {"text": content})

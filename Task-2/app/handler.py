@@ -435,7 +435,7 @@ def _handle_event(ctx: BotContext) -> tuple[str, bool]:
                 logger.error("Failed to post event announcement to Discord channel: %s", exc)
         if settings.gchat_announcement_space:
             try:
-                gchat_service.send_announcement(settings.gchat_announcement_space, message)
+                gchat_service.send_message(settings.gchat_announcement_space, message)
                 posted_to.append("Google Chat")
             except Exception as exc:
                 logger.error("Failed to post event announcement to GChat space: %s", exc)
@@ -536,15 +536,11 @@ def _handle_team_members(ctx: BotContext) -> tuple[str, bool]:
 
     members = team_service.get_team_members(team["team_id"])
     month_prefix = str(_date.today())[:7]
-<<<<<<< HEAD
     try:
         wfh_summary = meal_service.get_monthly_wfh_summary(month_prefix)
     except RuntimeError:
         return _reply("Failed to retrieve WFH data. Please try again later.")
-=======
-    wfh_summary = meal_service.get_monthly_wfh_summary(month_prefix)
     lead_label = _user_label(ctx, team["lead_user_id"])
->>>>>>> cb480c9 (refactor: make handler platform-agnostic using BotContext with dual response dispatch)
     member_lines = "\n".join(
         f"  {_user_label(ctx, uid)} — WFH this month: {wfh_summary.get(uid, 0)}"
         for uid in members
@@ -627,6 +623,6 @@ def handler(event: dict, context: Any) -> None:
         if ctx.platform == "discord":
             discord_service.send_followup(ctx.token, content, ephemeral=ephemeral)
         elif ctx.platform == "gchat":
-            gchat_service.send_reply(ctx.space, content)
+            gchat_service.send_message(ctx.space, content)
     except Exception as exc:
         logger.error("Failed to send response on %s: %s", ctx.platform, exc)
