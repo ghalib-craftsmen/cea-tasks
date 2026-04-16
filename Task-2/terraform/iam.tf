@@ -43,6 +43,22 @@ resource "aws_iam_role_policy" "dynamodb_access" {
   })
 }
 
+resource "aws_iam_role_policy" "ssm_access" {
+  name = "${var.project_prefix}-ssm-access"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "ssm:GetParameter"
+        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/${var.project_prefix}/*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_invoke" {
   name = "${var.project_prefix}-lambda-invoke"
   role = aws_iam_role.lambda_exec.id

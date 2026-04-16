@@ -15,24 +15,30 @@ resource "aws_lambda_function" "discord_router" {
   memory_size      = 256
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
+  publish          = true
+
+  snap_start {
+    apply_on = "PublishedVersions"
+  }
 
   environment {
     variables = {
-      DISCORD_PUBLIC_KEY     = var.discord_public_key
-      DISCORD_BOT_TOKEN      = var.discord_bot_token
-      DISCORD_APPLICATION_ID = var.discord_application_id
-      ROLE_TEAM_LEAD_ID      = var.discord_role_team_lead_id
-      ROLE_ADMIN_ID          = var.discord_role_admin_id
-      AUTHORIZED_GUILD_ID    = var.discord_guild_id
-      COMMAND_LAMBDA_NAME    = "${var.project_prefix}-command"
-      DYNAMODB_TABLE         = var.dynamodb_table_name
-      TIMEZONE               = var.timezone
-      DEFAULT_CUTOFF_TIME    = var.default_cutoff_time
-      WFH_MONTHLY_LIMIT      = var.wfh_monthly_limit
+      SSM_PREFIX          = "/${var.project_prefix}"
+      COMMAND_LAMBDA_NAME = "${var.project_prefix}-command"
+      DYNAMODB_TABLE      = var.dynamodb_table_name
+      TIMEZONE            = var.timezone
+      DEFAULT_CUTOFF_TIME = var.default_cutoff_time
+      WFH_MONTHLY_LIMIT   = var.wfh_monthly_limit
     }
   }
 
   depends_on = [aws_cloudwatch_log_group.discord_router]
+}
+
+resource "aws_lambda_alias" "discord_router" {
+  name             = "live"
+  function_name    = aws_lambda_function.discord_router.function_name
+  function_version = aws_lambda_function.discord_router.version
 }
 
 # ── GChat Router ──────────────────────────────────────────────────────────────
@@ -52,20 +58,30 @@ resource "aws_lambda_function" "gchat_router" {
   memory_size      = 256
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
+  publish          = true
+
+  snap_start {
+    apply_on = "PublishedVersions"
+  }
 
   environment {
     variables = {
-      GCHAT_AUDIENCE         = var.gchat_audience
-      GCHAT_AUTHORIZED_SPACE = var.gchat_authorized_space
-      COMMAND_LAMBDA_NAME    = "${var.project_prefix}-command"
-      DYNAMODB_TABLE         = var.dynamodb_table_name
-      TIMEZONE               = var.timezone
-      DEFAULT_CUTOFF_TIME    = var.default_cutoff_time
-      WFH_MONTHLY_LIMIT      = var.wfh_monthly_limit
+      SSM_PREFIX          = "/${var.project_prefix}"
+      COMMAND_LAMBDA_NAME = "${var.project_prefix}-command"
+      DYNAMODB_TABLE      = var.dynamodb_table_name
+      TIMEZONE            = var.timezone
+      DEFAULT_CUTOFF_TIME = var.default_cutoff_time
+      WFH_MONTHLY_LIMIT   = var.wfh_monthly_limit
     }
   }
 
   depends_on = [aws_cloudwatch_log_group.gchat_router]
+}
+
+resource "aws_lambda_alias" "gchat_router" {
+  name             = "live"
+  function_name    = aws_lambda_function.gchat_router.function_name
+  function_version = aws_lambda_function.gchat_router.version
 }
 
 # ── Command Lambda ────────────────────────────────────────────────────────────
@@ -85,17 +101,27 @@ resource "aws_lambda_function" "command" {
   memory_size      = 512
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
+  publish          = true
+
+  snap_start {
+    apply_on = "PublishedVersions"
+  }
 
   environment {
     variables = {
-      DISCORD_BOT_TOKEN      = var.discord_bot_token
-      DISCORD_APPLICATION_ID = var.discord_application_id
-      DYNAMODB_TABLE         = var.dynamodb_table_name
-      TIMEZONE               = var.timezone
-      DEFAULT_CUTOFF_TIME    = var.default_cutoff_time
-      WFH_MONTHLY_LIMIT      = var.wfh_monthly_limit
+      SSM_PREFIX          = "/${var.project_prefix}"
+      DYNAMODB_TABLE      = var.dynamodb_table_name
+      TIMEZONE            = var.timezone
+      DEFAULT_CUTOFF_TIME = var.default_cutoff_time
+      WFH_MONTHLY_LIMIT   = var.wfh_monthly_limit
     }
   }
 
   depends_on = [aws_cloudwatch_log_group.command]
+}
+
+resource "aws_lambda_alias" "command" {
+  name             = "live"
+  function_name    = aws_lambda_function.command.function_name
+  function_version = aws_lambda_function.command.version
 }
