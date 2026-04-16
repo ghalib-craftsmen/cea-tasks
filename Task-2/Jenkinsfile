@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+
+    options {
+        ansiColor('xterm')
+        timestamps()
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'ap-southeast-1'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Package') {
+            steps {
+                sh 'chmod +x build.sh && ./build.sh'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',           variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key',        variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'discord-public-key',           variable: 'TF_VAR_discord_public_key'),
+                    string(credentialsId: 'discord-bot-token',            variable: 'TF_VAR_discord_bot_token'),
+                    string(credentialsId: 'discord-application-id',       variable: 'TF_VAR_discord_application_id'),
+                    string(credentialsId: 'discord-role-team-lead-id',    variable: 'TF_VAR_discord_role_team_lead_id'),
+                    string(credentialsId: 'discord-role-admin-id',        variable: 'TF_VAR_discord_role_admin_id'),
+                    string(credentialsId: 'discord-guild-id',             variable: 'TF_VAR_discord_guild_id')
+                ]) {
+                    dir('terraform') {
+                        sh 'terraform plan -out=tfplan'
+                    }
+                }
+            }
+        }
+
+        stage('Approval') {
+            steps {
+                input message: 'Proceed with deployment to AWS?', ok: 'Deploy'
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',  variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    dir('terraform') {
+                        sh 'terraform apply tfplan'
+                    }
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            dir('terraform') {
+                sh 'terraform output'
+            }
+        }
+        always {
+            archiveArtifacts artifacts: 'terraform/tfplan', allowEmptyArchive: true
+        }
+        failure {
+            echo 'Pipeline failed — check the stage logs above.'
+        }
+    }
+}
