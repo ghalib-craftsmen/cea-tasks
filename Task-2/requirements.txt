@@ -3,5 +3,7 @@ pydantic
 pydantic-settings
 pynacl
 google-auth
+google-auth-httplib2
+requests
 python-dotenv
 tzdata
