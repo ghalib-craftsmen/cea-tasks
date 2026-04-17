@@ -92,11 +92,13 @@ def _verify_jwt(headers: dict) -> bool:
         return False
 
     try:
+        logger.info("JWT audience expected: %s", settings.gchat_audience)
         claims = id_token.verify_oauth2_token(
             token,
             google_requests.Request(),
             audience=settings.gchat_audience,
         )
+        logger.info("JWT claims: iss=%s, aud=%s", claims.get("iss"), claims.get("aud"))
     except Exception as exc:
         logger.warning("JWT verification failed: %s", exc)
         return False
