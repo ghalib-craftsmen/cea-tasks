@@ -227,9 +227,11 @@ def handler(event: dict, context: Any) -> dict:
         return _err(400, "Invalid request body")
 
     logger.info("Raw payload keys: %s", list(payload.keys()))
-    logger.info("Raw space value: %s", payload.get("space"))
+    logger.info("Raw chat value: %s", json.dumps(payload.get("chat", {})))
 
-    gchat_event = GChatEvent(**payload)
+    # Google Chat sends data nested under 'chat' key in newer format
+    chat_data = payload.get("chat", payload)
+    gchat_event = GChatEvent(**chat_data)
 
     # --- Space authorization guard (§3.4) ---
     logger.info("Space from payload: '%s', expected: '%s'", gchat_event.get_space_name(), settings.gchat_authorized_space)
