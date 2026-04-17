@@ -27,9 +27,12 @@ _serializer = TypeSerializer()
 _DEFAULT_ACTIVE_MEAL_TYPES = {"LUNCH", "SNACKS"}
 VALID_MEAL_TYPES = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
-# Loaded once at module level — captured in SnapStart snapshot
-with _EVENTS_PATH.open() as _f:
-    _EVENTS: list[EventConfig] = [EventConfig(**e) for e in json.load(_f)]
+# Loaded once at module level — defaults to empty list if file is absent
+try:
+    with _EVENTS_PATH.open() as _f:
+        _EVENTS: list[EventConfig] = [EventConfig(**e) for e in json.load(_f)]
+except FileNotFoundError:
+    _EVENTS = []
 
 
 def _serialize(item: dict) -> dict:

@@ -1,9 +1,10 @@
 # Environment
 .env
 
-# Config data (use *.example.json as templates)
+# Config data (real files stay local — use *.example.json as templates)
 config/events.json
 config/teams.json
+
 
 # Python
 __pycache__/
