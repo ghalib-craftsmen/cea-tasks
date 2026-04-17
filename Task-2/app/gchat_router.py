@@ -229,6 +229,7 @@ def handler(event: dict, context: Any) -> dict:
     gchat_event = GChatEvent(**payload)
 
     # --- Space authorization guard (§3.4) ---
+    logger.info("Space from payload: '%s', expected: '%s'", gchat_event.get_space_name(), settings.gchat_authorized_space)
     if gchat_event.get_space_name() != settings.gchat_authorized_space:
         logger.warning("Unauthorized space: %s", gchat_event.get_space_name())
         return _err(401, "Unauthorized space")
