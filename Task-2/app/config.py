@@ -82,5 +82,5 @@ def _after_restore(event, context):  # noqa: ARG001
 try:
     import awslambdaric.bootstrap as _bootstrap  # type: ignore
     _bootstrap.register_after_restore(_after_restore)
-except ImportError:
-    pass  # Not running in Lambda (local dev) — hook registration is a no-op
+except (ImportError, AttributeError):
+    pass  # Not supported in this runtime version or running locally
