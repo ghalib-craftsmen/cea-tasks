@@ -226,6 +226,9 @@ def handler(event: dict, context: Any) -> dict:
     except json.JSONDecodeError:
         return _err(400, "Invalid request body")
 
+    logger.info("Raw payload keys: %s", list(payload.keys()))
+    logger.info("Raw space value: %s", payload.get("space"))
+
     gchat_event = GChatEvent(**payload)
 
     # --- Space authorization guard (§3.4) ---
