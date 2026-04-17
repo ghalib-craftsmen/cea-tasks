@@ -260,7 +260,7 @@ def handler(event: dict, context: Any) -> dict:
     if not slash_cmd or not slash_cmd.commandId:
         return _err(400, "No slash command in payload")
 
-    command = _COMMAND_MAP.get(slash_cmd.commandId)
+    command = _COMMAND_MAP.get(slash_cmd.get_command_id())
     if not command:
         return _err(400, f"Unknown command ID: {slash_cmd.commandId}")
 
