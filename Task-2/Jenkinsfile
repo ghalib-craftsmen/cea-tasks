@@ -39,6 +39,7 @@ pipeline {
                 withCredentials([
                     string(credentialsId: 'aws-access-key-id',        variable: 'AWS_ACCESS_KEY_ID'),
                     string(credentialsId: 'aws-secret-access-key',     variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',         variable: 'AWS_SESSION_TOKEN'),
                     string(credentialsId: 'discord-public-key',        variable: 'TF_VAR_discord_public_key'),
                     string(credentialsId: 'discord-bot-token',         variable: 'TF_VAR_discord_bot_token'),
                     string(credentialsId: 'discord-application-id',    variable: 'TF_VAR_discord_application_id'),
@@ -64,8 +65,9 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                    string(credentialsId: 'aws-access-key-id',    variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     dir('Task-2/terraform') {
                         sh 'terraform apply tfplan'
@@ -78,8 +80,14 @@ pipeline {
 
     post {
         success {
-            dir('Task-2/terraform') {
-                sh 'terraform output'
+            withCredentials([
+                string(credentialsId: 'aws-access-key-id',    variable: 'AWS_ACCESS_KEY_ID'),
+                string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+            ]) {
+                dir('Task-2/terraform') {
+                    sh 'terraform output'
+                }
             }
         }
         always {

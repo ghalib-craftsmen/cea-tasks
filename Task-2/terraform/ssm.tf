@@ -47,5 +47,5 @@ resource "aws_ssm_parameter" "gchat_authorized_space" {
 resource "aws_ssm_parameter" "gchat_audience" {
   name  = "/${var.project_prefix}/GCHAT_AUDIENCE"
   type  = "String"
-  value = var.gchat_audience
+  value = var.gchat_audience != "" ? var.gchat_audience : "pending"
 }
