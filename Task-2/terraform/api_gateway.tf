@@ -14,14 +14,14 @@ resource "aws_apigatewayv2_stage" "default" {
 resource "aws_apigatewayv2_integration" "discord_router" {
   api_id                 = aws_apigatewayv2_api.mhp_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_alias.discord_router.invoke_arn
+  integration_uri        = aws_lambda_function.discord_router.invoke_arn
   payload_format_version = "2.0"
 }
 
 resource "aws_apigatewayv2_integration" "gchat_router" {
   api_id                 = aws_apigatewayv2_api.mhp_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_alias.gchat_router.invoke_arn
+  integration_uri        = aws_lambda_function.gchat_router.invoke_arn
   payload_format_version = "2.0"
 }
 
@@ -51,7 +51,6 @@ resource "aws_lambda_permission" "discord_router" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.discord_router.function_name
-  qualifier     = aws_lambda_alias.discord_router.name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.mhp_api.execution_arn}/*/*"
 }
@@ -60,7 +59,6 @@ resource "aws_lambda_permission" "gchat_router" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.gchat_router.function_name
-  qualifier     = aws_lambda_alias.gchat_router.name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.mhp_api.execution_arn}/*/*"
 }

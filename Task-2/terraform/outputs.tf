@@ -25,6 +25,14 @@ output "command_lambda_arn" {
   value = aws_lambda_function.command.arn
 }
 
+output "discord_router_invoke_arn" {
+  value = aws_lambda_function.discord_router.invoke_arn
+}
+
+output "gchat_router_invoke_arn" {
+  value = aws_lambda_function.gchat_router.invoke_arn
+}
+
 output "dynamodb_table_name" {
   value = aws_dynamodb_table.mhp_table.name
 }

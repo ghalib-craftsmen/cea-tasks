@@ -15,11 +15,6 @@ resource "aws_lambda_function" "discord_router" {
   memory_size      = 256
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
-  publish          = true
-
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
 
   environment {
     variables = {
@@ -33,12 +28,6 @@ resource "aws_lambda_function" "discord_router" {
   }
 
   depends_on = [aws_cloudwatch_log_group.discord_router]
-}
-
-resource "aws_lambda_alias" "discord_router" {
-  name             = "live"
-  function_name    = aws_lambda_function.discord_router.function_name
-  function_version = aws_lambda_function.discord_router.version
 }
 
 # ── GChat Router ──────────────────────────────────────────────────────────────
@@ -58,11 +47,6 @@ resource "aws_lambda_function" "gchat_router" {
   memory_size      = 256
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
-  publish          = true
-
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
 
   environment {
     variables = {
@@ -76,12 +60,6 @@ resource "aws_lambda_function" "gchat_router" {
   }
 
   depends_on = [aws_cloudwatch_log_group.gchat_router]
-}
-
-resource "aws_lambda_alias" "gchat_router" {
-  name             = "live"
-  function_name    = aws_lambda_function.gchat_router.function_name
-  function_version = aws_lambda_function.gchat_router.version
 }
 
 # ── Command Lambda ────────────────────────────────────────────────────────────
@@ -101,11 +79,6 @@ resource "aws_lambda_function" "command" {
   memory_size      = 512
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
-  publish          = true
-
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
 
   environment {
     variables = {
@@ -118,10 +91,4 @@ resource "aws_lambda_function" "command" {
   }
 
   depends_on = [aws_cloudwatch_log_group.command]
-}
-
-resource "aws_lambda_alias" "command" {
-  name             = "live"
-  function_name    = aws_lambda_function.command.function_name
-  function_version = aws_lambda_function.command.version
 }
