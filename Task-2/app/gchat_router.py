@@ -23,7 +23,7 @@ _lambda_client = boto3.client("lambda", region_name=settings.aws_region)
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
 
-_EXPECTED_ISSUER = "chat@system.gserviceaccount.com"
+_EXPECTED_ISSUERS = {"chat@system.gserviceaccount.com", "https://accounts.google.com"}
 
 # Google Chat commandId → MHP command name (must match Cloud Console registration)
 _COMMAND_MAP: dict[str, str] = {
@@ -103,7 +103,7 @@ def _verify_jwt(headers: dict) -> bool:
         logger.warning("JWT verification failed: %s", exc)
         return False
 
-    if claims.get("iss") != _EXPECTED_ISSUER:
+    if claims.get("iss") not in _EXPECTED_ISSUERS:
         logger.warning("JWT issuer mismatch: got %s", claims.get("iss"))
         return False
 
