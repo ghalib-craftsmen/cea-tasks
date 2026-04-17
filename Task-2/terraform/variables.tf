@@ -86,3 +86,9 @@ variable "gchat_audience" {
   description = "Expected JWT aud claim — set to the API Gateway invoke URL after first deploy"
   default     = ""
 }
+
+variable "gchat_service_account_key" {
+  description = "Google Cloud service account JSON key for Chat API"
+  sensitive   = true
+  default     = ""
+}

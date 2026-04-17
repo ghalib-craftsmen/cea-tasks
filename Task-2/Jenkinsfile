@@ -47,7 +47,8 @@ pipeline {
                     string(credentialsId: 'discord-role-admin-id',     variable: 'TF_VAR_discord_role_admin_id'),
                     string(credentialsId: 'discord-guild-id',          variable: 'TF_VAR_discord_guild_id'),
                     string(credentialsId: 'gchat-authorized-space',    variable: 'TF_VAR_gchat_authorized_space'),
-                    string(credentialsId: 'gchat-audience',            variable: 'TF_VAR_gchat_audience')
+                    string(credentialsId: 'gchat-audience',            variable: 'TF_VAR_gchat_audience'),
+                    string(credentialsId: 'gchat-service-account-key', variable: 'TF_VAR_gchat_service_account_key')
                 ]) {
                     dir('Task-2/terraform') {
                         sh 'terraform plan -out=tfplan'

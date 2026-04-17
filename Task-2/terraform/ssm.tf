@@ -44,6 +44,12 @@ resource "aws_ssm_parameter" "gchat_authorized_space" {
   value = var.gchat_authorized_space
 }
 
+resource "aws_ssm_parameter" "gchat_service_account_key" {
+  name  = "/${var.project_prefix}/GCHAT_SERVICE_ACCOUNT_KEY"
+  type  = "String"
+  value = var.gchat_service_account_key != "" ? var.gchat_service_account_key : "pending"
+}
+
 resource "aws_ssm_parameter" "gchat_audience" {
   name  = "/${var.project_prefix}/GCHAT_AUDIENCE"
   type  = "String"

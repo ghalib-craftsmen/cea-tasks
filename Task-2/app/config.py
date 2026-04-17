@@ -2,6 +2,8 @@ import os
 import boto3
 from pydantic_settings import BaseSettings
 
+_GCP_CREDS_PATH = "/tmp/gcp_credentials.json"
+
 
 def _get_ssm(name: str, prefix: str, client) -> str:
     """Fetch a single SSM parameter value."""
@@ -28,6 +30,16 @@ def _load_secrets_from_ssm(settings: "Settings") -> None:
     settings.authorized_guild_id    = _get_ssm("AUTHORIZED_GUILD_ID",    prefix, client)
     settings.gchat_audience         = _get_ssm("GCHAT_AUDIENCE",         prefix, client)
     settings.gchat_authorized_space = _get_ssm("GCHAT_AUTHORIZED_SPACE", prefix, client)
+
+    # Write GCP service account key to /tmp so google.auth.default() can find it
+    try:
+        gcp_key = _get_ssm("GCHAT_SERVICE_ACCOUNT_KEY", prefix, client)
+        if gcp_key and gcp_key != "pending":
+            with open(_GCP_CREDS_PATH, "w") as f:
+                f.write(gcp_key)
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _GCP_CREDS_PATH
+    except Exception:
+        pass  # GCP key not available — GChat responses won't work
 
 
 class Settings(BaseSettings):
