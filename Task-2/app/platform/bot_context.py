@@ -24,9 +24,10 @@ class BotContext:
 
     # Platform-specific delivery context
     # Discord: interaction token for follow-up webhook
-    # GChat: space resource name for reply
+    # GChat: space resource name for reply, sender resource name for private msgs
     token: str = ""
     space: str = ""
+    gchat_sender_name: str = ""
 
     # Discord-specific (kept for backward compat during migration)
     discord_roles: list[str] = field(default_factory=list)

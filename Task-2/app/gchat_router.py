@@ -272,6 +272,7 @@ def handler(event: dict, context: Any) -> dict:
         subcommand=subcommand,
         options=options,
         space=gchat_event.get_space_name(),
+        gchat_sender_name=sender.name,
     )
 
     # --- Async dispatch to Command Lambda ---

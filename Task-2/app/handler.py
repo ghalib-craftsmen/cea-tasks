@@ -671,6 +671,7 @@ def handler(event: dict, context: Any) -> None:
         if ctx.platform == "discord":
             discord_service.send_followup(ctx.token, content, ephemeral=ephemeral)
         elif ctx.platform == "gchat":
-            gchat_service.send_message(ctx.space, content)
+            private_user = ctx.gchat_sender_name if ephemeral else ""
+            gchat_service.send_message(ctx.space, content, private_user=private_user)
     except Exception as exc:
         logger.error("Failed to send response on %s: %s", ctx.platform, exc)
