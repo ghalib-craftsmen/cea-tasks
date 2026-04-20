@@ -424,8 +424,8 @@ def bulk_location_update(
 def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
     """Store a company-wide WFH period record in DynamoDB."""
     try:
-        datetime.strptime(start_date, "%Y-%m-%d")
-        datetime.strptime(end_date, "%Y-%m-%d")
+        start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
     except ValueError:
         return "Invalid date format. Use YYYY-MM-DD."
     try:
@@ -446,8 +446,8 @@ def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
 def delete_wfh_period(start_date: str, end_date: str) -> str:
     """Delete a company-wide WFH period record from DynamoDB."""
     try:
-        datetime.strptime(start_date, "%Y-%m-%d")
-        datetime.strptime(end_date, "%Y-%m-%d")
+        start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
     except ValueError:
         return "Invalid date format. Use YYYY-MM-DD."
     try:

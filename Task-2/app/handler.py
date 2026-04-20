@@ -572,7 +572,8 @@ _SUBCOMMAND_HELP: dict[str, str] = {
         "Available subcommands for */wfh-periods*:\n"
         "• `list` — Show upcoming WFH periods\n"
         "• `set` <start_date> <end_date> — Add a WFH period *(Admin)*\n"
-        "• `delete` <start_date> <end_date> — Remove a WFH period *(Admin)*"
+        "• `delete` <start_date> <end_date> — Remove a WFH period *(Admin)*\n"
+        "Dates must be in **YYYY-MM-DD** format (e.g. 2026-04-22)."
     ),
     "event": (
         "Available subcommands for */event*:\n"
