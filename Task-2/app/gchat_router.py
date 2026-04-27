@@ -9,8 +9,6 @@ from dataclasses import asdict
 from typing import Any
 
 import boto3
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token
 
 from app.config import settings
 from app.models.gchat_models import GChatEvent
@@ -22,8 +20,6 @@ logger.setLevel(logging.INFO)
 _lambda_client = boto3.client("lambda", region_name=settings.aws_region)
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
-
-_EXPECTED_ISSUERS = {"chat@system.gserviceaccount.com", "https://accounts.google.com"}
 
 # Google Chat commandId → MHP command name (must match Cloud Console registration)
 _COMMAND_MAP: dict[str, str] = {
@@ -75,37 +71,6 @@ def _ok(body: dict) -> dict:
 
 def _err(status: int, message: str) -> dict:
     return {"statusCode": status, "headers": {"Content-Type": "application/json"}, "body": json.dumps({"error": message})}
-
-
-# ---------------------------------------------------------------------------
-# JWT Verification
-# ---------------------------------------------------------------------------
-
-def _verify_jwt(headers: dict) -> bool:
-    """Verify the Google-issued JWT bearer token (§3.1.2)."""
-    auth_header = headers.get("authorization", "")
-    if not auth_header.lower().startswith("bearer "):
-        return False
-
-    token = auth_header[len("bearer "):].strip()
-    if not token:
-        return False
-
-    try:
-        claims = id_token.verify_oauth2_token(
-            token,
-            google_requests.Request(),
-            audience=settings.gchat_audience,
-        )
-    except Exception as exc:
-        logger.warning("JWT verification failed: %s", exc)
-        return False
-
-    if claims.get("iss") not in _EXPECTED_ISSUERS:
-        logger.warning("JWT issuer mismatch: got %s", claims.get("iss"))
-        return False
-
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -211,12 +176,7 @@ def handler(event: dict, context: Any) -> dict:
     except binascii.Error:
         return _err(400, "Invalid request body")
 
-    headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
-
-    # --- JWT verification (§3.1.2) ---
-    if not _verify_jwt(headers):
-        logger.warning("Invalid or missing JWT")
-        return _err(401, "Invalid request signature")
+    # JWT verification is handled by the API Gateway JWT authorizer.
 
     # --- Parse payload ---
     try:

@@ -61,7 +61,7 @@ def handler(event: dict, context: Any) -> dict:
     if method == "GET" and path == "/health":
         return _ok({"status": "ok"})
 
-    if method != "POST" or path != "/interactions":
+    if method != "POST" or path != "/discord/interactions":
         return _err(404, "Not found")
 
     body_str: str = event.get("body", "") or ""

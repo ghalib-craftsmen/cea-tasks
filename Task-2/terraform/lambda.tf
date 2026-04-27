@@ -74,6 +74,28 @@ resource "aws_lambda_function" "gchat_router" {
   depends_on = [aws_cloudwatch_log_group.gchat_router]
 }
 
+# ── Discord Authorizer ────────────────────────────────────────────────────────
+
+resource "aws_cloudwatch_log_group" "discord_authorizer" {
+  name              = "/aws/lambda/${var.project_prefix}-discord-authorizer"
+  retention_in_days = 60
+}
+
+resource "aws_lambda_function" "discord_authorizer" {
+  function_name    = "${var.project_prefix}-discord-authorizer"
+  filename         = "../lambda.zip"
+  source_code_hash = filebase64sha256("../lambda.zip")
+  handler          = "app.discord_authorizer.handler"
+  runtime          = var.lambda_runtime
+  architectures    = [var.lambda_arch]
+  memory_size      = 256
+  timeout          = 5
+  role             = aws_iam_role.lambda_exec.arn
+  layers           = [aws_lambda_layer_version.shared_deps.arn]
+
+  depends_on = [aws_cloudwatch_log_group.discord_authorizer]
+}
+
 # ── Command Lambda ────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "command" {
