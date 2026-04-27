@@ -30,4 +30,6 @@ pr/
 
 # Lambda build artifacts
 package/
+layer/
 lambda.zip
+layer.zip

@@ -1,3 +1,13 @@
+# ── Shared Dependencies Layer ─────────────────────────────────────────────────
+
+resource "aws_lambda_layer_version" "shared_deps" {
+  layer_name               = "${var.project_prefix}-shared-deps"
+  filename                 = "../layer.zip"
+  source_code_hash         = filebase64sha256("../layer.zip")
+  compatible_runtimes      = [var.lambda_runtime]
+  compatible_architectures = [var.lambda_arch]
+}
+
 # ── Discord Router ────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "discord_router" {
@@ -15,6 +25,7 @@ resource "aws_lambda_function" "discord_router" {
   memory_size      = 256
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
+  layers           = [aws_lambda_layer_version.shared_deps.arn]
 
   environment {
     variables = {
@@ -47,6 +58,7 @@ resource "aws_lambda_function" "gchat_router" {
   memory_size      = 256
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
+  layers           = [aws_lambda_layer_version.shared_deps.arn]
 
   environment {
     variables = {
@@ -79,6 +91,7 @@ resource "aws_lambda_function" "command" {
   memory_size      = 512
   timeout          = 60
   role             = aws_iam_role.lambda_exec.arn
+  layers           = [aws_lambda_layer_version.shared_deps.arn]
 
   environment {
     variables = {
