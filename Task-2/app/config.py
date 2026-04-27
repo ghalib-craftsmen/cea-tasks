@@ -14,7 +14,7 @@ def _get_ssm(name: str, prefix: str, client) -> str:
 def _load_secrets_from_ssm(settings: "Settings") -> None:
     """
     Fetch all sensitive settings from SSM Parameter Store and update the
-    settings object in place. Called during init and after SnapStart restore.
+    settings object in place.
     """
     prefix = os.environ.get("SSM_PREFIX", "")
     if not prefix:
@@ -82,17 +82,3 @@ settings = Settings()
 
 # Load secrets from SSM if running in Lambda (SSM_PREFIX is set)
 _load_secrets_from_ssm(settings)
-
-
-# ── SnapStart after-restore hook ──────────────────────────────────────────────
-# Registered only when running in Lambda. After a SnapStart restore, secrets
-# are refreshed so the restored snapshot never serves stale values.
-def _after_restore(event, context):  # noqa: ARG001
-    _load_secrets_from_ssm(settings)
-
-
-try:
-    import awslambdaric.bootstrap as _bootstrap  # type: ignore
-    _bootstrap.register_after_restore(_after_restore)
-except (ImportError, AttributeError):
-    pass  # Not supported in this runtime version or running locally

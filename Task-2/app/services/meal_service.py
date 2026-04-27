@@ -40,7 +40,7 @@ def _serialize(item: dict) -> dict:
 
 
 def is_event_day(date: str) -> bool:
-    # Fast path: check in-memory JSON events (captured in SnapStart snapshot)
+    # Fast path: check in-memory JSON events
     if any(e.date == date for e in _EVENTS):
         return True
     # Slow path: check DynamoDB for runtime-added events
