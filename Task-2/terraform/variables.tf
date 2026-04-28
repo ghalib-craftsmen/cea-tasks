@@ -87,6 +87,16 @@ variable "gchat_audience" {
   default     = ""
 }
 
+variable "throttling_burst_limit" {
+  description = "API Gateway stage throttling burst limit (max concurrent requests)"
+  default     = 10
+}
+
+variable "throttling_rate_limit" {
+  description = "API Gateway stage throttling rate limit (requests per second)"
+  default     = 5
+}
+
 variable "gchat_service_account_key" {
   description = "Google Cloud service account JSON key for Chat API"
   sensitive   = true
