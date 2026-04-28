@@ -33,3 +33,10 @@ package/
 layer/
 lambda.zip
 layer.zip
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+tfplan
