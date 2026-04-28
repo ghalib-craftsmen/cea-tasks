@@ -5,7 +5,7 @@ output "api_gateway_url" {
 
 output "discord_interactions_url" {
   description = "Discord interactions endpoint"
-  value       = "${aws_apigatewayv2_stage.default.invoke_url}/interactions"
+  value       = "${aws_apigatewayv2_stage.default.invoke_url}/discord/interactions"
 }
 
 output "gchat_interactions_url" {
@@ -13,24 +13,20 @@ output "gchat_interactions_url" {
   value       = "${aws_apigatewayv2_stage.default.invoke_url}/gchat/interactions"
 }
 
-output "discord_router_arn" {
-  value = aws_lambda_function.discord_router.arn
+output "discord_lambda_arn" {
+  value = aws_lambda_function.discord.arn
 }
 
-output "gchat_router_arn" {
-  value = aws_lambda_function.gchat_router.arn
+output "gchat_lambda_arn" {
+  value = aws_lambda_function.gchat.arn
 }
 
-output "command_lambda_arn" {
-  value = aws_lambda_function.command.arn
+output "discord_lambda_invoke_arn" {
+  value = aws_lambda_function.discord.invoke_arn
 }
 
-output "discord_router_invoke_arn" {
-  value = aws_lambda_function.discord_router.invoke_arn
-}
-
-output "gchat_router_invoke_arn" {
-  value = aws_lambda_function.gchat_router.invoke_arn
+output "gchat_lambda_invoke_arn" {
+  value = aws_lambda_function.gchat.invoke_arn
 }
 
 output "dynamodb_table_name" {

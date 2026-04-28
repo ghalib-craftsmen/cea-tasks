@@ -59,18 +59,3 @@ resource "aws_iam_role_policy" "ssm_access" {
   })
 }
 
-resource "aws_iam_role_policy" "lambda_invoke" {
-  name = "${var.project_prefix}-lambda-invoke"
-  role = aws_iam_role.lambda_exec.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "lambda:InvokeFunction"
-        Resource = aws_lambda_function.command.arn
-      }
-    ]
-  })
-}

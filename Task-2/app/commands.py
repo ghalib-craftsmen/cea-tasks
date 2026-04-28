@@ -8,7 +8,6 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 
 from app.config import settings
-from app.models.discord_models import DiscordInteraction
 from app.models.meal_models import MealRecord
 from app.platform.bot_context import BotContext
 from app.services import discord_service, gchat_service, headcount_service, meal_service, team_service
@@ -18,45 +17,6 @@ logger.setLevel(logging.INFO)
 
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
-
-
-# ---------------------------------------------------------------------------
-# Platform Detection & BotContext Construction
-# ---------------------------------------------------------------------------
-
-def _discord_to_bot_context(interaction: DiscordInteraction) -> BotContext:
-    """Convert a DiscordInteraction into a platform-neutral BotContext."""
-    roles = interaction.get_roles()
-    if settings.role_admin_id in roles:
-        role = "ADMIN"
-    elif settings.role_team_lead_id in roles:
-        role = "TEAM_LEAD"
-    else:
-        role = "EMPLOYEE"
-
-    command = ""
-    subcommand = None
-    options: dict[str, Any] = {}
-
-    if interaction.data:
-        command = interaction.data.name
-        raw_options = list(interaction.data.options)
-        if raw_options and raw_options[0].type == 1:
-            subcommand = raw_options[0].name
-            raw_options = list(raw_options[0].options or [])
-        options = {opt.name: opt.value for opt in raw_options}
-
-    return BotContext(
-        user_id=interaction.get_user().id,
-        role=role,
-        platform="discord",
-        command=command,
-        subcommand=subcommand,
-        options=options,
-        token=interaction.token,
-        discord_roles=roles,
-        discord_application_id=interaction.application_id,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -604,7 +564,7 @@ def _subcommand_hint(ctx: BotContext) -> str:
 # Command Routing
 # ---------------------------------------------------------------------------
 
-def _route_command(ctx: BotContext) -> tuple[str, bool]:
+def route_command(ctx: BotContext) -> tuple[str, bool]:
     command = ctx.command
     subcommand = ctx.subcommand
 
@@ -645,34 +605,3 @@ def _route_command(ctx: BotContext) -> tuple[str, bool]:
     return _reply("Unknown command.")
 
 
-# ---------------------------------------------------------------------------
-# Lambda Entry Point
-# ---------------------------------------------------------------------------
-
-def handler(event: dict, context: Any) -> None:
-    try:
-        if "platform" in event:
-            # GChat payload — already a serialized BotContext
-            ctx = BotContext(**event)
-        else:
-            # Discord payload — convert to BotContext
-            interaction = DiscordInteraction(**event)
-            ctx = _discord_to_bot_context(interaction)
-    except Exception as exc:
-        logger.error("Failed to parse interaction payload: %s", exc)
-        return
-
-    try:
-        content, ephemeral = _route_command(ctx)
-    except Exception as exc:
-        logger.error("Unhandled error routing command: %s", exc)
-        content, ephemeral = "An unexpected error occurred. Please try again.", True
-
-    try:
-        if ctx.platform == "discord":
-            discord_service.send_followup(ctx.token, content, ephemeral=ephemeral)
-        elif ctx.platform == "gchat":
-            private_user = ctx.gchat_sender_name if ephemeral else ""
-            gchat_service.send_message(ctx.space, content, private_user=private_user)
-    except Exception as exc:
-        logger.error("Failed to send response on %s: %s", ctx.platform, exc)

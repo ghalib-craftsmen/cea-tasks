@@ -7,22 +7,22 @@ import logging
 import time
 from typing import Any
 
-import boto3
 from nacl.exceptions import BadSignatureError
 from nacl.signing import VerifyKey
 
+from app import commands
 from app.config import settings
+from app.models.discord_models import DiscordInteraction
+from app.platform.bot_context import BotContext
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-_PING = 1
-_APPLICATION_COMMAND = 2
-_PONG = 1
-_DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE = 5
-_EPHEMERAL = 64
-
-_lambda_client = boto3.client("lambda", region_name=settings.aws_region)
+_PING                        = 1
+_APPLICATION_COMMAND         = 2
+_PONG                        = 1
+_CHANNEL_MESSAGE_WITH_SOURCE = 4
+_EPHEMERAL                   = 64
 
 
 def _ok(body: dict) -> dict:
@@ -34,7 +34,7 @@ def _err(status: int, message: str) -> dict:
 
 
 def _verify_signature(headers: dict, raw_body: bytes) -> bool:
-    sig = headers.get("x-signature-ed25519", "")
+    sig       = headers.get("x-signature-ed25519", "")
     timestamp = headers.get("x-signature-timestamp", "")
 
     if not sig or not timestamp:
@@ -54,12 +54,45 @@ def _verify_signature(headers: dict, raw_body: bytes) -> bool:
         return False
 
 
+def _build_context(payload: dict) -> BotContext:
+    interaction = DiscordInteraction(**payload)
+    roles = interaction.get_roles()
+
+    if settings.role_admin_id in roles:
+        role = "ADMIN"
+    elif settings.role_team_lead_id in roles:
+        role = "TEAM_LEAD"
+    else:
+        role = "EMPLOYEE"
+
+    command    = ""
+    subcommand = None
+    options: dict[str, Any] = {}
+
+    if interaction.data:
+        command     = interaction.data.name
+        raw_options = list(interaction.data.options)
+        if raw_options and raw_options[0].type == 1:
+            subcommand  = raw_options[0].name
+            raw_options = list(raw_options[0].options or [])
+        options = {opt.name: opt.value for opt in raw_options}
+
+    return BotContext(
+        user_id=interaction.get_user().id,
+        role=role,
+        platform="discord",
+        command=command,
+        subcommand=subcommand,
+        options=options,
+        token=interaction.token,
+        discord_roles=roles,
+        discord_application_id=interaction.application_id,
+    )
+
+
 def handler(event: dict, context: Any) -> dict:
     method = event.get("requestContext", {}).get("http", {}).get("method", "")
-    path = event.get("rawPath", "")
-
-    if method == "GET" and path == "/health":
-        return _ok({"status": "ok"})
+    path   = event.get("rawPath", "")
 
     if method != "POST" or path != "/discord/interactions":
         return _err(404, "Not found")
@@ -69,6 +102,7 @@ def handler(event: dict, context: Any) -> dict:
         raw_body = base64.b64decode(body_str) if event.get("isBase64Encoded") else body_str.encode()
     except binascii.Error:
         return _err(400, "Invalid request body")
+
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
 
     if not _verify_signature(headers, raw_body):
@@ -92,16 +126,21 @@ def handler(event: dict, context: Any) -> dict:
         return _err(400, "Unsupported interaction type")
 
     try:
-        _lambda_client.invoke(
-            FunctionName=settings.command_lambda_name,
-            InvocationType="Event",
-            Payload=json.dumps(payload).encode(),
-        )
-        logger.info("Dispatched command=%s to %s", payload.get("data", {}).get("name"), settings.command_lambda_name)
-    except Exception as e:
-        logger.error("Failed to invoke command lambda: %s", e)
+        ctx = _build_context(payload)
+    except Exception as exc:
+        logger.error("Failed to build BotContext: %s", exc)
+        return _err(400, "Invalid interaction payload")
+
+    try:
+        content, ephemeral = commands.route_command(ctx)
+    except Exception as exc:
+        logger.error("Unhandled error routing command: %s", exc)
+        content, ephemeral = "An unexpected error occurred. Please try again.", True
 
     return _ok({
-        "type": _DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-        "data": {"flags": _EPHEMERAL},
+        "type": _CHANNEL_MESSAGE_WITH_SOURCE,
+        "data": {
+            "content": content,
+            "flags": _EPHEMERAL if ephemeral else 0,
+        },
     })

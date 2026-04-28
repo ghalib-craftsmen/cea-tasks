@@ -5,11 +5,11 @@ import binascii
 import json
 import logging
 import uuid
-from dataclasses import asdict
 from typing import Any
 
 import boto3
 
+from app import commands
 from app.config import settings
 from app.models.gchat_models import GChatEvent
 from app.platform.bot_context import BotContext
@@ -17,7 +17,6 @@ from app.platform.bot_context import BotContext
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-_lambda_client = boto3.client("lambda", region_name=settings.aws_region)
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
 
@@ -235,16 +234,15 @@ def handler(event: dict, context: Any) -> dict:
         gchat_sender_name=sender.name,
     )
 
-    # --- Async dispatch to Command Lambda ---
+    # --- Run command inline ---
     try:
-        _lambda_client.invoke(
-            FunctionName=settings.command_lambda_name,
-            InvocationType="Event",
-            Payload=json.dumps(asdict(bot_ctx)).encode(),
-        )
-        logger.info("Dispatched command=%s subcommand=%s to %s", command, subcommand, settings.command_lambda_name)
+        content, ephemeral = commands.route_command(bot_ctx)
     except Exception as exc:
-        logger.error("Failed to invoke command lambda: %s", exc)
+        logger.error("Unhandled error routing command: %s", exc)
+        content, ephemeral = "An unexpected error occurred. Please try again.", True
 
-    # --- Immediate ACK ---
-    return _ok({})
+    response_body: dict = {"text": content}
+    if ephemeral and sender.name:
+        response_body["privateMessageViewer"] = {"name": sender.name}
+
+    return _ok(response_body)

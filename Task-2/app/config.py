@@ -52,7 +52,6 @@ class Settings(BaseSettings):
     # AWS
     dynamodb_table: str = "trainee-2026-abdullah-MHP_Table"
     aws_region: str = "ap-southeast-1"
-    command_lambda_name: str = "trainee-2026-abdullah-command"
 
     # Discord Role IDs — loaded from SSM in Lambda, from .env locally
     role_team_lead_id: str = ""
