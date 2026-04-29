@@ -164,7 +164,7 @@ def _parse_arguments(command: str, argument_text: str) -> tuple[str | None, dict
 def handler(event: dict, context: Any) -> dict:
     method = event.get("requestContext", {}).get("http", {}).get("method", "")
     path = event.get("rawPath", "")
-    logger.info("GChat request: method=%s path=%s body=%s", method, path, event.get("body", "")[:200])
+    logger.info("GChat request: method=%s path=%s body=%s", method, path, event.get("body", ""))
 
     if method != "POST" or path != "/gchat/interactions":
         logger.warning("Rejected: method=%s path=%s", method, path)
@@ -175,6 +175,7 @@ def handler(event: dict, context: Any) -> dict:
     try:
         raw_body = base64.b64decode(body_str) if event.get("isBase64Encoded") else body_str.encode()
     except binascii.Error:
+        logger.warning("Body base64 decode failed")
         return _err(400, "Invalid request body")
 
     # JWT verification is handled by the API Gateway JWT authorizer.
@@ -183,7 +184,10 @@ def handler(event: dict, context: Any) -> dict:
     try:
         payload = json.loads(raw_body)
     except json.JSONDecodeError:
+        logger.warning("Body JSON parse failed")
         return _err(400, "Invalid request body")
+
+    logger.info("Parsed payload keys: %s", list(payload.keys()))
 
     # Google Chat newer format nests data under chat.appCommandPayload
     chat_data = payload.get("chat", payload)
@@ -198,9 +202,12 @@ def handler(event: dict, context: Any) -> dict:
         "user": chat_data.get("user", {}),
     }
 
+    logger.info("event_data: %s", event_data)
+
     gchat_event = GChatEvent(**event_data)
 
     # --- Space authorization guard (§3.4) ---
+    logger.info("Space: %s | Authorized: %s", gchat_event.get_space_name(), settings.gchat_authorized_space)
     if gchat_event.get_space_name() != settings.gchat_authorized_space:
         logger.warning("Unauthorized space: %s", gchat_event.get_space_name())
         return _err(401, "Unauthorized space")
@@ -208,14 +215,18 @@ def handler(event: dict, context: Any) -> dict:
     # --- Identity resolution ---
     sender = gchat_event.get_sender()
     google_user_id = sender.get_google_user_id()
+    logger.info("Sender: %s user_id=%s", sender.name, google_user_id)
     if not google_user_id:
+        logger.warning("Unable to identify sender")
         return _err(400, "Unable to identify sender")
 
     user_id, role = _resolve_or_register_user(google_user_id, sender.email)
 
     # --- Parse command ---
     slash_cmd = gchat_event.message.slashCommand
+    logger.info("Slash command: %s", slash_cmd)
     if not slash_cmd or not slash_cmd.commandId:
+        logger.warning("No slash command in payload")
         return _err(400, "No slash command in payload")
 
     command = _COMMAND_MAP.get(slash_cmd.get_command_id())
