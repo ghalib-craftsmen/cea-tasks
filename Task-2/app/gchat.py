@@ -64,8 +64,20 @@ _BOOL_STRINGS = {"true": True, "false": False, "yes": True, "no": False, "1": Tr
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _ok(body: dict) -> dict:
-    return {"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": json.dumps(body)}
+def _ok(message: dict) -> dict:
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({
+            "hostAppDataAction": {
+                "chatDataAction": {
+                    "createMessageAction": {
+                        "message": message
+                    }
+                }
+            }
+        }),
+    }
 
 
 def _err(status: int, message: str) -> dict:
