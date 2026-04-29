@@ -10,7 +10,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from app.config import settings
 from app.models.meal_models import MealRecord
 from app.platform.bot_context import BotContext
-from app.services import discord_service, gchat_service, headcount_service, meal_service, team_service
+from app.services import discord_service, headcount_service, meal_service, team_service
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -395,6 +395,7 @@ def _handle_event(ctx: BotContext) -> tuple[str, bool]:
                 logger.error("Failed to post event announcement to Discord channel: %s", exc)
         if settings.gchat_announcement_space:
             try:
+                from app.services import gchat_service
                 gchat_service.send_message(settings.gchat_announcement_space, message)
                 posted_to.append("Google Chat")
             except Exception as exc:

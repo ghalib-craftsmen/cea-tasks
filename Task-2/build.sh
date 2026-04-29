@@ -17,6 +17,11 @@ python3 -m pip install -r requirements.txt -t "$LAYER_DIR/python/" \
   --python-version 3.12 \
   --only-binary=:all:
 
+echo "Copying shared business logic into layer..."
+mkdir -p "$LAYER_DIR/python/app"
+cp app/commands.py app/config.py "$LAYER_DIR/python/app/"
+cp -r app/services app/models app/platform "$LAYER_DIR/python/app/"
+
 echo "Creating layer zip..."
 python3 -c "
 import zipfile, os
@@ -27,9 +32,9 @@ with zipfile.ZipFile('$LAYER_ZIP', 'w', zipfile.ZIP_DEFLATED) as zf:
             zf.write(fp, os.path.relpath(fp, '$LAYER_DIR'))
 "
 
-echo "Copying app..."
-mkdir -p "$PACKAGE_DIR"
-cp -r app    "$PACKAGE_DIR/app"
+echo "Copying platform handlers..."
+mkdir -p "$PACKAGE_DIR/app"
+cp app/discord.py app/gchat.py app/discord_authorizer.py "$PACKAGE_DIR/app/"
 cp -r config "$PACKAGE_DIR/config"
 
 echo "Creating lambda zip..."
