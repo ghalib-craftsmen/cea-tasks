@@ -254,8 +254,11 @@ def handler(event: dict, context: Any) -> dict:
         logger.error("Unhandled error routing command: %s", exc)
         content, ephemeral = "An unexpected error occurred. Please try again.", True
 
+    logger.info("Command result: content=%s ephemeral=%s", content, ephemeral)
+
     response_body: dict = {"text": content}
     if ephemeral and sender.name:
         response_body["privateMessageViewer"] = {"name": sender.name}
 
+    logger.info("Response body: %s", response_body)
     return _ok(response_body)
