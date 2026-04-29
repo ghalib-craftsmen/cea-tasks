@@ -1,6 +1,9 @@
+import logging
 import os
 import boto3
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 _GCP_CREDS_PATH = "/tmp/gcp_credentials.json"
 
@@ -15,10 +18,15 @@ def _load_secrets_from_ssm(settings: "Settings") -> None:
     # Fetch all parameters under the prefix in a single API call
     paginator = client.get_paginator("get_parameters_by_path")
     params: dict[str, str] = {}
-    for page in paginator.paginate(Path=prefix, WithDecryption=True):
-        for p in page["Parameters"]:
-            name = p["Name"].removeprefix(prefix + "/")
-            params[name] = p["Value"]
+    try:
+        for page in paginator.paginate(Path=prefix, WithDecryption=True):
+            for p in page["Parameters"]:
+                name = p["Name"].removeprefix(prefix + "/")
+                params[name] = p["Value"]
+        logger.info("Loaded %d SSM parameters from %s", len(params), prefix)
+    except Exception as exc:
+        logger.error("Failed to load SSM parameters from %s: %s", prefix, exc)
+        return
 
     settings.discord_public_key     = params.get("DISCORD_PUBLIC_KEY", "")
     settings.discord_bot_token      = params.get("DISCORD_BOT_TOKEN", "")

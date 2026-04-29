@@ -51,9 +51,12 @@ resource "aws_iam_role_policy" "ssm_access" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["ssm:GetParameter", "ssm:GetParametersByPath"]
-        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/${var.project_prefix}/*"
+        Effect = "Allow"
+        Action = ["ssm:GetParameter", "ssm:GetParametersByPath"]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:*:parameter/${var.project_prefix}",
+          "arn:aws:ssm:${var.aws_region}:*:parameter/${var.project_prefix}/*"
+        ]
       }
     ]
   })
