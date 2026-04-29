@@ -164,8 +164,10 @@ def _parse_arguments(command: str, argument_text: str) -> tuple[str | None, dict
 def handler(event: dict, context: Any) -> dict:
     method = event.get("requestContext", {}).get("http", {}).get("method", "")
     path = event.get("rawPath", "")
+    logger.info("GChat request: method=%s path=%s body=%s", method, path, event.get("body", "")[:200])
 
     if method != "POST" or path != "/gchat/interactions":
+        logger.warning("Rejected: method=%s path=%s", method, path)
         return _err(404, "Not found")
 
     # --- Decode body ---
