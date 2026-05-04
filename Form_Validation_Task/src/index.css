@@ -6,7 +6,8 @@
 
 body {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  background: #f0f4f8;
+  background: linear-gradient(160deg, #f2f4f7 0%, #f5ede4 100%);
+  min-height: 100vh;
   color: #1a202c;
   -webkit-font-smoothing: antialiased;
 }

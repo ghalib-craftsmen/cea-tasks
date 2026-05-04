@@ -12,9 +12,9 @@
   --text-muted:    #555555;
   --text-light:    #888888;
 
-  --bg:            #f9f9f9;
+  --bg:            #f2f4f7;
   --surface:       #ffffff;
-  --border:        #e5e5e5;
+  --border:        #e8e8e8;
   --border-hover:  #cccccc;
 
   --error:         #c0392b;
@@ -24,9 +24,11 @@
   --success-border:#a9dfbf;
   --success-text:  #1e8449;
 
-  --radius:        8px;
-  --shadow-sm:     0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md:     0 4px 16px rgba(0,0,0,0.1),  0 2px 6px rgba(0,0,0,0.05);
+  --radius:        16px;
+  --radius-sm:     10px;
+  --shadow-sm:     0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md:     0 8px 28px rgba(0,0,0,0.10), 0 3px 8px rgba(0,0,0,0.06);
+  --shadow-card:   0 4px 20px rgba(232,119,34,0.07), 0 1px 4px rgba(0,0,0,0.05);
 }
 
 /* ── Page header ──────────────────────────────────────────── */
@@ -83,7 +85,7 @@
 
 /* ── Layout ───────────────────────────────────────────────── */
 main {
-  max-width: 700px;
+  max-width: 720px;
   margin: 2.5rem auto;
   padding: 0 1.25rem 4rem;
 }
@@ -176,12 +178,13 @@ nav[aria-label="Form progress"] li[aria-current="step"] span {
 
 /* ── Form sections ────────────────────────────────────────── */
 section {
-  background: var(--surface);
+  background: linear-gradient(160deg, #ffffff 0%, #fffaf5 100%);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--orange);
   border-radius: var(--radius);
-  padding: 1.75rem;
-  margin-bottom: 1rem;
-  box-shadow: var(--shadow-sm);
+  padding: 2rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-card);
 }
 
 section h2 {
@@ -224,9 +227,10 @@ section h2::before {
 
 .field-group input,
 .field-group textarea {
-  padding: 0.6rem 0.85rem;
+  padding: 0.65rem 0.9rem;
   border: 1.5px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
+  background: #fafafa;
   font-size: 0.95rem;
   font-family: inherit;
   color: var(--text);
@@ -263,7 +267,7 @@ section h2::before {
   gap: 0.5rem;
   padding: 0.9rem 1rem;
   border: 1.5px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: #fafafa;
 }
 
@@ -301,9 +305,10 @@ section h2::before {
 
 /* ── Select ───────────────────────────────────────────────── */
 .field-group select {
-  padding: 0.6rem 0.85rem;
+  padding: 0.65rem 0.9rem;
   border: 1.5px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
+  background-color: #fafafa;
   font-size: 0.95rem;
   font-family: inherit;
   color: var(--text);
@@ -363,9 +368,10 @@ section h2::before {
 /* ── Job rows ─────────────────────────────────────────────── */
 fieldset {
   border: 1.5px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 1.1rem;
   margin-top: 0.5rem;
+  background: rgba(255,255,255,0.6);
 }
 
 fieldset legend {
@@ -378,12 +384,13 @@ fieldset legend {
 }
 
 .job-row {
-  background: #fafafa;
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f0 100%);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--orange-light);
-  border-radius: 6px;
-  padding: 1rem;
+  border-left: 4px solid var(--orange-light);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.1rem;
   margin-bottom: 0.85rem;
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── Buttons ──────────────────────────────────────────────── */
@@ -392,11 +399,15 @@ button {
   font-family: inherit;
   font-size: 0.875rem;
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid transparent;
-  padding: 0.55rem 1.3rem;
-  transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
+  padding: 0.6rem 1.4rem;
+  transition: background 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.1s;
   letter-spacing: 0.01em;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 /* Secondary / ghost */
@@ -472,11 +483,12 @@ button.add-job:hover {
 
 /* ── Review summary ───────────────────────────────────────── */
 .review-summary {
-  background: var(--orange-tint);
+  background: linear-gradient(135deg, #fff8f0 0%, #fffdf9 100%);
   border: 1.5px solid var(--orange-border);
-  border-radius: 6px;
-  padding: 1.1rem 1.25rem;
+  border-radius: var(--radius-sm);
+  padding: 1.25rem 1.4rem;
   margin-bottom: 1.4rem;
+  box-shadow: 0 2px 10px rgba(232,119,34,0.06);
 }
 
 .review-summary h3 {
