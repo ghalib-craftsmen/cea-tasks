@@ -1,0 +1,13 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: linear-gradient(160deg, #f2f4f7 0%, #f5ede4 100%);
+  min-height: 100vh;
+  color: #1a202c;
+  -webkit-font-smoothing: antialiased;
+}
