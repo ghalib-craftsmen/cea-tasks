@@ -7,6 +7,7 @@ import { submitApplication } from "./mockApi";
 import PersonalInfo from "./components/PersonalInfo";
 import Experience from "./components/Experience";
 import Review from "./components/Review";
+import Toast from "./components/Toast";
 import "./App.css";
 
 const STEP_LABELS = ["Personal Info", "Experience", "Review & Submit"];
@@ -98,10 +99,11 @@ export default function App() {
       </FormProvider>
 
       {toast && (
-        <div role="alert">
-          {toast.message}{" "}
-          <button type="button" onClick={() => setToast(null)}>✕</button>
-        </div>
+        <Toast
+          ok={toast.ok}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </main>
   );
