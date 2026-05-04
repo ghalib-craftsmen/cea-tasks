@@ -61,7 +61,23 @@ export default function App() {
   };
 
   return (
-    <main>
+    <>
+      <header className="page-header">
+        <div className="page-header__brand">
+          <img src="/brand/logo.png" alt="" className="page-header__icon" />
+          <div className="page-header__text">
+            <span className="page-header__name">craftsmen</span>
+            <span className="page-header__tagline">Software Maestros.</span>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <div className="form-title">
+          <h1>Join Our Team</h1>
+          <p>Complete the form below and we'll be in touch shortly.</p>
+        </div>
+
       <nav aria-label="Form progress">
         <ol>
           {STEP_LABELS.map((label, i) => (
@@ -105,6 +121,7 @@ export default function App() {
           onClose={() => setToast(null)}
         />
       )}
-    </main>
+      </main>
+    </>
   );
 }

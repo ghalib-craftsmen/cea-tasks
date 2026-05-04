@@ -114,6 +114,7 @@ export default function Experience() {
 
         <button
           type="button"
+          className="add-job"
           onClick={() =>
             append({ company: "", title: "", startDate: "", endDate: "" })
           }
