@@ -24,3 +24,5 @@ technical_spec.md
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
