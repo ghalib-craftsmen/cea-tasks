@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { applicationSchema, stepSchemas } from "./schema";
 import type { FormData } from "./schema";
 import { submitApplication } from "./mockApi";
+import PersonalInfo from "./components/PersonalInfo";
 import "./App.css";
 
 const STEP_LABELS = ["Personal Info", "Experience", "Review & Submit"];
@@ -70,7 +71,7 @@ export default function App() {
 
       <FormProvider {...methods}>
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          {step === 0 && <div>Step 1: Personal Info</div>}
+          {step === 0 && <PersonalInfo />}
           {step === 1 && <div>Step 2: Experience</div>}
           {step === 2 && <div>Step 3: Review</div>}
 
