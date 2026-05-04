@@ -27,6 +27,13 @@ export default function App() {
       lastName: "",
       email: "",
       phone: "",
+      location: "",
+      linkedIn: "",
+      github: "",
+      portfolio: "",
+      currentRole: "",
+      noticePeriod: "",
+      salaryExpectation: "",
       yearsOfExperience: 0,
       jobs: [],
       coverLetter: "",
@@ -66,7 +73,7 @@ export default function App() {
         <div className="page-header__brand">
           <img src="/brand/logo.png" alt="" className="page-header__icon" />
           <div className="page-header__text">
-            <span className="page-header__name">craftsmen</span>
+            <span className="page-header__name">Craftsmen</span>
             <span className="page-header__tagline">Software Maestros.</span>
           </div>
         </div>
@@ -78,49 +85,49 @@ export default function App() {
           <p>Complete the form below and we'll be in touch shortly.</p>
         </div>
 
-      <nav aria-label="Form progress">
-        <ol>
-          {STEP_LABELS.map((label, i) => (
-            <li key={label} aria-current={i === step ? "step" : undefined}>
-              <span aria-hidden="true">{i + 1}</span> {label}
-            </li>
-          ))}
-        </ol>
-      </nav>
+        <nav aria-label="Form progress">
+          <ol>
+            {STEP_LABELS.map((label, i) => (
+              <li key={label} aria-current={i === step ? "step" : undefined}>
+                <span aria-hidden="true">{i + 1}</span> {label}
+              </li>
+            ))}
+          </ol>
+        </nav>
 
-      <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          {step === 0 && <PersonalInfo />}
-          {step === 1 && <Experience />}
-          {step === 2 && <Review />}
+        <FormProvider {...methods}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            {step === 0 && <PersonalInfo />}
+            {step === 1 && <Experience />}
+            {step === 2 && <Review />}
 
-          <div className="form-actions">
-            {step > 0 && (
-              <button type="button" onClick={() => setStep((s) => s - 1)}>
-                Back
-              </button>
-            )}
-            {step < 2 && (
-              <button type="button" onClick={goNext} disabled={isValidating}>
-                {isValidating ? "Checking…" : "Next"}
-              </button>
-            )}
-            {step === 2 && (
-              <button type="submit" disabled={isSubmitting || isValidating}>
-                {isSubmitting ? "Submitting…" : "Submit Application"}
-              </button>
-            )}
-          </div>
-        </form>
-      </FormProvider>
+            <div className="form-actions">
+              {step > 0 && (
+                <button type="button" onClick={() => setStep((s) => s - 1)}>
+                  Back
+                </button>
+              )}
+              {step < 2 && (
+                <button type="button" onClick={goNext} disabled={isValidating}>
+                  {isValidating ? "Checking…" : "Next"}
+                </button>
+              )}
+              {step === 2 && (
+                <button type="submit" disabled={isSubmitting || isValidating}>
+                  {isSubmitting ? "Submitting…" : "Submit Application"}
+                </button>
+              )}
+            </div>
+          </form>
+        </FormProvider>
 
-      {toast && (
-        <Toast
-          ok={toast.ok}
-          message={toast.message}
-          onClose={() => setToast(null)}
-        />
-      )}
+        {toast && (
+          <Toast
+            ok={toast.ok}
+            message={toast.message}
+            onClose={() => setToast(null)}
+          />
+        )}
       </main>
     </>
   );

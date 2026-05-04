@@ -287,6 +287,47 @@ section h2::before {
   margin-left: 1.6rem;
 }
 
+/* ── Sub-section label ────────────────────────────────────── */
+.field-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--orange);
+  padding: 0.5rem 0 0.4rem;
+  margin: 0.4rem 0 0.6rem;
+  border-bottom: 1px solid var(--orange-border);
+}
+
+/* ── Select ───────────────────────────────────────────────── */
+.field-group select {
+  padding: 0.6rem 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  padding-right: 2.2rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+
+.field-group select:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px var(--orange-ring);
+}
+
+.field-group select[aria-invalid="true"] {
+  border-color: var(--error);
+  background-color: var(--error-bg);
+}
+
 /* ── Error messages ───────────────────────────────────────── */
 .error {
   font-size: 0.78rem;

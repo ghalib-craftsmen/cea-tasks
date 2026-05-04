@@ -1,13 +1,22 @@
 import { z } from "zod";
 
+const optionalUrl = z.union([
+  z.string().url("Enter a valid URL"),
+  z.literal(""),
+]);
+
 export const step1Schema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z
-    .string()
-    .min(1, "Email is required")
-    .email("Enter a valid email address"),
-  phone: z.string().optional(),
+  firstName:         z.string().min(1, "First name is required"),
+  lastName:          z.string().min(1, "Last name is required"),
+  email:             z.string().min(1, "Email is required").email("Enter a valid email address"),
+  phone:             z.string().optional(),
+  location:          z.string().min(1, "Location is required"),
+  linkedIn:          z.string().min(1, "LinkedIn profile is required").url("Enter a valid LinkedIn URL"),
+  github:            z.string().min(1, "GitHub profile is required").url("Enter a valid GitHub URL"),
+  portfolio:         optionalUrl,
+  currentRole:       z.string().optional(),
+  noticePeriod:      z.string().min(1, "Please select your notice period"),
+  salaryExpectation: z.string().optional(),
 });
 
 const jobSchema = z
