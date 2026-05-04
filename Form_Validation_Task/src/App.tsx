@@ -6,6 +6,7 @@ import type { FormData } from "./schema";
 import { submitApplication } from "./mockApi";
 import PersonalInfo from "./components/PersonalInfo";
 import Experience from "./components/Experience";
+import Review from "./components/Review";
 import "./App.css";
 
 const STEP_LABELS = ["Personal Info", "Experience", "Review & Submit"];
@@ -74,7 +75,7 @@ export default function App() {
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
           {step === 0 && <PersonalInfo />}
           {step === 1 && <Experience />}
-          {step === 2 && <div>Step 3: Review</div>}
+          {step === 2 && <Review />}
 
           <div className="form-actions">
             {step > 0 && (
