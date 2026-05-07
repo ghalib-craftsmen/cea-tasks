@@ -23,7 +23,10 @@ class GChatSpace(BaseModel):
 
 
 class GChatSlashCommand(BaseModel):
-    commandId: str = ""
+    commandId: str | int | float = ""
+
+    def get_command_id(self) -> str:
+        return str(int(self.commandId)) if self.commandId else ""
 
 
 class GChatMessage(BaseModel):

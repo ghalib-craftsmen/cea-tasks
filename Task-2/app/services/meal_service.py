@@ -27,9 +27,12 @@ _serializer = TypeSerializer()
 _DEFAULT_ACTIVE_MEAL_TYPES = {"LUNCH", "SNACKS"}
 VALID_MEAL_TYPES = ["LUNCH", "SNACKS", "IFTAR", "EVENT_DINNER", "OPTIONAL_DINNER"]
 
-# Loaded once at module level — captured in SnapStart snapshot
-with _EVENTS_PATH.open() as _f:
-    _EVENTS: list[EventConfig] = [EventConfig(**e) for e in json.load(_f)]
+# Loaded once at module level — defaults to empty list if file is absent
+try:
+    with _EVENTS_PATH.open() as _f:
+        _EVENTS: list[EventConfig] = [EventConfig(**e) for e in json.load(_f)]
+except FileNotFoundError:
+    _EVENTS = []
 
 
 def _serialize(item: dict) -> dict:
@@ -421,8 +424,8 @@ def bulk_location_update(
 def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
     """Store a company-wide WFH period record in DynamoDB."""
     try:
-        datetime.strptime(start_date, "%Y-%m-%d")
-        datetime.strptime(end_date, "%Y-%m-%d")
+        start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
     except ValueError:
         return "Invalid date format. Use YYYY-MM-DD."
     try:
@@ -443,8 +446,8 @@ def set_wfh_period(start_date: str, end_date: str, set_by: str) -> str:
 def delete_wfh_period(start_date: str, end_date: str) -> str:
     """Delete a company-wide WFH period record from DynamoDB."""
     try:
-        datetime.strptime(start_date, "%Y-%m-%d")
-        datetime.strptime(end_date, "%Y-%m-%d")
+        start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
     except ValueError:
         return "Invalid date format. Use YYYY-MM-DD."
     try:

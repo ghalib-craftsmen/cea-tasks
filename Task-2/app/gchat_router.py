@@ -23,7 +23,7 @@ _lambda_client = boto3.client("lambda", region_name=settings.aws_region)
 _dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
 _table = _dynamodb.Table(settings.dynamodb_table)
 
-_EXPECTED_ISSUER = "chat@system.gserviceaccount.com"
+_EXPECTED_ISSUERS = {"chat@system.gserviceaccount.com", "https://accounts.google.com"}
 
 # Google Chat commandId → MHP command name (must match Cloud Console registration)
 _COMMAND_MAP: dict[str, str] = {
@@ -101,7 +101,7 @@ def _verify_jwt(headers: dict) -> bool:
         logger.warning("JWT verification failed: %s", exc)
         return False
 
-    if claims.get("iss") != _EXPECTED_ISSUER:
+    if claims.get("iss") not in _EXPECTED_ISSUERS:
         logger.warning("JWT issuer mismatch: got %s", claims.get("iss"))
         return False
 
@@ -224,7 +224,20 @@ def handler(event: dict, context: Any) -> dict:
     except json.JSONDecodeError:
         return _err(400, "Invalid request body")
 
-    gchat_event = GChatEvent(**payload)
+    # Google Chat newer format nests data under chat.appCommandPayload
+    chat_data = payload.get("chat", payload)
+    app_payload = chat_data.get("appCommandPayload", chat_data)
+
+    # Build a flat structure that GChatEvent expects
+    event_data = {
+        "type": payload.get("type", ""),
+        "eventTime": chat_data.get("eventTime", ""),
+        "space": app_payload.get("space", chat_data.get("space", {})),
+        "message": app_payload.get("message", chat_data.get("message", {})),
+        "user": chat_data.get("user", {}),
+    }
+
+    gchat_event = GChatEvent(**event_data)
 
     # --- Space authorization guard (§3.4) ---
     if gchat_event.get_space_name() != settings.gchat_authorized_space:
@@ -244,7 +257,7 @@ def handler(event: dict, context: Any) -> dict:
     if not slash_cmd or not slash_cmd.commandId:
         return _err(400, "No slash command in payload")
 
-    command = _COMMAND_MAP.get(slash_cmd.commandId)
+    command = _COMMAND_MAP.get(slash_cmd.get_command_id())
     if not command:
         return _err(400, f"Unknown command ID: {slash_cmd.commandId}")
 
@@ -259,6 +272,7 @@ def handler(event: dict, context: Any) -> dict:
         subcommand=subcommand,
         options=options,
         space=gchat_event.get_space_name(),
+        gchat_sender_name=sender.name,
     )
 
     # --- Async dispatch to Command Lambda ---

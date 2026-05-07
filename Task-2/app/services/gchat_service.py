@@ -53,7 +53,14 @@ def _authorized_request(url: str, payload: dict, method: str = "POST") -> None:
         raise
 
 
-def send_message(space: str, content: str) -> None:
-    """Send a text message to a Google Chat space."""
+def send_message(space: str, content: str, private_user: str = "") -> None:
+    """Send a text message to a Google Chat space.
+
+    If *private_user* is a user resource name (e.g. ``users/12345``), the
+    message is visible only to that user.
+    """
     url = f"{_CHAT_API_BASE}/{space}/messages"
-    _authorized_request(url, {"text": content})
+    payload: dict = {"text": content}
+    if private_user:
+        payload["privateMessageViewer"] = {"name": private_user}
+    _authorized_request(url, payload)

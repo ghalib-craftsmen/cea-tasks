@@ -552,6 +552,55 @@ def _handle_team_members(ctx: BotContext) -> tuple[str, bool]:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand Help Text (for Google Chat, which lacks native autocomplete)
+# ---------------------------------------------------------------------------
+
+_SUBCOMMAND_HELP: dict[str, str] = {
+    "meal": (
+        "Available subcommands for */meal*:\n"
+        "• `status` [user] [date] — Check meal status\n"
+        "• `set` <date> [opt_in] [meal_types] [user] — Update meal preference\n"
+        "• `bulk` <start_date> <end_date> <opt_in> [user] — Bulk update"
+    ),
+    "location": (
+        "Available subcommands for */location*:\n"
+        "• `status` [user] [date] — Check work location\n"
+        "• `set` <date> <location> [user] — Set work location\n"
+        "• `bulk` <start_date> <end_date> <location> [user] — Bulk update"
+    ),
+    "wfh-periods": (
+        "Available subcommands for */wfh-periods*:\n"
+        "• `list` — Show upcoming WFH periods\n"
+        "• `set` <start_date> <end_date> — Add a WFH period *(Admin)*\n"
+        "• `delete` <start_date> <end_date> — Remove a WFH period *(Admin)*\n"
+        "Dates must be in **YYYY-MM-DD** format (e.g. 2026-04-22)."
+    ),
+    "event": (
+        "Available subcommands for */event*:\n"
+        "• `list` — Show configured event days\n"
+        "• `optout` <date> — Opt out of an event meal\n"
+        "• `announce` <date> — Announce an event *(Admin)*\n"
+        "• `update` <date> <description> — Update event details *(Admin)*\n"
+        "• `delete` <date> — Delete an event *(Admin)*"
+    ),
+    "meal-type": (
+        "Available subcommands for */meal-type*:\n"
+        "• `list` [date] — Show active meal types\n"
+        "• `activate` <date> <meal_type> — Activate a meal type *(Admin)*\n"
+        "• `deactivate` <date> <meal_type> — Deactivate a meal type *(Admin)*"
+    ),
+}
+
+
+def _subcommand_hint(ctx: BotContext) -> str:
+    """Return a helpful subcommand listing for the current command."""
+    help_text = _SUBCOMMAND_HELP.get(ctx.command)
+    if help_text and ctx.platform == "gchat":
+        return help_text
+    return "Please specify a subcommand."
+
+
+# ---------------------------------------------------------------------------
 # Command Routing
 # ---------------------------------------------------------------------------
 
@@ -561,12 +610,12 @@ def _route_command(ctx: BotContext) -> tuple[str, bool]:
 
     if command == "meal":
         if not subcommand:
-            return _reply("Please specify a subcommand.")
+            return _reply(_subcommand_hint(ctx))
         return _handle_meal(ctx)
 
     if command == "location":
         if not subcommand:
-            return _reply("Please specify a subcommand.")
+            return _reply(_subcommand_hint(ctx))
         handler_fn = _LOCATION_HANDLERS.get(subcommand)
         if not handler_fn:
             return _reply("Unknown subcommand.")
@@ -580,17 +629,17 @@ def _route_command(ctx: BotContext) -> tuple[str, bool]:
 
     if command == "wfh-periods":
         if not subcommand:
-            return _reply("Please specify a subcommand.")
+            return _reply(_subcommand_hint(ctx))
         return _handle_wfh_periods(ctx)
 
     if command == "event":
         if not subcommand:
-            return _reply("Please specify a subcommand.")
+            return _reply(_subcommand_hint(ctx))
         return _handle_event(ctx)
 
     if command == "meal-type":
         if not subcommand:
-            return _reply("Please specify a subcommand.")
+            return _reply(_subcommand_hint(ctx))
         return _handle_meal_type(ctx)
 
     return _reply("Unknown command.")
@@ -623,6 +672,7 @@ def handler(event: dict, context: Any) -> None:
         if ctx.platform == "discord":
             discord_service.send_followup(ctx.token, content, ephemeral=ephemeral)
         elif ctx.platform == "gchat":
-            gchat_service.send_message(ctx.space, content)
+            private_user = ctx.gchat_sender_name if ephemeral else ""
+            gchat_service.send_message(ctx.space, content, private_user=private_user)
     except Exception as exc:
         logger.error("Failed to send response on %s: %s", ctx.platform, exc)
