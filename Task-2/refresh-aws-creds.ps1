@@ -55,7 +55,7 @@ try {
     $crumbResponse = Invoke-RestMethod "$JENKINS_URL/crumbIssuer/api/json" -Headers $authHeader
     $authHeader[$crumbResponse.crumbRequestField] = $crumbResponse.crumb
 } catch {
-    Write-Warning "Could not fetch Jenkins crumb — CSRF may be disabled, continuing anyway."
+    Write-Warning "Could not fetch Jenkins crumb - CSRF may be disabled, continuing anyway."
 }
 
 $credentialsToUpdate = @(
@@ -65,21 +65,16 @@ $credentialsToUpdate = @(
 )
 
 foreach ($cred in $credentialsToUpdate) {
-    $xml = @"
-<org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl>
-  <scope>GLOBAL</scope>
-  <id>$($cred.id)</id>
-  <description></description>
-  <secret>$($cred.value)</secret>
-</org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl>
-"@
+    $xml = "<org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl>" +
+           "<scope>GLOBAL</scope>" +
+           "<id>" + $cred.id + "</id>" +
+           "<description></description>" +
+           "<secret>" + $cred.value + "</secret>" +
+           "</org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl>"
+
+    $uri = "$JENKINS_URL/credentials/store/system/domain/_/credential/$($cred.id)/config.xml"
     try {
-        Invoke-RestMethod `
-            -Uri "$JENKINS_URL/credentials/store/system/domain/_/credential/$($cred.id)/config.xml" `
-            -Method Post `
-            -Headers $authHeader `
-            -ContentType "application/xml" `
-            -Body $xml | Out-Null
+        Invoke-RestMethod -Uri $uri -Method Post -Headers $authHeader -ContentType "application/xml" -Body $xml | Out-Null
         Write-Host "Jenkins updated: $($cred.id)"
     } catch {
         Write-Warning "Failed to update Jenkins credential '$($cred.id)': $_"
