@@ -1,37 +1,13 @@
 from __future__ import annotations
 
-import base64
-import binascii
 import logging
-import os
 import time
 from typing import Any
-
-import boto3
-from nacl.exceptions import BadSignatureError
-from nacl.signing import VerifyKey
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 _TIMESTAMP_TOLERANCE_SECONDS = 300
-_SSM_PREFIX = os.environ.get("SSM_PREFIX", "")
-
-
-def _load_public_key() -> str:
-    env_key = os.environ.get("DISCORD_PUBLIC_KEY", "")
-    if env_key:
-        return env_key
-    if _SSM_PREFIX:
-        try:
-            ssm = boto3.client("ssm", region_name=os.environ.get("AWS_REGION", "ap-southeast-1"))
-            return ssm.get_parameter(Name=f"{_SSM_PREFIX}/DISCORD_PUBLIC_KEY")["Parameter"]["Value"]
-        except Exception as exc:
-            logger.error("Failed to load DISCORD_PUBLIC_KEY from SSM: %s", exc)
-    return ""
-
-
-_PUBLIC_KEY = _load_public_key()
 
 
 def handler(event: dict, context: Any) -> dict:
@@ -50,20 +26,6 @@ def handler(event: dict, context: Any) -> dict:
             return {"isAuthorized": False}
     except ValueError:
         logger.warning("Invalid Discord timestamp: %s", timestamp)
-        return {"isAuthorized": False}
-
-    body_str: str = event.get("body", "") or ""
-    try:
-        raw_body = base64.b64decode(body_str) if event.get("isBase64Encoded") else body_str.encode()
-    except binascii.Error:
-        logger.warning("Body base64 decode failed in authorizer")
-        return {"isAuthorized": False}
-
-    try:
-        verify_key = VerifyKey(bytes.fromhex(_PUBLIC_KEY))
-        verify_key.verify(timestamp.encode() + raw_body, bytes.fromhex(sig))
-    except (BadSignatureError, ValueError) as exc:
-        logger.warning("Ed25519 signature verification failed: %s", exc)
         return {"isAuthorized": False}
 
     return {"isAuthorized": True}

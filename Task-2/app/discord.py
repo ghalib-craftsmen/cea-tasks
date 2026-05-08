@@ -4,7 +4,12 @@ import base64
 import binascii
 import json
 import logging
+import os
 from typing import Any
+
+import boto3
+from nacl.exceptions import BadSignatureError
+from nacl.signing import VerifyKey
 
 from app import commands
 from app.config import settings
@@ -19,6 +24,39 @@ _APPLICATION_COMMAND         = 2
 _PONG                        = 1
 _CHANNEL_MESSAGE_WITH_SOURCE = 4
 _EPHEMERAL                   = 64
+
+_SSM_PREFIX = os.environ.get("SSM_PREFIX", "")
+
+
+def _load_public_key() -> str:
+    env_key = os.environ.get("DISCORD_PUBLIC_KEY", "")
+    if env_key:
+        return env_key
+    if _SSM_PREFIX:
+        try:
+            ssm = boto3.client("ssm", region_name=os.environ.get("AWS_REGION", "ap-southeast-1"))
+            return ssm.get_parameter(Name=f"{_SSM_PREFIX}/DISCORD_PUBLIC_KEY")["Parameter"]["Value"]
+        except Exception as exc:
+            logger.error("Failed to load DISCORD_PUBLIC_KEY from SSM: %s", exc)
+    return ""
+
+
+_PUBLIC_KEY = _load_public_key()
+
+
+def _verify_signature(event: dict, raw_body: bytes) -> bool:
+    headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+    sig       = headers.get("x-signature-ed25519", "")
+    timestamp = headers.get("x-signature-timestamp", "")
+    if not sig or not timestamp or not _PUBLIC_KEY:
+        return False
+    try:
+        verify_key = VerifyKey(bytes.fromhex(_PUBLIC_KEY))
+        verify_key.verify(timestamp.encode() + raw_body, bytes.fromhex(sig))
+        return True
+    except (BadSignatureError, ValueError) as exc:
+        logger.warning("Ed25519 signature verification failed: %s", exc)
+        return False
 
 
 def _ok(body: dict) -> dict:
@@ -77,6 +115,9 @@ def handler(event: dict, context: Any) -> dict:
         raw_body = base64.b64decode(body_str) if event.get("isBase64Encoded") else body_str.encode()
     except binascii.Error:
         return _err(400, "Invalid request body")
+
+    if not _verify_signature(event, raw_body):
+        return _err(401, "Invalid request signature")
 
     try:
         payload = json.loads(raw_body)
