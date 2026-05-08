@@ -3,6 +3,7 @@ import os
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 
 _GCP_CREDS_PATH = "/tmp/gcp_credentials.json"
 
