@@ -26,6 +26,7 @@ resource "aws_lambda_function" "discord_authorizer" {
   timeout          = 10
   role             = aws_iam_role.lambda_exec.arn
   layers           = [aws_lambda_layer_version.shared_deps.arn]
+  kms_key_arn      = ""
 
   environment {
     variables = {
@@ -54,6 +55,7 @@ resource "aws_lambda_function" "discord" {
   timeout          = 15
   role             = aws_iam_role.lambda_exec.arn
   layers           = [aws_lambda_layer_version.shared_deps.arn]
+  kms_key_arn      = ""
 
   environment {
     variables = {
