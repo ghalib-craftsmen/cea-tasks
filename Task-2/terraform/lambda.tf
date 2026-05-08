@@ -30,7 +30,7 @@ resource "aws_lambda_function" "discord_authorizer" {
 
   environment {
     variables = {
-      DISCORD_PUBLIC_KEY = var.discord_public_key
+      SSM_PREFIX = "/${var.project_prefix}"
     }
   }
 

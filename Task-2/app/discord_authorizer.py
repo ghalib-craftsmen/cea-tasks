@@ -7,6 +7,7 @@ import os
 import time
 from typing import Any
 
+import boto3
 from nacl.exceptions import BadSignatureError
 from nacl.signing import VerifyKey
 
@@ -14,7 +15,23 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 _TIMESTAMP_TOLERANCE_SECONDS = 300
-_PUBLIC_KEY = os.environ.get("DISCORD_PUBLIC_KEY", "")
+_SSM_PREFIX = os.environ.get("SSM_PREFIX", "")
+
+
+def _load_public_key() -> str:
+    env_key = os.environ.get("DISCORD_PUBLIC_KEY", "")
+    if env_key:
+        return env_key
+    if _SSM_PREFIX:
+        try:
+            ssm = boto3.client("ssm", region_name=os.environ.get("AWS_REGION", "ap-southeast-1"))
+            return ssm.get_parameter(Name=f"{_SSM_PREFIX}/DISCORD_PUBLIC_KEY")["Parameter"]["Value"]
+        except Exception as exc:
+            logger.error("Failed to load DISCORD_PUBLIC_KEY from SSM: %s", exc)
+    return ""
+
+
+_PUBLIC_KEY = _load_public_key()
 
 
 def handler(event: dict, context: Any) -> dict:
