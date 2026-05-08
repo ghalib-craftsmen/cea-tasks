@@ -26,13 +26,7 @@ resource "aws_lambda_function" "discord_authorizer" {
   timeout          = 10
   role             = aws_iam_role.lambda_exec.arn
   layers           = [aws_lambda_layer_version.shared_deps.arn]
-  kms_key_arn      = ""
-
-  environment {
-    variables = {
-      SSM_PREFIX = "/${var.project_prefix}"
-    }
-  }
+  kms_key_arn = ""
 
   depends_on = [aws_cloudwatch_log_group.discord_authorizer]
 }
