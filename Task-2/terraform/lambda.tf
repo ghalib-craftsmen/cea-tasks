@@ -53,11 +53,16 @@ resource "aws_lambda_function" "discord" {
 
   environment {
     variables = {
-      SSM_PREFIX          = "/${var.project_prefix}"
-      DYNAMODB_TABLE      = var.dynamodb_table_name
-      TIMEZONE            = var.timezone
-      DEFAULT_CUTOFF_TIME = var.default_cutoff_time
-      WFH_MONTHLY_LIMIT   = var.wfh_monthly_limit
+      DYNAMODB_TABLE        = var.dynamodb_table_name
+      TIMEZONE              = var.timezone
+      DEFAULT_CUTOFF_TIME   = var.default_cutoff_time
+      WFH_MONTHLY_LIMIT     = var.wfh_monthly_limit
+      DISCORD_PUBLIC_KEY    = var.discord_public_key
+      DISCORD_BOT_TOKEN     = var.discord_bot_token
+      DISCORD_APPLICATION_ID = var.discord_application_id
+      AUTHORIZED_GUILD_ID   = var.discord_guild_id
+      ROLE_TEAM_LEAD_ID     = var.discord_role_team_lead_id
+      ROLE_ADMIN_ID         = var.discord_role_admin_id
     }
   }
 
@@ -85,11 +90,18 @@ resource "aws_lambda_function" "gchat" {
 
   environment {
     variables = {
-      SSM_PREFIX          = "/${var.project_prefix}"
-      DYNAMODB_TABLE      = var.dynamodb_table_name
-      TIMEZONE            = var.timezone
-      DEFAULT_CUTOFF_TIME = var.default_cutoff_time
-      WFH_MONTHLY_LIMIT   = var.wfh_monthly_limit
+      DYNAMODB_TABLE              = var.dynamodb_table_name
+      TIMEZONE                    = var.timezone
+      DEFAULT_CUTOFF_TIME         = var.default_cutoff_time
+      WFH_MONTHLY_LIMIT           = var.wfh_monthly_limit
+      DISCORD_BOT_TOKEN           = var.discord_bot_token
+      DISCORD_APPLICATION_ID      = var.discord_application_id
+      AUTHORIZED_GUILD_ID         = var.discord_guild_id
+      ROLE_TEAM_LEAD_ID           = var.discord_role_team_lead_id
+      ROLE_ADMIN_ID               = var.discord_role_admin_id
+      GCHAT_AUDIENCE              = var.gchat_audience
+      GCHAT_AUTHORIZED_SPACE      = var.gchat_authorized_space
+      GCHAT_SERVICE_ACCOUNT_KEY   = var.gchat_service_account_key
     }
   }
 
