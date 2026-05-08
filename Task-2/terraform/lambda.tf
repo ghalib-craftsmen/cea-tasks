@@ -22,9 +22,16 @@ resource "aws_lambda_function" "discord_authorizer" {
   handler          = "app.discord_authorizer.handler"
   runtime          = var.lambda_runtime
   architectures    = [var.lambda_arch]
-  memory_size      = 512
-  timeout          = 5
+  memory_size      = 1024
+  timeout          = 10
   role             = aws_iam_role.lambda_exec.arn
+  layers           = [aws_lambda_layer_version.shared_deps.arn]
+
+  environment {
+    variables = {
+      DISCORD_PUBLIC_KEY = var.discord_public_key
+    }
+  }
 
   depends_on = [aws_cloudwatch_log_group.discord_authorizer]
 }
